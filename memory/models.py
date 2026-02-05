@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy import (
     Column,
     Integer,
+    BigInteger,
     String,
     Text,
     DateTime,
@@ -26,7 +27,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(Integer, unique=True, nullable=False, index=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=True)
     username = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
