@@ -1,10 +1,13 @@
 """
 Telegram bot handler for receiving and sending messages.
 Handles text messages, images, and commands.
+Also runs the proactive messaging scheduler.
 """
 
 import logging
 from typing import Optional
+from datetime import datetime
+import pytz
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -18,6 +21,7 @@ from config.settings import settings
 from agents import orchestrator
 from agents.companion_agent import CompanionAgent
 from memory.memory_manager_async import memory_manager
+from utils.llm_client import llm_client
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +29,37 @@ logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL)
 )
 logger = logging.getLogger(__name__)
+
+
+# Prompt for generating proactive check-in messages
+PROACTIVE_MESSAGE_PROMPT = """You're reaching out to someone you care about.
+
+You're not responding to them - you're initiating. This is a natural check-in, like a friend who remembered something they mentioned.
+
+What you know about them:
+{profile_context}
+
+What you're checking in about:
+{context}
+
+Last few messages (for context on how you two talk):
+{recent_history}
+
+---
+
+Write a SHORT, natural message. Like a text from a friend:
+- 1-2 sentences max
+- Casual, warm
+- Don't be formal or overly enthusiastic
+- Can use emoji sparingly if natural
+
+Examples of good check-ins:
+- "hey how'd the interview go?"
+- "did tony ever text back? 👀"
+- "thinking about you, hope the visit with your mom went okay"
+
+Just write the message, nothing else.
+"""
 
 
 class TelegramBot:
@@ -207,23 +242,23 @@ class TelegramBot:
             system = profile.get("system", {})
             onboarded = system.get("onboarding_complete", "false")
 
-            # Format profile for display
-            profile_str = ""
-            for category, facts in profile.items():
-                if category == "system":
-                    continue  # Skip system facts in display
-                if facts:
-                    profile_str += f"\n{category}:\n"
-                    for value in facts.values():
-                        profile_str += f"  - {value}\n"
+            # Count profile facts
+            fact_count = sum(len(facts) for cat, facts in profile.items() if cat != "system")
 
             response = (
+                f"🔧 Debug Info\n\n"
                 f"User ID: {user_id}\n"
                 f"Telegram ID: {telegram_id}\n"
                 f"Onboarded: {onboarded}\n"
                 f"Conversations: {conv_count}\n"
-                f"\nProfile:{profile_str if profile_str else ' (empty)'}"
+                f"Profile facts: {fact_count}\n\n"
+                f"Use /observations to see what I've learned about you.\n"
+                f"Use /scheduled to see pending follow-ups."
             )
+
+            # Telegram has 4096 char limit
+            if len(response) > 4000:
+                response = response[:4000] + "\n\n... (truncated)"
 
             await update.message.reply_text(response)
 
@@ -256,6 +291,89 @@ class TelegramBot:
             logger.error(f"Error in thinking command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
+    async def observations_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /observations command.
+        Shows recent profile observations for debugging.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+
+            # Get all profile facts
+            profile = await memory_manager.get_user_profile(user_id)
+
+            if not profile:
+                await update.message.reply_text("No observations stored yet.")
+                return
+
+            lines = ["🧠 Stored observations:\n"]
+            for category, facts in profile.items():
+                if category == "system":
+                    continue
+                if facts:
+                    lines.append(f"\n**{category}**:")
+                    for value in facts.values():
+                        # Show full value, truncate only if very long
+                        display_val = value[:200] + "..." if len(value) > 200 else value
+                        lines.append(f"  • {display_val}")
+
+            response = "\n".join(lines)
+            if len(response) > 4000:
+                response = response[:4000] + "\n\n... (truncated)"
+
+            await update.message.reply_text(response)
+
+        except Exception as e:
+            logger.error(f"Error in observations command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def scheduled_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /scheduled command.
+        Shows all scheduled messages (including future ones) for debugging.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+
+            # Get ALL scheduled messages for this user (not just due ones)
+            user_scheduled = await memory_manager.get_user_scheduled_messages(user_id)
+
+            if not user_scheduled:
+                await update.message.reply_text("No scheduled messages for you.")
+                return
+
+            tz = pytz.timezone(settings.TIMEZONE)
+            now = datetime.now(tz)
+
+            lines = ["📅 Scheduled messages:\n"]
+            for msg in user_scheduled:
+                # Make scheduled_time timezone-aware if it isn't
+                scheduled = msg.scheduled_time
+                if scheduled.tzinfo is None:
+                    scheduled = tz.localize(scheduled)
+
+                time_str = scheduled.strftime("%b %d, %I:%M %p")
+                # Show if it's due or upcoming
+                if scheduled <= now:
+                    status = "⏰ DUE"
+                else:
+                    status = "⏳"
+                lines.append(f"{status} {time_str}: {msg.context or msg.message_type}")
+
+            await update.message.reply_text("\n".join(lines))
+
+        except Exception as e:
+            logger.error(f"Error in scheduled command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
         Send a message to a user.
@@ -274,6 +392,123 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Failed to send message to {telegram_id}: {e}")
 
+    async def _generate_proactive_message(
+        self,
+        user_id: int,
+        context: str,
+    ) -> str:
+        """
+        Generate a natural proactive message using the companion's voice.
+
+        Args:
+            user_id: Internal user ID
+            context: What we're checking in about
+
+        Returns:
+            The generated message
+        """
+        try:
+            # Get user context
+            user_context = await memory_manager.get_user_context(user_id)
+
+            # Build profile context
+            profile_parts = []
+            if user_context.user_info.name:
+                profile_parts.append(f"Their name is {user_context.user_info.name}.")
+            if user_context.profile:
+                for category, facts in user_context.profile.items():
+                    if category == "system":
+                        continue
+                    for value in facts.values():
+                        profile_parts.append(f"- {value}")
+            profile_context = "\n".join(profile_parts) if profile_parts else "(You're still getting to know them)"
+
+            # Get recent conversation for tone matching
+            conversations = await memory_manager.db.get_recent_conversations(user_id, limit=10)
+            if conversations:
+                history_lines = []
+                for conv in conversations[-5:]:
+                    role = "Them" if conv.role == "user" else "You"
+                    history_lines.append(f"{role}: {conv.message}")
+                recent_history = "\n".join(history_lines)
+            else:
+                recent_history = "(No recent conversation)"
+
+            # Generate the message
+            prompt = PROACTIVE_MESSAGE_PROMPT.format(
+                profile_context=profile_context,
+                context=context,
+                recent_history=recent_history,
+            )
+
+            message = await llm_client.chat(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=100,
+            )
+
+            return message.strip()
+
+        except Exception as e:
+            logger.error(f"Failed to generate proactive message: {e}")
+            return None
+
+    async def _process_scheduled_messages(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Check for and process any pending scheduled messages.
+        This runs periodically via JobQueue.
+        """
+        try:
+            pending = await memory_manager.get_pending_scheduled_messages()
+
+            if not pending:
+                return
+
+            logger.info(f"Processing {len(pending)} pending scheduled messages")
+
+            for scheduled_msg in pending:
+                try:
+                    # Get user's telegram_id
+                    user = await memory_manager.get_user_by_id(scheduled_msg.user_id)
+                    if not user:
+                        logger.warning(f"User {scheduled_msg.user_id} not found, skipping")
+                        await memory_manager.mark_message_executed(scheduled_msg.id)
+                        continue
+
+                    # Generate the message
+                    message_text = await self._generate_proactive_message(
+                        user_id=scheduled_msg.user_id,
+                        context=scheduled_msg.context or "general check-in",
+                    )
+
+                    if message_text:
+                        # Send the message
+                        await self.send_message(user.telegram_id, message_text)
+
+                        # Store in conversation history
+                        await memory_manager.add_conversation(
+                            user_id=scheduled_msg.user_id,
+                            role="assistant",
+                            message=message_text,
+                            store_in_vector=True,
+                        )
+
+                        logger.info(
+                            f"Sent scheduled message to user {scheduled_msg.user_id}: {message_text[:50]}..."
+                        )
+
+                    # Mark as executed
+                    await memory_manager.mark_message_executed(scheduled_msg.id)
+
+                except Exception as e:
+                    logger.error(f"Failed to process scheduled message {scheduled_msg.id}: {e}")
+                    # Still mark as executed to avoid infinite retry
+                    await memory_manager.mark_message_executed(scheduled_msg.id)
+
+        except Exception as e:
+            logger.error(f"Error in scheduled message processor: {e}")
+
     def setup_handlers(self) -> None:
         """Set up message and command handlers."""
         # Command handlers
@@ -288,6 +523,12 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("thinking", self.thinking_command)
+        )
+        self.application.add_handler(
+            CommandHandler("observations", self.observations_command)
+        )
+        self.application.add_handler(
+            CommandHandler("scheduled", self.scheduled_command)
         )
 
         # Message handlers
@@ -312,6 +553,17 @@ class TelegramBot:
 
         # Set up handlers
         self.setup_handlers()
+
+        # Set up the proactive messaging scheduler
+        # Check for pending scheduled messages every 5 minutes
+        job_queue = self.application.job_queue
+        job_queue.run_repeating(
+            self._process_scheduled_messages,
+            interval=300,  # 5 minutes
+            first=60,  # Start after 1 minute
+            name="scheduled_message_processor",
+        )
+        logger.info("Proactive messaging scheduler configured (every 5 minutes)")
 
         # Start the bot
         logger.info("Starting Telegram bot...")

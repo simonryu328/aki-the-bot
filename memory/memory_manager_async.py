@@ -486,6 +486,21 @@ class AsyncMemoryManager:
         """
         return await self.db.get_pending_scheduled_messages()
 
+    async def get_user_scheduled_messages(
+        self, user_id: int, include_executed: bool = False
+    ) -> List[ScheduledMessageSchema]:
+        """
+        Get all scheduled messages for a user (including future ones).
+
+        Args:
+            user_id: User ID
+            include_executed: Whether to include already executed messages
+
+        Returns:
+            List of ScheduledMessageSchema
+        """
+        return await self.db.get_user_scheduled_messages(user_id, include_executed)
+
     async def mark_message_executed(self, message_id: int) -> None:
         """
         Mark a scheduled message as executed.

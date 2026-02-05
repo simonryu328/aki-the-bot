@@ -474,6 +474,34 @@ class AsyncDatabase:
             logger.error("Failed to get pending messages", error=str(e))
             raise DatabaseException(f"Failed to get pending messages: {e}")
 
+    async def get_user_scheduled_messages(
+        self, user_id: int, include_executed: bool = False
+    ) -> List[ScheduledMessageSchema]:
+        """Get all scheduled messages for a user (including future ones)."""
+        try:
+            async with self.get_session() as session:
+                if include_executed:
+                    result = await session.execute(
+                        select(ScheduledMessage)
+                        .where(ScheduledMessage.user_id == user_id)
+                        .order_by(ScheduledMessage.scheduled_time)
+                    )
+                else:
+                    result = await session.execute(
+                        select(ScheduledMessage)
+                        .where(
+                            ScheduledMessage.user_id == user_id,
+                            ScheduledMessage.executed == False,
+                        )
+                        .order_by(ScheduledMessage.scheduled_time)
+                    )
+                messages = result.scalars().all()
+                return [ScheduledMessageSchema.model_validate(m) for m in messages]
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get user scheduled messages", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to get user scheduled messages: {e}")
+
     async def mark_message_executed(self, message_id: int) -> None:
         """Mark a scheduled message as executed."""
         try:
@@ -490,6 +518,27 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to mark message executed", message_id=message_id, error=str(e))
             raise DatabaseException(f"Failed to mark message executed: {e}")
+
+    async def clear_scheduled_messages(self, user_id: int) -> int:
+        """Delete all pending scheduled messages for a user. Returns count deleted."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(
+                    select(ScheduledMessage).where(
+                        ScheduledMessage.user_id == user_id,
+                        ScheduledMessage.executed == False,
+                    )
+                )
+                messages = result.scalars().all()
+                count = len(messages)
+                for msg in messages:
+                    await session.delete(msg)
+                logger.info("Cleared scheduled messages", user_id=user_id, count=count)
+                return count
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to clear scheduled messages", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to clear scheduled messages: {e}")
 
 
 # Singleton instance
