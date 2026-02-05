@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from contextlib import contextmanager
 
+import pytz
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -406,12 +407,16 @@ class Database:
 
     def get_pending_scheduled_messages(self) -> List[ScheduledMessage]:
         """Get all pending scheduled messages that are due."""
+        # Use local timezone for comparison since scheduled times are stored in local time
+        tz = pytz.timezone(settings.TIMEZONE)
+        now_local = datetime.now(tz).replace(tzinfo=None)  # Naive local time for comparison
+
         with self.get_session() as session:
             messages = (
                 session.query(ScheduledMessage)
                 .filter(
                     ScheduledMessage.executed == False,
-                    ScheduledMessage.scheduled_time <= datetime.utcnow(),
+                    ScheduledMessage.scheduled_time <= now_local,
                 )
                 .all()
             )

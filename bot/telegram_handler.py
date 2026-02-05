@@ -195,9 +195,12 @@ class TelegramBot:
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
 
-            # Clear conversations and profile facts
+            # Clear all user data
             async with memory_manager.db.get_session() as session:
-                from memory.models import Conversation, ProfileFact
+                from memory.models import (
+                    Conversation, ProfileFact, ScheduledMessage,
+                    TimelineEvent, DiaryEntry
+                )
                 from sqlalchemy import delete
 
                 # Delete conversations
@@ -208,11 +211,23 @@ class TelegramBot:
                 await session.execute(
                     delete(ProfileFact).where(ProfileFact.user_id == user_id)
                 )
+                # Delete scheduled messages
+                await session.execute(
+                    delete(ScheduledMessage).where(ScheduledMessage.user_id == user_id)
+                )
+                # Delete timeline events
+                await session.execute(
+                    delete(TimelineEvent).where(TimelineEvent.user_id == user_id)
+                )
+                # Delete diary entries
+                await session.execute(
+                    delete(DiaryEntry).where(DiaryEntry.user_id == user_id)
+                )
                 await session.commit()
 
             logger.info(f"Reset complete for user {user_id}")
             await update.message.reply_text(
-                "Your data has been reset. Send /start to begin fresh onboarding."
+                "All your data has been reset. Send /start to begin fresh."
             )
 
         except Exception as e:
@@ -366,7 +381,14 @@ class TelegramBot:
                     status = "⏰ DUE"
                 else:
                     status = "⏳"
-                lines.append(f"{status} {time_str}: {msg.context or msg.message_type}")
+
+                # Show context and raw observation output if available
+                context_str = msg.context or msg.message_type
+                lines.append(f"{status} {time_str}: {context_str}")
+
+                # Show raw observation output for debugging
+                if msg.message:
+                    lines.append(f"   └─ Raw: {msg.message}")
 
             await update.message.reply_text("\n".join(lines))
 

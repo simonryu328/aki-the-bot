@@ -1,0 +1,314 @@
+{
+  "description": "Test scenarios for follow-up scheduling decisions",
+  "version": "1.0.0",
+
+  "explicit_requests": {
+    "description": "User explicitly asks for a reminder/check-in - MUST schedule",
+    "priority": "highest",
+    "scenarios": [
+      {
+        "id": "explicit_001",
+        "user_message": "text me at 8:40am tomorrow",
+        "should_schedule": true,
+        "expected_time_hint": "8:40am tomorrow",
+        "notes": "Direct time request"
+      },
+      {
+        "id": "explicit_002",
+        "user_message": "message me later tonight",
+        "should_schedule": true,
+        "expected_time_hint": "tonight",
+        "notes": "Vague but explicit request"
+      },
+      {
+        "id": "explicit_003",
+        "user_message": "remind me at 3pm",
+        "should_schedule": true,
+        "expected_time_hint": "3pm today",
+        "notes": "Same-day reminder"
+      },
+      {
+        "id": "explicit_004",
+        "user_message": "can you check in with me after my interview?",
+        "should_schedule": true,
+        "expected_time_hint": "after interview",
+        "notes": "Event-relative request"
+      },
+      {
+        "id": "explicit_005",
+        "user_message": "text me tomorrow morning please",
+        "should_schedule": true,
+        "expected_time_hint": "tomorrow morning",
+        "notes": "Polite request"
+      },
+      {
+        "id": "explicit_006",
+        "user_message": "hey can u message me in like 2 hours",
+        "should_schedule": true,
+        "expected_time_hint": "in 2 hours",
+        "notes": "Casual language"
+      }
+    ]
+  },
+
+  "upcoming_events": {
+    "description": "User mentions upcoming events - should follow up to check how it went",
+    "priority": "high",
+    "scenarios": [
+      {
+        "id": "event_001",
+        "user_message": "I have a job interview tomorrow at 2pm",
+        "should_schedule": true,
+        "expected_topic": "interview",
+        "expected_time_hint": "after 2pm tomorrow",
+        "notes": "Classic job interview scenario"
+      },
+      {
+        "id": "event_002",
+        "user_message": "my date is tonight at 7",
+        "should_schedule": true,
+        "expected_topic": "date",
+        "expected_time_hint": "tonight after 7pm or tomorrow",
+        "notes": "Personal event"
+      },
+      {
+        "id": "event_003",
+        "user_message": "doctor's appointment on Friday at 10am",
+        "should_schedule": true,
+        "expected_topic": "doctor appointment",
+        "expected_time_hint": "Friday afternoon",
+        "notes": "Medical appointment"
+      },
+      {
+        "id": "event_004",
+        "user_message": "flying to NYC next Tuesday",
+        "should_schedule": true,
+        "expected_topic": "trip",
+        "expected_time_hint": "Tuesday or Wednesday",
+        "notes": "Travel plans"
+      },
+      {
+        "id": "event_005",
+        "user_message": "big presentation at work on Monday morning",
+        "should_schedule": true,
+        "expected_topic": "presentation",
+        "expected_time_hint": "Monday afternoon",
+        "notes": "Work event"
+      },
+      {
+        "id": "event_006",
+        "user_message": "meeting my ex tomorrow to get my stuff back",
+        "should_schedule": true,
+        "expected_topic": "meeting",
+        "expected_time_hint": "tomorrow evening",
+        "notes": "Potentially stressful event"
+      },
+      {
+        "id": "event_007",
+        "user_message": "taking my driving test next week",
+        "should_schedule": true,
+        "expected_topic": "driving test",
+        "expected_time_hint": "next week",
+        "notes": "Important milestone"
+      }
+    ]
+  },
+
+  "waiting_for_resolution": {
+    "description": "User is waiting for news/results - follow up to check if they heard back",
+    "priority": "high",
+    "scenarios": [
+      {
+        "id": "waiting_001",
+        "user_message": "waiting to hear back from the company about the job",
+        "should_schedule": true,
+        "expected_topic": "job application",
+        "expected_time_hint": "in a few days",
+        "notes": "Job application follow-up"
+      },
+      {
+        "id": "waiting_002",
+        "user_message": "they said they'd call me today with the results",
+        "should_schedule": true,
+        "expected_topic": "results",
+        "expected_time_hint": "tonight or tomorrow",
+        "notes": "Same-day expected news"
+      },
+      {
+        "id": "waiting_003",
+        "user_message": "expecting my test results from the lab",
+        "should_schedule": true,
+        "expected_topic": "test results",
+        "expected_time_hint": "in a few days",
+        "notes": "Medical results"
+      },
+      {
+        "id": "waiting_004",
+        "user_message": "should find out about the apartment tomorrow",
+        "should_schedule": true,
+        "expected_topic": "apartment",
+        "expected_time_hint": "tomorrow evening",
+        "notes": "Housing decision"
+      },
+      {
+        "id": "waiting_005",
+        "user_message": "applied to 5 jobs this week, hoping to hear back soon",
+        "should_schedule": true,
+        "expected_topic": "job search",
+        "expected_time_hint": "next week",
+        "notes": "Bulk applications"
+      }
+    ]
+  },
+
+  "emotional_moments": {
+    "description": "Emotionally significant moments that may warrant a caring check-in",
+    "priority": "medium",
+    "scenarios": [
+      {
+        "id": "emotional_001",
+        "user_message": "I'm really nervous about tomorrow",
+        "should_schedule": true,
+        "expected_topic": "emotional check-in",
+        "notes": "Anxiety about future event"
+      },
+      {
+        "id": "emotional_002",
+        "user_message": "feeling pretty anxious about the whole situation",
+        "should_schedule": true,
+        "expected_topic": "emotional support",
+        "notes": "General anxiety"
+      },
+      {
+        "id": "emotional_003",
+        "user_message": "so excited for my birthday party this weekend!",
+        "should_schedule": true,
+        "expected_topic": "birthday",
+        "notes": "Positive excitement"
+      },
+      {
+        "id": "emotional_004",
+        "user_message": "kinda stressed about the deadline on Friday",
+        "should_schedule": true,
+        "expected_topic": "deadline",
+        "notes": "Work stress"
+      },
+      {
+        "id": "emotional_005",
+        "user_message": "had a fight with my best friend, feeling down",
+        "should_schedule": true,
+        "expected_topic": "friendship",
+        "notes": "Relationship conflict"
+      }
+    ]
+  },
+
+  "should_not_schedule": {
+    "description": "Casual/trivial messages that do NOT need follow-ups",
+    "priority": "none",
+    "scenarios": [
+      {
+        "id": "no_schedule_001",
+        "user_message": "how's the weather today?",
+        "should_schedule": false,
+        "reason": "Trivial question"
+      },
+      {
+        "id": "no_schedule_002",
+        "user_message": "thanks!",
+        "should_schedule": false,
+        "reason": "Simple acknowledgment"
+      },
+      {
+        "id": "no_schedule_003",
+        "user_message": "ok cool",
+        "should_schedule": false,
+        "reason": "Casual response"
+      },
+      {
+        "id": "no_schedule_004",
+        "user_message": "lol",
+        "should_schedule": false,
+        "reason": "Reaction"
+      },
+      {
+        "id": "no_schedule_005",
+        "user_message": "good morning",
+        "should_schedule": false,
+        "reason": "Greeting"
+      },
+      {
+        "id": "no_schedule_006",
+        "user_message": "I had a good lunch today",
+        "should_schedule": false,
+        "reason": "Mundane past event"
+      },
+      {
+        "id": "no_schedule_007",
+        "user_message": "just finished watching a movie",
+        "should_schedule": false,
+        "reason": "Completed activity, no follow-up needed"
+      },
+      {
+        "id": "no_schedule_008",
+        "user_message": "the coffee was nice this morning",
+        "should_schedule": false,
+        "reason": "Trivial observation"
+      },
+      {
+        "id": "no_schedule_009",
+        "user_message": "what's 2 + 2?",
+        "should_schedule": false,
+        "reason": "Simple question"
+      },
+      {
+        "id": "no_schedule_010",
+        "user_message": "tell me a joke",
+        "should_schedule": false,
+        "reason": "Entertainment request"
+      }
+    ]
+  },
+
+  "edge_cases": {
+    "description": "Ambiguous or tricky scenarios",
+    "scenarios": [
+      {
+        "id": "edge_001",
+        "user_message": "I might have an interview next week, not sure yet",
+        "should_schedule": "maybe",
+        "notes": "Uncertain future event - could schedule tentatively"
+      },
+      {
+        "id": "edge_002",
+        "user_message": "thinking about applying for a new job",
+        "should_schedule": false,
+        "notes": "Just thinking, no concrete action yet"
+      },
+      {
+        "id": "edge_003",
+        "user_message": "my interview was yesterday, it went well",
+        "should_schedule": false,
+        "notes": "Past event already resolved"
+      },
+      {
+        "id": "edge_004",
+        "user_message": "don't text me tomorrow, I'll be busy",
+        "should_schedule": false,
+        "notes": "User explicitly asked NOT to be contacted"
+      },
+      {
+        "id": "edge_005",
+        "user_message": "I have meetings every Monday",
+        "should_schedule": false,
+        "notes": "Recurring routine, not a one-time event"
+      },
+      {
+        "id": "edge_006",
+        "user_message": "remind me about... actually never mind",
+        "should_schedule": false,
+        "notes": "User changed their mind"
+      }
+    ]
+  }
+}

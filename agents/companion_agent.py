@@ -147,22 +147,28 @@ Otherwise, respond with any combination of:
 OBSERVATION: [category] | [what you learned]
 Categories: identity, relationships, emotions, circumstances, patterns, growth
 
-FOLLOW_UP: [when] | [topic] | [context]
-When: Specify when to check in. Use either:
-  - ISO format: YYYY-MM-DDTHH:MM (e.g., 2026-02-05T10:00)
-  - Natural language: "tomorrow at 10am", "in 3 hours", "next tuesday evening"
-Think about the RIGHT time - usually shortly after an event ends, or when they'd have news.
-Topic: short label (e.g., "interview", "tony", "doctor appointment")
-Context: brief note for generating the check-in message
+FOLLOW_UP: [ISO datetime] | [topic] | [context]
+When: ALWAYS use ISO 8601 format: YYYY-MM-DDTHH:MM
+  **IMPORTANT: Current time is {current_time} - you MUST calculate from this exact time**
 
-Examples:
+  For RELATIVE times (in X minutes/hours), ADD to the current time:
+  - "in 10 minutes" at 12:57 → add 10 min → 13:07 → output 2026-02-05T13:07
+  - "in 2 hours" at 14:30 → add 2 hrs → 16:30 → output 2026-02-05T16:30
+  - "in 30 minutes" at 09:45 → add 30 min → 10:15 → output 2026-02-05T10:15
+
+  For ABSOLUTE times, use the time they specified:
+  - "at 8pm tonight" → 2026-02-05T20:00
+  - "tomorrow at 9am" → 2026-02-06T09:00
+  - "tomorrow evening" → 2026-02-06T19:00
+
+Topic: short label (e.g., "interview", "reminder", "check-in")
+Context: brief note for generating the message
+
+Examples (assuming current time is 2026-02-05 14:30):
 OBSERVATION: emotions | They carry deep self-doubt, especially before taking risks
-OBSERVATION: relationships | Their father's words still affect how they see themselves
-FOLLOW_UP: 2026-02-05T10:00 | interview | they have a job interview at 9am, check in after
-FOLLOW_UP: tomorrow at 6pm | tony | waiting to hear back from tony, give it a day
-FOLLOW_UP: in 2 hours | doctor | at the doctor now, check how it went
-FOLLOW_UP: tonight at 9:30pm | requested check-in | they asked me to text them at this time
-FOLLOW_UP: 8:40am | requested message | they asked me to message them at 8:40am because they're busy
+FOLLOW_UP: 2026-02-05T14:40 | requested reminder | they asked to be reminded in 10 minutes
+FOLLOW_UP: 2026-02-05T16:30 | doctor | at the doctor now, check in after (in ~2 hours)
+FOLLOW_UP: 2026-02-06T09:00 | interview | they have a job interview at 9am tomorrow
 """
 
 
@@ -488,12 +494,14 @@ class CompanionAgent:
 
                             scheduled_time = self._parse_when_to_datetime(when)
 
-                            # Store as scheduled message
+                            # Store as scheduled message with raw observation format
+                            raw_line = f"FOLLOW_UP: {when} | {topic} | {context}"
                             await self.memory.add_scheduled_message(
                                 user_id=user_id,
                                 scheduled_time=scheduled_time,
                                 message_type="follow_up",
                                 context=f"{topic}: {context}",
+                                message=raw_line,  # Store raw observation output
                             )
                             logger.info(
                                 "Scheduled follow-up",

@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import List, Optional, AsyncIterator, Dict, Any
 
+import pytz
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -458,12 +460,16 @@ class AsyncDatabase:
     async def get_pending_scheduled_messages(self) -> List[ScheduledMessageSchema]:
         """Get all pending scheduled messages that are due."""
         try:
+            # Use local timezone for comparison since scheduled times are stored in local time
+            tz = pytz.timezone(settings.TIMEZONE)
+            now_local = datetime.now(tz).replace(tzinfo=None)  # Naive local time for comparison
+
             async with self.get_session() as session:
                 result = await session.execute(
                     select(ScheduledMessage)
                     .where(
                         ScheduledMessage.executed == False,
-                        ScheduledMessage.scheduled_time <= datetime.utcnow(),
+                        ScheduledMessage.scheduled_time <= now_local,
                     )
                     .order_by(ScheduledMessage.scheduled_time)
                 )
