@@ -18,4 +18,5 @@ dependencies = [
     "tenacity>=8.2.3",
     "pytz>=2025.2",
     "dateparser>=1.3.0",
+    "watchdog>=6.0.0",
 ]

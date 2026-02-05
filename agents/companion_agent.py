@@ -132,7 +132,7 @@ Only note things that carry WEIGHT. Not mundane facts. Things like:
 
 2. FOLLOW-UPS - Things a caring friend would check in about later
 A good friend remembers what's happening in your life and asks about it. Look for:
-- EXPLICIT REQUESTS: If they asked you to text/check in at a specific time, ALWAYS schedule it
+- **EXPLICIT REQUESTS (HIGHEST PRIORITY)**: If they asked you to message/text/check in at a specific time, you MUST schedule it. Examples: "text me at 8:40am", "message me later tonight", "remind me at 3pm", "can you check in tomorrow morning"
 - Upcoming events (interviews, dates, meetings, trips)
 - Situations waiting for resolution (waiting to hear back, expecting news)
 - Emotional moments that deserve a check-in
@@ -162,6 +162,7 @@ FOLLOW_UP: 2026-02-05T10:00 | interview | they have a job interview at 9am, chec
 FOLLOW_UP: tomorrow at 6pm | tony | waiting to hear back from tony, give it a day
 FOLLOW_UP: in 2 hours | doctor | at the doctor now, check how it went
 FOLLOW_UP: tonight at 9:30pm | requested check-in | they asked me to text them at this time
+FOLLOW_UP: 8:40am | requested message | they asked me to message them at 8:40am because they're busy
 """
 
 

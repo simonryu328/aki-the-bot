@@ -501,6 +501,18 @@ class AsyncMemoryManager:
         """
         return await self.db.get_user_scheduled_messages(user_id, include_executed)
 
+    async def clear_scheduled_messages(self, user_id: int) -> int:
+        """
+        Delete all pending scheduled messages for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Number of messages deleted
+        """
+        return await self.db.clear_scheduled_messages(user_id)
+
     async def mark_message_executed(self, message_id: int) -> None:
         """
         Mark a scheduled message as executed.

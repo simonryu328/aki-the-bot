@@ -6,7 +6,7 @@ Also runs the proactive messaging scheduler.
 
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from telegram import Update
 from telegram.ext import (
@@ -374,6 +374,25 @@ class TelegramBot:
             logger.error(f"Error in scheduled command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
+    async def clearscheduled_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /clearscheduled command.
+        Clears all pending scheduled messages for the user (debugging).
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+
+            count = await memory_manager.clear_scheduled_messages(user_id)
+            await update.message.reply_text(f"🗑️ Cleared {count} scheduled message(s).")
+
+        except Exception as e:
+            logger.error(f"Error in clearscheduled command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
         Send a message to a user.
@@ -467,8 +486,28 @@ class TelegramBot:
 
             logger.info(f"Processing {len(pending)} pending scheduled messages")
 
+            tz = pytz.timezone(settings.TIMEZONE)
+            now = datetime.now(tz)
+            stale_threshold = timedelta(hours=1)  # Skip messages more than 1 hour old
+            sent_to_users = set()  # Rate limit: max 1 message per user per cycle
+
             for scheduled_msg in pending:
                 try:
+                    # Check if message is stale (more than 1 hour past scheduled time)
+                    scheduled_time = scheduled_msg.scheduled_time
+                    if scheduled_time.tzinfo is None:
+                        scheduled_time = tz.localize(scheduled_time)
+
+                    if now - scheduled_time > stale_threshold:
+                        logger.info(f"Skipping stale message {scheduled_msg.id} (scheduled for {scheduled_time})")
+                        await memory_manager.mark_message_executed(scheduled_msg.id)
+                        continue
+
+                    # Rate limit: only send one message per user per cycle
+                    if scheduled_msg.user_id in sent_to_users:
+                        logger.debug(f"Rate limiting: already sent to user {scheduled_msg.user_id} this cycle")
+                        continue  # Don't mark as executed - try again next cycle
+
                     # Get user's telegram_id
                     user = await memory_manager.get_user_by_id(scheduled_msg.user_id)
                     if not user:
@@ -485,6 +524,7 @@ class TelegramBot:
                     if message_text:
                         # Send the message
                         await self.send_message(user.telegram_id, message_text)
+                        sent_to_users.add(scheduled_msg.user_id)
 
                         # Store in conversation history
                         await memory_manager.add_conversation(
@@ -529,6 +569,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("scheduled", self.scheduled_command)
+        )
+        self.application.add_handler(
+            CommandHandler("clearscheduled", self.clearscheduled_command)
         )
 
         # Message handlers
