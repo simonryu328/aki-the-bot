@@ -418,11 +418,12 @@ class TelegramBot:
             # Get recent conversations
             recent_convos = await memory_manager.db.get_recent_conversations(user_id, limit=30)
 
-            # Format conversations
+            # Format conversations with timestamps
             convo_lines = []
             for conv in recent_convos:
                 role = "Them" if conv.role == "user" else "You"
-                convo_lines.append(f"{role}: {conv.message}")
+                ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+                convo_lines.append(f"[{ts}] {role}: {conv.message}")
             conversations_text = "\n".join(convo_lines) if convo_lines else "(No recent conversations)"
 
             # Get recent observations
@@ -509,7 +510,8 @@ class TelegramBot:
                 history_lines = []
                 for conv in conversations[-5:]:
                     role = "Them" if conv.role == "user" else "You"
-                    history_lines.append(f"{role}: {conv.message}")
+                    ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+                    history_lines.append(f"[{ts}] {role}: {conv.message}")
                 recent_history = "\n".join(history_lines)
             else:
                 recent_history = "(No recent conversation)"

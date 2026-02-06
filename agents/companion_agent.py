@@ -172,14 +172,15 @@ class CompanionAgent:
         return "\n".join(parts)
 
     def _format_history(self, conversations: List[ConversationSchema]) -> str:
-        """Format conversation history."""
+        """Format conversation history with timestamps."""
         if not conversations:
             return "(This is the beginning of your conversation.)"
 
         lines = []
         for conv in conversations[-20:]:  # Last 20 messages
             role = "Them" if conv.role == "user" else "You"
-            lines.append(f"{role}: {conv.message}")
+            ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+            lines.append(f"[{ts}] {role}: {conv.message}")
 
         return "\n".join(lines)
 
@@ -287,9 +288,34 @@ class CompanionAgent:
             now = datetime.now(tz)
             current_time = now.strftime("%Y-%m-%d %H:%M (%A)")
 
+            # Get pending follow-ups so LLM knows what's already scheduled
+            pending = await self.memory.get_user_scheduled_messages(user_id)
+            if pending:
+                pending_lines = []
+                for msg in pending:
+                    scheduled = msg.scheduled_time.strftime("%Y-%m-%d %H:%M")
+                    pending_lines.append(f"- {scheduled}: {msg.context}")
+                pending_followups = "\n".join(pending_lines)
+            else:
+                pending_followups = "(none)"
+
+            # Get recent conversation for context (last 10 messages = ~5 exchanges)
+            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=10)
+            if recent_convos:
+                convo_lines = []
+                for conv in recent_convos:
+                    role = "Them" if conv.role == "user" else "You"
+                    ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+                    convo_lines.append(f"[{ts}] {role}: {conv.message}")
+                recent_conversation = "\n".join(convo_lines)
+            else:
+                recent_conversation = "(No prior conversation)"
+
             prompt = OBSERVATION_PROMPT.format(
                 current_time=current_time,
                 profile_context=profile_context,
+                pending_followups=pending_followups,
+                recent_conversation=recent_conversation,
                 user_message=user_message,
                 assistant_response=assistant_response,
                 thinking=thinking,

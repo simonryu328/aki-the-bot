@@ -484,7 +484,7 @@ class AsyncMemoryManager:
         message_type: str,
         context: Optional[str] = None,
         message: Optional[str] = None,
-    ) -> Optional[ScheduledMessageSchema]:
+    ) -> ScheduledMessageSchema:
         """
         Add a scheduled message to the intent queue.
 
@@ -496,7 +496,7 @@ class AsyncMemoryManager:
             message: Pre-generated message (optional)
 
         Returns:
-            ScheduledMessageSchema with stored message, or None if duplicate skipped
+            ScheduledMessageSchema with stored message
 
         Raises:
             MemoryException: If storage fails
@@ -505,10 +505,7 @@ class AsyncMemoryManager:
             scheduled_msg = await self.db.add_scheduled_message(
                 user_id, scheduled_time, message_type, context, message
             )
-            if scheduled_msg:
-                logger.info("Scheduled message", user_id=user_id, scheduled_time=scheduled_time.isoformat())
-            else:
-                logger.debug("Skipped duplicate scheduled message", user_id=user_id, context=context)
+            logger.info("Scheduled message", user_id=user_id, scheduled_time=scheduled_time.isoformat())
             return scheduled_msg
 
         except Exception as e:

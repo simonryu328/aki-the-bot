@@ -477,40 +477,10 @@ class AsyncDatabase:
         message_type: str,
         context: Optional[str] = None,
         message: Optional[str] = None,
-    ) -> Optional[ScheduledMessageSchema]:
-        """
-        Add a scheduled message to the intent queue.
-
-        Skips if a similar pending message already exists (same user + similar context).
-        Returns None if skipped due to duplicate.
-        """
+    ) -> ScheduledMessageSchema:
+        """Add a scheduled message to the intent queue."""
         try:
             async with self.get_session() as session:
-                # Check for existing pending message with similar context
-                if context:
-                    # Extract topic from context (first few words) for comparison
-                    context_key = context.lower().split()[:3]  # First 3 words
-                    context_pattern = " ".join(context_key)
-
-                    result = await session.execute(
-                        select(ScheduledMessage)
-                        .where(
-                            ScheduledMessage.user_id == user_id,
-                            ScheduledMessage.executed == False,
-                            ScheduledMessage.context.ilike(f"%{context_pattern}%"),
-                        )
-                    )
-                    existing = result.scalars().first()
-
-                    if existing:
-                        logger.debug(
-                            "Skipping duplicate scheduled message",
-                            user_id=user_id,
-                            context=context,
-                            existing_id=existing.id,
-                        )
-                        return None
-
                 scheduled_msg = ScheduledMessage(
                     user_id=user_id,
                     scheduled_time=scheduled_time,

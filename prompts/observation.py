@@ -11,7 +11,13 @@ Current time: {current_time}
 What you already know about them:
 {profile_context}
 
-The exchange:
+Already scheduled follow-ups (DO NOT duplicate these):
+{pending_followups}
+
+Recent conversation:
+{recent_conversation}
+
+This exchange (most recent):
 User: {user_message}
 You responded: {assistant_response}
 
