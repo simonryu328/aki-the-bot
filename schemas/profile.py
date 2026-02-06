@@ -38,6 +38,7 @@ class ProfileFactSchema(ProfileFactBaseSchema):
 
     id: int = Field(..., description="Profile fact ID")
     user_id: int = Field(..., description="User ID")
+    observed_at: datetime = Field(..., description="When this was first observed")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
     model_config = ConfigDict(from_attributes=True)

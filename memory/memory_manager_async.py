@@ -300,6 +300,41 @@ class AsyncMemoryManager:
         """
         return await self.db.get_user_profile(user_id)
 
+    async def get_recent_observations(
+        self, user_id: int, days: int = 7
+    ) -> List[ProfileFactSchema]:
+        """
+        Get recent observations for a user with timestamps.
+
+        Args:
+            user_id: User ID
+            days: Number of days to look back (default 7)
+
+        Returns:
+            List of ProfileFactSchema with observed_at timestamps
+        """
+        return await self.db.get_recent_observations(user_id, days)
+
+    async def get_observations_with_dates(
+        self, user_id: int, limit: int = 100
+    ) -> List[str]:
+        """
+        Get observations formatted with dates for diary/summary generation.
+
+        Args:
+            user_id: User ID
+            limit: Maximum observations to return
+
+        Returns:
+            List of strings like "[2026-02-05] emotions: He's been struggling..."
+        """
+        observations = await self.db.get_all_observations(user_id, limit)
+        formatted = []
+        for obs in observations:
+            date_str = obs.observed_at.strftime("%Y-%m-%d")
+            formatted.append(f"[{date_str}] {obs.category}: {obs.value}")
+        return formatted
+
     # ==================== Timeline Events ====================
 
     async def add_timeline_event(
@@ -449,7 +484,7 @@ class AsyncMemoryManager:
         message_type: str,
         context: Optional[str] = None,
         message: Optional[str] = None,
-    ) -> ScheduledMessageSchema:
+    ) -> Optional[ScheduledMessageSchema]:
         """
         Add a scheduled message to the intent queue.
 
@@ -461,7 +496,7 @@ class AsyncMemoryManager:
             message: Pre-generated message (optional)
 
         Returns:
-            ScheduledMessageSchema with stored message
+            ScheduledMessageSchema with stored message, or None if duplicate skipped
 
         Raises:
             MemoryException: If storage fails
@@ -470,7 +505,10 @@ class AsyncMemoryManager:
             scheduled_msg = await self.db.add_scheduled_message(
                 user_id, scheduled_time, message_type, context, message
             )
-            logger.info("Scheduled message", user_id=user_id, scheduled_time=scheduled_time.isoformat())
+            if scheduled_msg:
+                logger.info("Scheduled message", user_id=user_id, scheduled_time=scheduled_time.isoformat())
+            else:
+                logger.debug("Skipped duplicate scheduled message", user_id=user_id, context=context)
             return scheduled_msg
 
         except Exception as e:

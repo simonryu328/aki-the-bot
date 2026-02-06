@@ -45,16 +45,17 @@ class User(Base):
 
 
 class ProfileFact(Base):
-    """Profile facts - stores knowledge about the user."""
+    """Profile facts - stores observations about the user."""
 
     __tablename__ = "profile_facts"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    category = Column(String(100), nullable=False, index=True)  # e.g., "basic_info", "preferences", "relationships"
-    key = Column(String(255), nullable=False)  # e.g., "job", "favorite_food", "best_friend"
-    value = Column(Text, nullable=False)
-    confidence = Column(Float, default=1.0)  # 0.0 to 1.0, how confident we are about this fact
+    category = Column(String(100), nullable=False, index=True)  # e.g., "emotions", "patterns", "relationships"
+    key = Column(String(255), nullable=False)  # hash of content for dedup
+    value = Column(Text, nullable=False)  # the observation itself
+    confidence = Column(Float, default=1.0)  # 0.0 to 1.0
+    observed_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)  # when this was first observed
     updated_at = Column(DateTime, default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow(), nullable=False)
 
     # Relationships

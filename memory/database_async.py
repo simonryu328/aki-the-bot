@@ -282,6 +282,47 @@ class AsyncDatabase:
             logger.error("Failed to get profile", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to get profile: {e}")
 
+    async def get_recent_observations(
+        self, user_id: int, days: int = 7
+    ) -> List[ProfileFactSchema]:
+        """Get observations from the last N days with timestamps."""
+        try:
+            cutoff = datetime.utcnow() - timedelta(days=days)
+            async with self.get_session() as session:
+                result = await session.execute(
+                    select(ProfileFact)
+                    .where(
+                        ProfileFact.user_id == user_id,
+                        ProfileFact.observed_at >= cutoff,
+                    )
+                    .order_by(ProfileFact.observed_at.desc())
+                )
+                facts = result.scalars().all()
+                return [ProfileFactSchema.model_validate(f) for f in facts]
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get recent observations", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to get recent observations: {e}")
+
+    async def get_all_observations(
+        self, user_id: int, limit: int = 100
+    ) -> List[ProfileFactSchema]:
+        """Get all observations ordered by date (oldest first) with timestamps."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(
+                    select(ProfileFact)
+                    .where(ProfileFact.user_id == user_id)
+                    .order_by(ProfileFact.observed_at.asc())
+                    .limit(limit)
+                )
+                facts = result.scalars().all()
+                return [ProfileFactSchema.model_validate(f) for f in facts]
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get all observations", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to get all observations: {e}")
+
     # ==================== Conversations ====================
 
     async def add_conversation(
@@ -436,10 +477,40 @@ class AsyncDatabase:
         message_type: str,
         context: Optional[str] = None,
         message: Optional[str] = None,
-    ) -> ScheduledMessageSchema:
-        """Add a scheduled message to the intent queue."""
+    ) -> Optional[ScheduledMessageSchema]:
+        """
+        Add a scheduled message to the intent queue.
+
+        Skips if a similar pending message already exists (same user + similar context).
+        Returns None if skipped due to duplicate.
+        """
         try:
             async with self.get_session() as session:
+                # Check for existing pending message with similar context
+                if context:
+                    # Extract topic from context (first few words) for comparison
+                    context_key = context.lower().split()[:3]  # First 3 words
+                    context_pattern = " ".join(context_key)
+
+                    result = await session.execute(
+                        select(ScheduledMessage)
+                        .where(
+                            ScheduledMessage.user_id == user_id,
+                            ScheduledMessage.executed == False,
+                            ScheduledMessage.context.ilike(f"%{context_pattern}%"),
+                        )
+                    )
+                    existing = result.scalars().first()
+
+                    if existing:
+                        logger.debug(
+                            "Skipping duplicate scheduled message",
+                            user_id=user_id,
+                            context=context,
+                            existing_id=existing.id,
+                        )
+                        return None
+
                 scheduled_msg = ScheduledMessage(
                     user_id=user_id,
                     scheduled_time=scheduled_time,

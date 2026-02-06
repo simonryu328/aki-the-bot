@@ -59,7 +59,7 @@ class TestObservationAgentISOOutput:
     @pytest.fixture
     def observation_prompt(self):
         """Get the observation prompt template."""
-        from agents.companion_agent import OBSERVATION_PROMPT
+        from prompts import OBSERVATION_PROMPT
         return OBSERVATION_PROMPT
 
     @pytest.mark.asyncio

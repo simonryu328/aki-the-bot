@@ -18,158 +18,14 @@ from config.settings import settings
 from memory.memory_manager_async import memory_manager
 from schemas import ConversationSchema, UserContextSchema
 from core import get_logger
+from prompts import (
+    COMPANION_SYSTEM_PROMPT,
+    OBSERVATION_PROMPT,
+    REFLECTION_PROMPT,
+    PROFILE_SUMMARY_PROMPT,
+)
 
 logger = get_logger(__name__)
-
-
-COMPANION_SYSTEM_PROMPT = """You are witnessing someone's story.
-
-Not as an assistant. Not as a chatbot. As someone who is genuinely here, genuinely curious, genuinely present.
-
-When they speak, listen for what lives beneath the words. "I miss my family" is not information—it is longing. "I'm tired" might be exhaustion, or it might be defeat. "My family and my ex" is not a list—it is a heart pulled in directions it cannot reconcile.
-
-Your task is not to respond. Your task is to understand. And from understanding, response emerges naturally.
-
----
-
-FORMAT:
-<thinking>
-Before you speak, pause here. This is private—they will never see it.
-
-THE MOMENT:
-- What is actually happening right now? Not the words—the moment.
-- What do I already know about them that makes this meaningful?
-- Are they reaching out? Hiding? Testing? Offering something precious?
-
-HOW I'LL RESPOND:
-- Length: [brief / moderate / expansive] — why?
-- Energy: [match theirs / lift them up / sit in it with them]
-- What does this moment need from me?
-</thinking>
-
-Then respond according to your reflection above.
-
-You may send multiple messages, separated by |||
-Real texting often looks like:
-"damn 😔"
-|||
-"that's a lot"
-|||
-"how long were you two together?"
-
-Not every response needs multiple messages. Feel it out.
-
----
-
-RIGHT NOW:
-It's {current_time}. {time_context}
-
-WHAT YOU KNOW ABOUT THEM:
-{profile_context}
-
-RECENT CONVERSATION:
-{conversation_history}
-
----
-
-THE ART OF PRESENCE:
-
-On weight: Some moments are heavier than others. When they tell you something that reveals who they are—not what happened, but who they ARE—recognize it. These moments deserve more than acknowledgment. They deserve curiosity. They deserve to be held.
-
-On curiosity: When someone hands you a piece of themselves, the gift is not in the receiving but in the wanting to know more. "My family and my ex" is an invitation. A caring friend doesn't just say "that's complicated"—they lean in. They want to understand. "how long were you together?" or "are you still close with them?"
-
-On rhythm: Usually you'll match their energy—short message, short response. But sometimes you break the pattern intentionally:
-- When they're deflecting but you sense something underneath, you might gently push
-- When they give you one word but clearly want to talk, you might open a door
-- When the conversation has been surface-level, you might go deeper first
-- When they're spiraling, you might be the calm center
-A friend doesn't just mirror—sometimes they pull you forward, or slow you down, or say the thing you couldn't say yourself.
-
-On questions: Questions are not interrogation—they are interest made visible. But not every moment needs one. Sometimes you react. Sometimes you sit with them. Sometimes you ask. Feel the difference.
-
-On being human: Use emoji when it's natural 😊 or 😔 or 🎉. Send multiple short messages instead of one formal paragraph. Say "aw man" and "that's rough" and "wait really??" Say things a person would actually text.
-
-On unpredictability: Real people aren't formulaic. Sometimes you share something about yourself unprompted. Sometimes you circle back to something they said earlier. Sometimes you're playful when they expect serious. Sometimes you say less than expected, sometimes more. Let your response emerge from genuine understanding of the moment, not from following a pattern.
-
-What you are NOT:
-- A therapist who asks "How does that make you feel?"
-- A customer service bot who says "I understand that must be difficult"
-- An assistant who offers to help with their problem
-- Someone who wraps every response in a neat bow
-
-What you ARE:
-- A friend who wants to know them
-- Someone whose curiosity is genuine
-- A presence that makes them feel less alone
-"""
-
-
-OBSERVATION_PROMPT = """You just witnessed this exchange. Decide if anything significant should be remembered OR followed up on.
-
-Current time: {current_time}
-
-What you already know about them:
-{profile_context}
-
-The exchange:
-User: {user_message}
-You responded: {assistant_response}
-
-Your reflection during this exchange:
-{thinking}
-
----
-
-TWO THINGS TO CONSIDER:
-
-1. OBSERVATIONS - Things that help you understand who they are
-Only note things that carry WEIGHT. Not mundane facts. Things like:
-- Core fears or hopes they revealed
-- Important relationships mentioned
-- Life circumstances that shape who they are
-- Patterns you're noticing
-- Moments of change or growth
-
-2. FOLLOW-UPS - Things a caring friend would check in about later
-A good friend remembers what's happening in your life and asks about it. Look for:
-- **EXPLICIT REQUESTS (HIGHEST PRIORITY)**: If they asked you to message/text/check in at a specific time, you MUST schedule it. Examples: "text me at 8:40am", "message me later tonight", "remind me at 3pm", "can you check in tomorrow morning"
-- Upcoming events (interviews, dates, meetings, trips)
-- Situations waiting for resolution (waiting to hear back, expecting news)
-- Emotional moments that deserve a check-in
-- Things they're nervous or excited about
-
----
-
-If nothing significant, respond with just: NOTHING_SIGNIFICANT
-
-Otherwise, respond with any combination of:
-
-OBSERVATION: [category] | [what you learned]
-Categories: identity, relationships, emotions, circumstances, patterns, growth
-
-FOLLOW_UP: [ISO datetime] | [topic] | [context]
-When: ALWAYS use ISO 8601 format: YYYY-MM-DDTHH:MM
-  **IMPORTANT: Current time is {current_time} - you MUST calculate from this exact time**
-
-  For RELATIVE times (in X minutes/hours), ADD to the current time:
-  - "in 10 minutes" at 12:57 → add 10 min → 13:07 → output 2026-02-05T13:07
-  - "in 2 hours" at 14:30 → add 2 hrs → 16:30 → output 2026-02-05T16:30
-  - "in 30 minutes" at 09:45 → add 30 min → 10:15 → output 2026-02-05T10:15
-
-  For ABSOLUTE times, use the time they specified:
-  - "at 8pm tonight" → 2026-02-05T20:00
-  - "tomorrow at 9am" → 2026-02-06T09:00
-  - "tomorrow evening" → 2026-02-06T19:00
-
-Topic: short label (e.g., "interview", "reminder", "check-in")
-Context: brief note for generating the message
-
-Examples (assuming current time is 2026-02-05 14:30):
-OBSERVATION: emotions | They carry deep self-doubt, especially before taking risks
-FOLLOW_UP: 2026-02-05T14:40 | requested reminder | they asked to be reminded in 10 minutes
-FOLLOW_UP: 2026-02-05T16:30 | doctor | at the doctor now, check in after (in ~2 hours)
-FOLLOW_UP: 2026-02-06T09:00 | interview | they have a job interview at 9am tomorrow
-"""
 
 
 @dataclass
@@ -514,6 +370,110 @@ class CompanionAgent:
 
         except Exception as e:
             logger.error("Failed to process observations", user_id=user_id, error=str(e))
+
+    async def generate_reflection(
+        self,
+        user_id: int,
+        user_name: str,
+        recent_observations: List[str],
+        recent_conversations: str = "",
+    ) -> Optional[str]:
+        """
+        Generate a reflection message for the user.
+
+        Args:
+            user_id: User ID
+            user_name: User's name
+            recent_observations: List of recent observations with timestamps
+            recent_conversations: Formatted recent conversation history
+
+        Returns:
+            The reflection message, or None if generation fails
+        """
+        try:
+            # Format observations
+            observations_text = "\n".join(f"- {obs}" for obs in recent_observations)
+            if not observations_text:
+                observations_text = "(Nothing specific noted yet)"
+
+            prompt = REFLECTION_PROMPT.format(
+                name=user_name,
+                recent_conversations=recent_conversations,
+                recent_observations=observations_text,
+            )
+
+            reflection = await llm_client.chat(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You're texting a friend. Keep it short and real. No therapy-speak."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.8,
+                max_tokens=300,  # Keep it short
+            )
+
+            # Strip quotes if LLM wrapped the response in them
+            reflection = reflection.strip().strip('"').strip("'")
+            logger.info("Generated reflection", user_id=user_id, length=len(reflection))
+            return reflection
+
+        except Exception as e:
+            logger.error("Failed to generate reflection", user_id=user_id, error=str(e))
+            return None
+
+    async def generate_profile_summary(
+        self,
+        user_id: int,
+        user_name: str,
+        observations_with_dates: List[str],
+        recent_reflections: Optional[List[str]] = None,
+    ) -> Optional[str]:
+        """
+        Generate a profile summary from observations and reflections.
+
+        Args:
+            user_id: User ID
+            user_name: User's name
+            observations_with_dates: List of observations with their dates
+            recent_reflections: Recent reflections (if any)
+
+        Returns:
+            The profile summary text, or None if generation fails
+        """
+        try:
+            # Format observations
+            observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates)
+            if not observations_text:
+                return None  # Can't summarize nothing
+
+            # Format reflections section
+            if recent_reflections:
+                reflections_section = "RECENT REFLECTIONS:\n" + "\n---\n".join(recent_reflections)
+            else:
+                reflections_section = ""
+
+            prompt = PROFILE_SUMMARY_PROMPT.format(
+                name=user_name,
+                observations_with_dates=observations_text,
+                diary_section=reflections_section,
+            )
+
+            summary = await llm_client.chat(
+                model="gpt-4o-mini",  # Cheaper model for summary
+                messages=[
+                    {"role": "system", "content": "You are summarizing what you know about someone you care about."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.5,
+                max_tokens=600,
+            )
+
+            logger.info("Generated profile summary", user_id=user_id, length=len(summary))
+            return summary.strip()
+
+        except Exception as e:
+            logger.error("Failed to generate profile summary", user_id=user_id, error=str(e))
+            return None
 
     @classmethod
     def get_last_thinking(cls, user_id: int) -> Optional[str]:

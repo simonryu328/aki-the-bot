@@ -22,6 +22,7 @@ from agents import orchestrator
 from agents.companion_agent import CompanionAgent
 from memory.memory_manager_async import memory_manager
 from utils.llm_client import llm_client
+from prompts import PROACTIVE_MESSAGE_PROMPT
 
 # Configure logging
 logging.basicConfig(
@@ -29,37 +30,6 @@ logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL)
 )
 logger = logging.getLogger(__name__)
-
-
-# Prompt for generating proactive check-in messages
-PROACTIVE_MESSAGE_PROMPT = """You're reaching out to someone you care about.
-
-You're not responding to them - you're initiating. This is a natural check-in, like a friend who remembered something they mentioned.
-
-What you know about them:
-{profile_context}
-
-What you're checking in about:
-{context}
-
-Last few messages (for context on how you two talk):
-{recent_history}
-
----
-
-Write a SHORT, natural message. Like a text from a friend:
-- 1-2 sentences max
-- Casual, warm
-- Don't be formal or overly enthusiastic
-- Can use emoji sparingly if natural
-
-Examples of good check-ins:
-- "hey how'd the interview go?"
-- "did tony ever text back? 👀"
-- "thinking about you, hope the visit with your mom went okay"
-
-Just write the message, nothing else.
-"""
 
 
 class TelegramBot:
@@ -309,7 +279,7 @@ class TelegramBot:
     async def observations_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Handle the /observations command.
-        Shows recent profile observations for debugging.
+        Shows recent profile observations with timestamps.
         """
         user = update.effective_user
         telegram_id = user.id
@@ -318,23 +288,37 @@ class TelegramBot:
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
 
-            # Get all profile facts
-            profile = await memory_manager.get_user_profile(user_id)
+            # Get observations with dates
+            observations = await memory_manager.get_observations_with_dates(user_id, limit=50)
 
-            if not profile:
+            if not observations:
                 await update.message.reply_text("No observations stored yet.")
                 return
 
-            lines = ["🧠 Stored observations:\n"]
-            for category, facts in profile.items():
+            # Group by category for display
+            by_category = {}
+            for obs in observations:
+                # Format: "[2026-02-05] emotions: He's been struggling..."
+                parts = obs.split("] ", 1)
+                if len(parts) == 2:
+                    date_str = parts[0][1:]  # Remove leading [
+                    rest = parts[1]
+                    cat_parts = rest.split(": ", 1)
+                    if len(cat_parts) == 2:
+                        category = cat_parts[0]
+                        value = cat_parts[1]
+                        if category not in by_category:
+                            by_category[category] = []
+                        by_category[category].append(f"[{date_str}] {value}")
+
+            lines = ["🧠 Observations (with timestamps):\n"]
+            for category, items in by_category.items():
                 if category == "system":
                     continue
-                if facts:
-                    lines.append(f"\n**{category}**:")
-                    for value in facts.values():
-                        # Show full value, truncate only if very long
-                        display_val = value[:200] + "..." if len(value) > 200 else value
-                        lines.append(f"  • {display_val}")
+                lines.append(f"\n**{category}**:")
+                for item in items[-10:]:  # Last 10 per category
+                    display_val = item[:200] + "..." if len(item) > 200 else item
+                    lines.append(f"  • {display_val}")
 
             response = "\n".join(lines)
             if len(response) > 4000:
@@ -415,6 +399,61 @@ class TelegramBot:
             logger.error(f"Error in clearscheduled command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
+    async def reflect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /reflect command.
+        Generates a fresh thoughtful message based on recent conversations and observations.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+            user_name = db_user.name or user.first_name or "friend"
+
+            # Show thinking indicator
+            await update.message.reply_text("💭")
+
+            # Get recent conversations
+            recent_convos = await memory_manager.db.get_recent_conversations(user_id, limit=30)
+
+            # Format conversations
+            convo_lines = []
+            for conv in recent_convos:
+                role = "Them" if conv.role == "user" else "You"
+                convo_lines.append(f"{role}: {conv.message}")
+            conversations_text = "\n".join(convo_lines) if convo_lines else "(No recent conversations)"
+
+            # Get recent observations
+            observations = await memory_manager.get_observations_with_dates(user_id, limit=50)
+
+            if not observations and not convo_lines:
+                await update.message.reply_text(
+                    "we haven't talked enough yet for me to have something to say here. let's chat more first"
+                )
+                return
+
+            # Generate fresh reflection
+            from agents.companion_agent import companion_agent
+            reflection_content = await companion_agent.generate_reflection(
+                user_id=user_id,
+                user_name=user_name,
+                recent_observations=observations[-15:],  # Last 15 observations
+                recent_conversations=conversations_text,
+            )
+
+            if reflection_content:
+                await update.message.reply_text(reflection_content)
+            else:
+                await update.message.reply_text(
+                    "hmm, couldn't quite gather my thoughts. try again?"
+                )
+
+        except Exception as e:
+            logger.error(f"Error in reflect command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
         Send a message to a user.
@@ -489,7 +528,14 @@ class TelegramBot:
                 max_tokens=100,
             )
 
-            return message.strip()
+            message = message.strip()
+
+            # LLM decided this check-in isn't appropriate right now
+            if message.upper() == "SKIP":
+                logger.info(f"Skipping proactive message - LLM determined not appropriate")
+                return None
+
+            return message
 
         except Exception as e:
             logger.error(f"Failed to generate proactive message: {e}")
@@ -594,6 +640,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("clearscheduled", self.clearscheduled_command)
+        )
+        self.application.add_handler(
+            CommandHandler("reflect", self.reflect_command)
         )
 
         # Message handlers
