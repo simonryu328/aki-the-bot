@@ -56,8 +56,10 @@ class SoulAgent:
     _last_system_prompt: Dict[int, str] = {}
     _last_observation_prompt: Dict[int, str] = {}
     _last_profile_context: Dict[int, str] = {}
+    _message_count: Dict[int, int] = {}
+    OBSERVATION_INTERVAL = 10  # Run observation agent every N exchanges
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514", persona: str = COMPANION_PERSONA):
+    def __init__(self, model: str = "gpt-4o", persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
 
         Args:
@@ -149,17 +151,20 @@ class SoulAgent:
         )
 
         # Background: Check if anything significant should be remembered
-        # (Fire and forget - don't block the response)
+        # Only run every N exchanges to avoid excessive LLM calls
         import asyncio
-        asyncio.create_task(
-            self._maybe_store_observations(
-                user_id=user_id,
-                profile_context=profile_context,
-                user_message=message,
-                assistant_response=response,
-                thinking=thinking or "",
+        SoulAgent._message_count[user_id] = SoulAgent._message_count.get(user_id, 0) + 1
+        if SoulAgent._message_count[user_id] >= self.OBSERVATION_INTERVAL:
+            SoulAgent._message_count[user_id] = 0
+            asyncio.create_task(
+                self._maybe_store_observations(
+                    user_id=user_id,
+                    profile_context=profile_context,
+                    user_message=message,
+                    assistant_response=response,
+                    thinking=thinking or "",
+                )
             )
-        )
 
         return result
 
@@ -193,7 +198,7 @@ class SoulAgent:
 
         tz = pytz.timezone(settings.TIMEZONE)
         lines = []
-        for conv in conversations[-20:]:  # Last 20 messages
+        for conv in conversations:
             role = "Them" if conv.role == "user" else "You"
             if conv.timestamp:
                 utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
@@ -320,8 +325,8 @@ class SoulAgent:
             else:
                 pending_followups = "(none)"
 
-            # Get recent conversation for context (last 10 messages = ~5 exchanges)
-            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=10)
+            # Get recent conversation for context (last 20 messages = ~10 exchanges)
+            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=20)
             if recent_convos:
                 convo_lines = []
                 for conv in recent_convos:

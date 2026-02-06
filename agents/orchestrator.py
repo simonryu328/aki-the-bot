@@ -69,12 +69,12 @@ class AgentOrchestrator:
             user_id=user_id,
             role="user",
             message=message,
-            store_in_vector=True,
+            store_in_vector=False,
         )
 
         # 3. Gather context
         context = await self.memory.get_user_context(user_id)
-        history = await self.memory.db.get_recent_conversations(user_id, limit=50)
+        history = await self.memory.db.get_recent_conversations(user_id, limit=20)
 
         # 4. Get companion response
         result = await self.agent.respond(
@@ -89,7 +89,7 @@ class AgentOrchestrator:
             user_id=user_id,
             role="assistant",
             message=result.response,
-            store_in_vector=True,
+            store_in_vector=False,
         )
 
         return result.messages
