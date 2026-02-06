@@ -9,6 +9,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 import pytz
 from telegram import Update
+from telegram.constants import ChatAction
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -19,7 +20,7 @@ from telegram.ext import (
 
 from config.settings import settings
 from agents import orchestrator
-from agents.companion_agent import CompanionAgent
+from agents.soul_agent import SoulAgent
 from memory.memory_manager_async import memory_manager
 from utils.llm_client import llm_client
 from prompts import PROACTIVE_MESSAGE_PROMPT
@@ -39,13 +40,29 @@ class TelegramBot:
         """Initialize the Telegram bot."""
         self.application: Optional[Application] = None
 
+    async def _send_long_message(self, chat_id: int, text: str, chunk_size: int = 4000) -> None:
+        """Send a long message split across multiple Telegram messages."""
+        for i in range(0, len(text), chunk_size):
+            await self.application.bot.send_message(chat_id=chat_id, text=text[i:i + chunk_size])
+
+    async def _send_with_typing(self, chat_id: int, text: str) -> None:
+        """
+        Send a message with a typing indicator beforehand.
+        Typing duration scales with message length for realism.
+        """
+        import asyncio
+
+        await self.application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        # Typing duration: 0.5s base + scales with length, capped at 2.5s
+        typing_duration = min(0.5 + len(text) * 0.02, 2.5)
+        await asyncio.sleep(typing_duration)
+        await self.application.bot.send_message(chat_id=chat_id, text=text)
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Handle the /start command.
         Kicks off the onboarding conversation for new users.
         """
-        import asyncio
-
         user = update.effective_user
         telegram_id = user.id
         name = user.first_name or user.username or "there"
@@ -68,12 +85,10 @@ class TelegramBot:
                 "I'm having a small hiccup right now, but try sending me a message!"
             ]
 
-        # Send each message with a small delay
-        for i, msg in enumerate(messages):
-            if i > 0:
-                delay = min(0.5 + len(msg) * 0.01, 1.5)
-                await asyncio.sleep(delay)
-            await update.message.reply_text(msg)
+        # Send each message with typing indicator
+        chat_id = update.effective_chat.id
+        for msg in messages:
+            await self._send_with_typing(chat_id, msg)
 
     async def handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -82,8 +97,6 @@ class TelegramBot:
         Handle incoming text messages from users.
         Routes through AgentOrchestrator for processing.
         """
-        import asyncio
-
         user = update.effective_user
         telegram_id = user.id
         name = user.first_name or user.username
@@ -107,13 +120,10 @@ class TelegramBot:
                 "Could you try again in a moment?"
             ]
 
-        # Send each message with a small delay for natural feel
-        for i, msg in enumerate(messages):
-            if i > 0:
-                # Small delay between messages (0.5-1.5 seconds based on length)
-                delay = min(0.5 + len(msg) * 0.01, 1.5)
-                await asyncio.sleep(delay)
-            await update.message.reply_text(msg)
+        # Send each message with typing indicator
+        chat_id = update.effective_chat.id
+        for msg in messages:
+            await self._send_with_typing(chat_id, msg)
 
     async def handle_photo_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -263,7 +273,7 @@ class TelegramBot:
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
 
-            thinking = CompanionAgent.get_last_thinking(user_id)
+            thinking = SoulAgent.get_last_thinking(user_id)
 
             if thinking:
                 response = f"🧠 Last internal reflection:\n\n{thinking}"
@@ -274,6 +284,81 @@ class TelegramBot:
 
         except Exception as e:
             logger.error(f"Error in thinking command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def prompt_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /prompt command.
+        Shows the last companion system prompt sent to the LLM.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+
+            prompt = SoulAgent.get_last_system_prompt(user_id)
+
+            if prompt:
+                response = f"📋 Last companion prompt:\n\n{prompt}"
+            else:
+                response = "No prompt captured yet. Send a message first."
+
+            await self._send_long_message(update.effective_chat.id, response)
+
+        except Exception as e:
+            logger.error(f"Error in prompt command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def observationprompt_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /observationprompt command.
+        Shows the last observation prompt sent to the LLM.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+
+            prompt = SoulAgent.get_last_observation_prompt(user_id)
+
+            if prompt:
+                response = f"📋 Last observation prompt:\n\n{prompt}"
+            else:
+                response = "No observation prompt captured yet. Send a message first."
+
+            await self._send_long_message(update.effective_chat.id, response)
+
+        except Exception as e:
+            logger.error(f"Error in observationprompt command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def profile_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /profile command.
+        Shows the profile context string as the LLM sees it.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+
+            profile = SoulAgent.get_last_profile_context(user_id)
+
+            if profile:
+                response = f"👤 Profile context (what the LLM sees):\n\n{profile}"
+            else:
+                response = "No profile context captured yet. Send a message first."
+
+            await self._send_long_message(update.effective_chat.id, response)
+
+        except Exception as e:
+            logger.error(f"Error in profile command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
     async def observations_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -418,11 +503,17 @@ class TelegramBot:
             # Get recent conversations
             recent_convos = await memory_manager.db.get_recent_conversations(user_id, limit=30)
 
-            # Format conversations with timestamps
+            # Format conversations with timestamps (convert UTC to local)
+            tz = pytz.timezone(settings.TIMEZONE)
             convo_lines = []
             for conv in recent_convos:
                 role = "Them" if conv.role == "user" else "You"
-                ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+                if conv.timestamp:
+                    utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
+                    local_time = utc_time.astimezone(tz)
+                    ts = local_time.strftime("%H:%M")
+                else:
+                    ts = ""
                 convo_lines.append(f"[{ts}] {role}: {conv.message}")
             conversations_text = "\n".join(convo_lines) if convo_lines else "(No recent conversations)"
 
@@ -436,8 +527,8 @@ class TelegramBot:
                 return
 
             # Generate fresh reflection
-            from agents.companion_agent import companion_agent
-            reflection_content = await companion_agent.generate_reflection(
+            from agents.soul_agent import soul_agent
+            reflection_content = await soul_agent.generate_reflection(
                 user_id=user_id,
                 user_name=user_name,
                 recent_observations=observations[-15:],  # Last 15 observations
@@ -465,10 +556,7 @@ class TelegramBot:
             message: The message text to send
         """
         try:
-            await self.application.bot.send_message(
-                chat_id=telegram_id,
-                text=message
-            )
+            await self._send_with_typing(chat_id=telegram_id, text=message)
             logger.info(f"Sent proactive message to {telegram_id}")
         except Exception as e:
             logger.error(f"Failed to send message to {telegram_id}: {e}")
@@ -505,12 +593,18 @@ class TelegramBot:
             profile_context = "\n".join(profile_parts) if profile_parts else "(You're still getting to know them)"
 
             # Get recent conversation for tone matching
+            tz = pytz.timezone(settings.TIMEZONE)
             conversations = await memory_manager.db.get_recent_conversations(user_id, limit=10)
             if conversations:
                 history_lines = []
                 for conv in conversations[-5:]:
                     role = "Them" if conv.role == "user" else "You"
-                    ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+                    if conv.timestamp:
+                        utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
+                        local_time = utc_time.astimezone(tz)
+                        ts = local_time.strftime("%H:%M")
+                    else:
+                        ts = ""
                     history_lines.append(f"[{ts}] {role}: {conv.message}")
                 recent_history = "\n".join(history_lines)
             else:
@@ -633,6 +727,15 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("thinking", self.thinking_command)
+        )
+        self.application.add_handler(
+            CommandHandler("prompt", self.prompt_command)
+        )
+        self.application.add_handler(
+            CommandHandler("observationprompt", self.observationprompt_command)
+        )
+        self.application.add_handler(
+            CommandHandler("profile", self.profile_command)
         )
         self.application.add_handler(
             CommandHandler("observations", self.observations_command)

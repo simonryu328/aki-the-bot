@@ -7,7 +7,7 @@ Simplified: No phases, no onboarding state. Just a deepening relationship.
 from typing import Optional, List
 
 from memory.memory_manager_async import memory_manager
-from agents.companion_agent import companion_agent
+from agents.soul_agent import soul_agent
 from core import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +27,7 @@ class AgentOrchestrator:
     def __init__(self):
         """Initialize orchestrator."""
         self.memory = memory_manager
-        self.companion = companion_agent
+        self.agent = soul_agent
         logger.info("Agent orchestrator initialized")
 
     async def process_message(
@@ -77,7 +77,7 @@ class AgentOrchestrator:
         history = await self.memory.db.get_recent_conversations(user_id, limit=50)
 
         # 4. Get companion response
-        result = await self.companion.respond(
+        result = await self.agent.respond(
             user_id=user_id,
             message=message,
             context=context,

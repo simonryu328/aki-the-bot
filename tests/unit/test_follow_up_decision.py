@@ -43,7 +43,7 @@ class TestFollowUpParsing:
             .build()
         )
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -61,7 +61,7 @@ class TestFollowUpParsing:
         """Should gracefully handle malformed FOLLOW_UP lines."""
         malformed_response = "FOLLOW_UP: missing parts"
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=malformed_response)
 
             # Should not raise exception
@@ -114,7 +114,7 @@ class TestFollowUpDecisionScenarios:
             .build()
         )
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -148,7 +148,7 @@ class TestFollowUpDecisionScenarios:
             .build()
         )
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -183,7 +183,7 @@ class TestFollowUpDecisionScenarios:
             .build()
         )
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -216,7 +216,7 @@ class TestFollowUpDecisionScenarios:
             .build()
         )
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -249,7 +249,7 @@ class TestFollowUpDecisionScenarios:
         """
         response = observation_builder().nothing_significant().build()
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -276,7 +276,7 @@ class TestFollowUpDecisionScenarios:
         """
         response = observation_builder().nothing_significant().build()
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -308,7 +308,7 @@ class TestObservationStorage:
             .build()
         )
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(
@@ -332,7 +332,7 @@ class TestObservationStorage:
             .build()
         )
 
-        with patch("agents.companion_agent.llm_client") as mock_llm:
+        with patch("agents.soul_agent.llm_client") as mock_llm:
             mock_llm.chat = AsyncMock(return_value=response)
 
             await agent._maybe_store_observations(

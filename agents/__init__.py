@@ -1,11 +1,11 @@
 """Agent modules for the AI companion."""
 
 from .orchestrator import AgentOrchestrator, orchestrator
-from .companion_agent import CompanionAgent, companion_agent
+from .soul_agent import SoulAgent, soul_agent
 
 __all__ = [
     "AgentOrchestrator",
     "orchestrator",
-    "CompanionAgent",
-    "companion_agent",
+    "SoulAgent",
+    "soul_agent",
 ]

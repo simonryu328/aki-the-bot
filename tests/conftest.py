@@ -22,7 +22,7 @@ def fixed_now():
 @pytest.fixture
 def mock_datetime(fixed_now, monkeypatch):
     """Mock datetime.now() to return fixed_now."""
-    import agents.companion_agent as companion_module
+    import agents.soul_agent as soul_module
 
     original_datetime = datetime
 
@@ -33,7 +33,7 @@ def mock_datetime(fixed_now, monkeypatch):
                 return fixed_now.astimezone(tz)
             return fixed_now.replace(tzinfo=None)
 
-    monkeypatch.setattr(companion_module, "datetime", MockDatetime)
+    monkeypatch.setattr(soul_module, "datetime", MockDatetime)
     return fixed_now
 
 
@@ -51,14 +51,21 @@ def mock_memory():
 
 
 @pytest.fixture
-def companion_agent(mock_memory):
-    """Create a CompanionAgent with mocked memory manager."""
-    from agents.companion_agent import CompanionAgent
+def soul_agent_fixture(mock_memory):
+    """Create a SoulAgent with mocked memory manager."""
+    from agents.soul_agent import SoulAgent
 
-    agent = CompanionAgent()
+    agent = SoulAgent()
     # Replace the global memory_manager with our mock
     agent.memory = mock_memory
     return agent
+
+
+# Keep backward-compatible alias
+@pytest.fixture
+def companion_agent(soul_agent_fixture):
+    """Alias for soul_agent_fixture (backward compatibility)."""
+    return soul_agent_fixture
 
 
 # --- Mock LLM client ---

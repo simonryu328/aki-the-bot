@@ -6,6 +6,9 @@ Production-grade implementation combining database (structured data) and vector 
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+import pytz
+
+from config.settings import settings
 from memory.database_async import db
 from memory.vector_store import vector_store
 from core import get_logger, MemoryException, UserNotFoundError
@@ -329,9 +332,12 @@ class AsyncMemoryManager:
             List of strings like "[2026-02-05] emotions: He's been struggling..."
         """
         observations = await self.db.get_all_observations(user_id, limit)
+        tz = pytz.timezone(settings.TIMEZONE)
         formatted = []
         for obs in observations:
-            date_str = obs.observed_at.strftime("%Y-%m-%d")
+            utc_time = obs.observed_at.replace(tzinfo=pytz.utc)
+            local_time = utc_time.astimezone(tz)
+            date_str = local_time.strftime("%Y-%m-%d")
             formatted.append(f"[{date_str}] {obs.category}: {obs.value}")
         return formatted
 

@@ -1,8 +1,9 @@
 """
-Companion Agent - A witness to someone's story.
+Soul Agent - The core conversational agent.
 
-Inspired by soul.md: Not a chatbot, not an assistant. A companion who
-listens for what's beneath the words, recognizes weight, and holds the story.
+Accepts a swappable persona to define personality and behavior.
+Inspired by soul.md: listens for what's beneath the words,
+recognizes weight, and holds the story.
 """
 
 from typing import List, Dict, Optional
@@ -19,17 +20,18 @@ from memory.memory_manager_async import memory_manager
 from schemas import ConversationSchema, UserContextSchema
 from core import get_logger
 from prompts import (
-    COMPANION_SYSTEM_PROMPT,
     OBSERVATION_PROMPT,
     REFLECTION_PROMPT,
     PROFILE_SUMMARY_PROMPT,
 )
+from prompts.system_frame import SYSTEM_FRAME
+from prompts.personas import COMPANION_PERSONA
 
 logger = get_logger(__name__)
 
 
 @dataclass
-class CompanionResponse:
+class SoulResponse:
     """Response from the companion agent."""
     response: str  # Full response (for storage)
     messages: List[str] = None  # Split messages (for sending)
@@ -41,7 +43,7 @@ class CompanionResponse:
             self.messages = [self.response]
 
 
-class CompanionAgent:
+class SoulAgent:
     """
     A companion who witnesses someone's story.
 
@@ -49,16 +51,21 @@ class CompanionAgent:
     understands, and remembers what matters.
     """
 
-    # Store last thinking per user for debugging
+    # Store last thinking, prompts, and context per user for debugging
     _last_thinking: Dict[int, str] = {}
+    _last_system_prompt: Dict[int, str] = {}
+    _last_observation_prompt: Dict[int, str] = {}
+    _last_profile_context: Dict[int, str] = {}
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, model: str = "claude-sonnet-4-20250514", persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
 
-        Using Claude for better structured output compliance (thinking tags).
-        Set ANTHROPIC_API_KEY in environment.
+        Args:
+            model: LLM model to use.
+            persona: The personality prompt to slot into the system frame.
         """
         self.model = model
+        self.persona = persona
         self.memory = memory_manager
 
     async def respond(
@@ -67,7 +74,7 @@ class CompanionAgent:
         message: str,
         context: UserContextSchema,
         conversation_history: List[ConversationSchema],
-    ) -> CompanionResponse:
+    ) -> SoulResponse:
         """
         Respond to a message as a companion.
 
@@ -78,11 +85,16 @@ class CompanionAgent:
             conversation_history: Recent conversation
 
         Returns:
-            CompanionResponse with response, thinking, and any observations
+            SoulResponse with response, thinking, and any observations
         """
         # Build context strings
         profile_context = self._build_profile_context(context)
+        SoulAgent._last_profile_context[user_id] = profile_context
         history_text = self._format_history(conversation_history)
+
+        # Build observations context
+        observations_with_dates = await memory_manager.get_observations_with_dates(user_id, limit=20)
+        observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
 
         # Build time context
         now = datetime.now(pytz.timezone(settings.TIMEZONE))
@@ -97,13 +109,16 @@ class CompanionAgent:
         else:
             time_context = "It's late night."
 
-        # Generate response with reflection
-        system_prompt = COMPANION_SYSTEM_PROMPT.format(
+        # Assemble system prompt from frame + persona
+        system_prompt = SYSTEM_FRAME.format(
+            persona=self.persona,
             current_time=current_time,
             time_context=time_context,
             profile_context=profile_context,
+            observations=observations_text,
             conversation_history=history_text,
         )
+        SoulAgent._last_system_prompt[user_id] = system_prompt
 
         raw_response = await llm_client.chat_with_system(
             model=self.model,
@@ -117,7 +132,7 @@ class CompanionAgent:
         thinking, response, messages = self._parse_response(raw_response)
 
         # Store thinking for debug
-        CompanionAgent._last_thinking[user_id] = thinking or "(no thinking captured)"
+        SoulAgent._last_thinking[user_id] = thinking or "(no thinking captured)"
 
         logger.debug(
             "Companion response generated",
@@ -127,7 +142,7 @@ class CompanionAgent:
             message_count=len(messages),
         )
 
-        result = CompanionResponse(
+        result = SoulResponse(
             response=response,
             messages=messages,
             thinking=thinking,
@@ -172,14 +187,20 @@ class CompanionAgent:
         return "\n".join(parts)
 
     def _format_history(self, conversations: List[ConversationSchema]) -> str:
-        """Format conversation history with timestamps."""
+        """Format conversation history with timestamps converted to local time."""
         if not conversations:
             return "(This is the beginning of your conversation.)"
 
+        tz = pytz.timezone(settings.TIMEZONE)
         lines = []
         for conv in conversations[-20:]:  # Last 20 messages
             role = "Them" if conv.role == "user" else "You"
-            ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+            if conv.timestamp:
+                utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
+                local_time = utc_time.astimezone(tz)
+                ts = local_time.strftime("%H:%M")
+            else:
+                ts = ""
             lines.append(f"[{ts}] {role}: {conv.message}")
 
         return "\n".join(lines)
@@ -305,7 +326,12 @@ class CompanionAgent:
                 convo_lines = []
                 for conv in recent_convos:
                     role = "Them" if conv.role == "user" else "You"
-                    ts = conv.timestamp.strftime("%H:%M") if conv.timestamp else ""
+                    if conv.timestamp:
+                        utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
+                        local_time = utc_time.astimezone(tz)
+                        ts = local_time.strftime("%H:%M")
+                    else:
+                        ts = ""
                     convo_lines.append(f"[{ts}] {role}: {conv.message}")
                 recent_conversation = "\n".join(convo_lines)
             else:
@@ -320,6 +346,7 @@ class CompanionAgent:
                 assistant_response=assistant_response,
                 thinking=thinking,
             )
+            SoulAgent._last_observation_prompt[user_id] = prompt
 
             result = await llm_client.chat(
                 model="gpt-4o-mini",  # Cheaper model for observation
@@ -506,6 +533,21 @@ class CompanionAgent:
         """Get the last thinking for a user (for debugging)."""
         return cls._last_thinking.get(user_id)
 
+    @classmethod
+    def get_last_system_prompt(cls, user_id: int) -> Optional[str]:
+        """Get the last companion system prompt for a user (for debugging)."""
+        return cls._last_system_prompt.get(user_id)
+
+    @classmethod
+    def get_last_observation_prompt(cls, user_id: int) -> Optional[str]:
+        """Get the last observation prompt for a user (for debugging)."""
+        return cls._last_observation_prompt.get(user_id)
+
+    @classmethod
+    def get_last_profile_context(cls, user_id: int) -> Optional[str]:
+        """Get the last profile context for a user (for debugging)."""
+        return cls._last_profile_context.get(user_id)
+
 
 # Singleton instance
-companion_agent = CompanionAgent()
+soul_agent = SoulAgent()
