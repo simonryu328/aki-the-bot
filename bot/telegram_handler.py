@@ -4,8 +4,9 @@ Handles text messages, images, and commands.
 Also runs the proactive messaging scheduler.
 """
 
+import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Dict, List
 from datetime import datetime, timedelta
 import pytz
 from telegram import Update
@@ -36,9 +37,15 @@ logger = logging.getLogger(__name__)
 class TelegramBot:
     """Telegram bot handler for the AI Companion."""
 
+    DEBOUNCE_SECONDS = 3  # Wait this long for more messages before processing
+
     def __init__(self):
         """Initialize the Telegram bot."""
         self.application: Optional[Application] = None
+        # Debounce: buffer messages per chat_id, process after silence
+        self._message_buffers: Dict[int, List[str]] = {}
+        self._debounce_tasks: Dict[int, asyncio.Task] = {}
+        self._debounce_metadata: Dict[int, dict] = {}  # Store user info per chat
 
     async def _send_long_message(self, chat_id: int, text: str, chunk_size: int = 4000) -> None:
         """Send a long message split across multiple Telegram messages."""
@@ -95,23 +102,58 @@ class TelegramBot:
     ) -> None:
         """
         Handle incoming text messages from users.
-        Routes through AgentOrchestrator for processing.
+        Buffers rapid messages and processes them together after a quiet period.
         """
         user = update.effective_user
-        telegram_id = user.id
-        name = user.first_name or user.username
-        username = user.username
+        chat_id = update.effective_chat.id
         message_text = update.message.text
 
-        logger.info(f"Received message from {telegram_id} ({username}): {message_text[:50]}...")
+        logger.info(f"Received message from {user.id} ({user.username}): {message_text[:50]}...")
+
+        # Buffer the message
+        if chat_id not in self._message_buffers:
+            self._message_buffers[chat_id] = []
+        self._message_buffers[chat_id].append(message_text)
+
+        # Store user metadata (overwrite is fine, same user)
+        self._debounce_metadata[chat_id] = {
+            "telegram_id": user.id,
+            "name": user.first_name or user.username,
+            "username": user.username,
+        }
+
+        # Cancel any existing debounce timer for this chat
+        if chat_id in self._debounce_tasks:
+            self._debounce_tasks[chat_id].cancel()
+
+        # Start a new debounce timer
+        self._debounce_tasks[chat_id] = asyncio.create_task(
+            self._process_buffered_messages(chat_id)
+        )
+
+    async def _process_buffered_messages(self, chat_id: int) -> None:
+        """Wait for the debounce period, then process all buffered messages as one."""
+        await asyncio.sleep(self.DEBOUNCE_SECONDS)
+
+        # Grab and clear the buffer
+        buffered = self._message_buffers.pop(chat_id, [])
+        metadata = self._debounce_metadata.pop(chat_id, {})
+        self._debounce_tasks.pop(chat_id, None)
+
+        if not buffered or not metadata:
+            return
+
+        # Combine into a single message
+        combined = "\n".join(buffered)
+        if len(buffered) > 1:
+            logger.info(f"Debounced {len(buffered)} messages from {metadata['telegram_id']} into one")
 
         try:
-            # Process through orchestrator - returns list of messages
             messages = await orchestrator.process_message(
-                telegram_id=telegram_id,
-                message=message_text,
-                name=name,
-                username=username,
+                telegram_id=metadata["telegram_id"],
+                message=combined,
+                name=metadata["name"],
+                username=metadata["username"],
             )
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -120,8 +162,6 @@ class TelegramBot:
                 "Could you try again in a moment?"
             ]
 
-        # Send each message with typing indicator
-        chat_id = update.effective_chat.id
         for msg in messages:
             await self._send_with_typing(chat_id, msg)
 
@@ -695,7 +735,7 @@ class TelegramBot:
                             user_id=scheduled_msg.user_id,
                             role="assistant",
                             message=message_text,
-                            store_in_vector=True,
+                            store_in_vector=False,
                         )
 
                         logger.info(
