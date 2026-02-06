@@ -1,7 +1,7 @@
 """Conversation schemas."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -27,6 +27,7 @@ class ConversationSchema(ConversationBaseSchema):
 
     id: int = Field(..., description="Conversation entry ID")
     user_id: int = Field(..., description="User ID")
+    thinking: Optional[str] = Field(default=None, description="LLM thinking/reasoning")
     timestamp: datetime = Field(..., description="Message timestamp")
 
     model_config = ConfigDict(from_attributes=True)

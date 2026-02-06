@@ -169,7 +169,7 @@ class AsyncMemoryManager:
     # ==================== Conversation Storage ====================
 
     async def add_conversation(
-        self, user_id: int, role: str, message: str, store_in_vector: bool = True
+        self, user_id: int, role: str, message: str, store_in_vector: bool = True, thinking: Optional[str] = None
     ) -> ConversationSchema:
         """
         Add a conversation message.
@@ -189,7 +189,7 @@ class AsyncMemoryManager:
         """
         try:
             # Store in database
-            conversation = await self.db.add_conversation(user_id, role, message)
+            conversation = await self.db.add_conversation(user_id, role, message, thinking=thinking)
 
             # Store in vector store for semantic search
             if store_in_vector and self.vector_store_available:

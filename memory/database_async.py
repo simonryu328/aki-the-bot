@@ -326,7 +326,7 @@ class AsyncDatabase:
     # ==================== Conversations ====================
 
     async def add_conversation(
-        self, user_id: int, role: str, message: str
+        self, user_id: int, role: str, message: str, thinking: Optional[str] = None
     ) -> ConversationSchema:
         """Add a conversation message."""
         try:
@@ -335,6 +335,7 @@ class AsyncDatabase:
                     user_id=user_id,
                     role=role,
                     message=message,
+                    thinking=thinking,
                     timestamp=datetime.utcnow(),
                 )
                 session.add(conversation)

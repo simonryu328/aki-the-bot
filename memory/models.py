@@ -116,6 +116,7 @@ class Conversation(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     role = Column(String(50), nullable=False)  # "user" or "assistant"
     message = Column(Text, nullable=False)
+    thinking = Column(Text, nullable=True)  # LLM reasoning for assistant messages
     timestamp = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False, index=True)
 
     # Relationships

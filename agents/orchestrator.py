@@ -90,6 +90,7 @@ class AgentOrchestrator:
             role="assistant",
             message=result.response,
             store_in_vector=False,
+            thinking=result.thinking,
         )
 
         return result.messages
