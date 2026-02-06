@@ -658,7 +658,7 @@ class TelegramBot:
             )
 
             message = await llm_client.chat(
-                model="gpt-4o-mini",
+                model=settings.MODEL_PROACTIVE,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=100,

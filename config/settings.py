@@ -60,6 +60,24 @@ class Settings(BaseSettings):
         description="Application timezone",
     )
 
+    # Models - one setting per purpose, all configurable from .env
+    MODEL_CONVERSATION: str = Field(
+        default="gpt-4o",
+        description="Model for main conversation responses",
+    )
+    MODEL_OBSERVATION: str = Field(
+        default="gpt-4o-mini",
+        description="Model for observation/memory extraction",
+    )
+    MODEL_PROACTIVE: str = Field(
+        default="gpt-4o-mini",
+        description="Model for proactive/scheduled messages",
+    )
+    MODEL_SUMMARY: str = Field(
+        default="gpt-4o-mini",
+        description="Model for profile summaries",
+    )
+
     # Environment
     ENVIRONMENT: Literal["development", "staging", "production"] = Field(
         default="development",

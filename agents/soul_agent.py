@@ -59,7 +59,7 @@ class SoulAgent:
     _message_count: Dict[int, int] = {}
     OBSERVATION_INTERVAL = 10  # Run observation agent every N exchanges
 
-    def __init__(self, model: str = "gpt-4o", persona: str = COMPANION_PERSONA):
+    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
 
         Args:
@@ -354,7 +354,7 @@ class SoulAgent:
             SoulAgent._last_observation_prompt[user_id] = prompt
 
             result = await llm_client.chat(
-                model="gpt-4o-mini",  # Cheaper model for observation
+                model=settings.MODEL_OBSERVATION,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=500,
@@ -517,7 +517,7 @@ class SoulAgent:
             )
 
             summary = await llm_client.chat(
-                model="gpt-4o-mini",  # Cheaper model for summary
+                model=settings.MODEL_SUMMARY,
                 messages=[
                     {"role": "system", "content": "You are summarizing what you know about someone you care about."},
                     {"role": "user", "content": prompt},
