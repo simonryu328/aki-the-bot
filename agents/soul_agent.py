@@ -243,9 +243,11 @@ class SoulAgent:
     def _parse_response(self, raw: str) -> tuple[Optional[str], str, List[str]]:
         """Parse thinking, response, and multiple messages from raw LLM output.
         
-        Supports two formats:
-        1. XML: <response><message>text</message><message>text</message></response>
-        2. Fallback: Plain text or ||| separator
+        Supports multiple formats:
+        1. [BREAK] markers: "text[BREAK]more text[BREAK]even more"
+        2. XML: <response><message>text</message><message>text</message></response>
+        3. Fallback: Plain text or ||| separator
+        4. Auto-split: Long responses split intelligently
         """
         thinking = None
         response = raw
@@ -257,30 +259,89 @@ class SoulAgent:
             # Remove thinking from response
             response = re.sub(r'<thinking>.*?</thinking>', '', raw, flags=re.DOTALL).strip()
 
-        # Try to extract structured <response> with <message> tags
+        # Try to extract structured <response> tag first
         response_match = re.search(r'<response>(.*?)</response>', response, re.DOTALL)
         if response_match:
-            response_content = response_match.group(1)
-            # Extract individual <message> tags
-            message_matches = re.findall(r'<message>(.*?)</message>', response_content, re.DOTALL)
-            if message_matches:
+            response_content = response_match.group(1).strip()
+            
+            # Check for [BREAK] markers within <response>
+            if '[BREAK]' in response_content:
+                messages = [msg.strip() for msg in response_content.split('[BREAK]') if msg.strip()]
+            # Check for <message> tags
+            elif '<message>' in response_content:
+                message_matches = re.findall(r'<message>(.*?)</message>', response_content, re.DOTALL)
                 messages = [msg.strip() for msg in message_matches if msg.strip()]
             else:
-                # <response> tag exists but no <message> tags - treat content as single message
-                messages = [response_content.strip()]
+                # Single message in <response> tag
+                messages = [response_content]
         else:
-            # Fallback: check for ||| separator or treat as single message
-            if '|||' in response:
+            # No <response> tag - check for [BREAK] markers in raw response
+            if '[BREAK]' in response:
+                messages = [msg.strip() for msg in response.split('[BREAK]') if msg.strip()]
+            # Fallback: check for ||| separator
+            elif '|||' in response:
                 messages = [msg.strip() for msg in response.split('|||') if msg.strip()]
             else:
-                # Remove any stray <response> or <message> tags and use as-is
+                # Remove any stray tags and use as-is
                 clean_response = re.sub(r'</?(?:response|message)>', '', response).strip()
                 messages = [clean_response] if clean_response else [response.strip()]
+        
+        # Auto-split long single messages (fallback for when LLM doesn't use markers)
+        if len(messages) == 1 and len(messages[0]) > 300:
+            messages = self._smart_split_message(messages[0])
 
         # Full response for storage (join with newlines)
         full_response = '\n'.join(messages)
 
         return thinking, full_response, messages
+    
+    def _smart_split_message(self, text: str, max_length: int = 250) -> List[str]:
+        """Intelligently split a long message into natural chunks.
+        
+        Splits on:
+        - Sentence boundaries (. ! ?)
+        - Line breaks
+        - Natural pauses (emoji followed by text)
+        """
+        # If short enough, return as-is
+        if len(text) <= max_length:
+            return [text]
+        
+        messages = []
+        
+        # First try splitting on double line breaks (paragraph breaks)
+        paragraphs = text.split('\n\n')
+        if len(paragraphs) > 1:
+            current = ""
+            for para in paragraphs:
+                if len(current) + len(para) > max_length and current:
+                    messages.append(current.strip())
+                    current = para
+                else:
+                    current = current + '\n\n' + para if current else para
+            if current:
+                messages.append(current.strip())
+            return messages
+        
+        # Fall back to sentence splitting
+        sentences = re.split(r'([.!?]+\s+)', text)
+        current = ""
+        
+        for i in range(0, len(sentences), 2):
+            sentence = sentences[i]
+            punctuation = sentences[i + 1] if i + 1 < len(sentences) else ""
+            full_sentence = sentence + punctuation
+            
+            if len(current) + len(full_sentence) > max_length and current:
+                messages.append(current.strip())
+                current = full_sentence
+            else:
+                current += full_sentence
+        
+        if current:
+            messages.append(current.strip())
+        
+        return messages if messages else [text]
 
     def _parse_when_to_datetime(self, when: str) -> datetime:
         """Convert a 'when' string to a naive datetime object (for database storage).

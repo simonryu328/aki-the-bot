@@ -33,12 +33,12 @@ Private reflection before responding:
 Your response here. Natural, conversational.
 </response>
 
-For multiple messages (like real texting), use:
+For multiple messages (like real texting), use [BREAK] to separate:
 <response>
-<message>oh wow</message>
-<message>that's huge</message>
-<message>tell me more?</message>
+oh wow[BREAK]that's huge[BREAK]tell me more?
 </response>
+
+The [BREAK] marker tells the system to send these as separate messages with natural timing between them.
 
 ---
 
