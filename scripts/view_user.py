@@ -126,19 +126,38 @@ async def view_user(user_id: int, conv_limit: int = 20, obs_days: int = 30):
         )
         facts = facts_result.scalars().all()
 
-        section(f"PROFILE FACTS ({len(facts)} total)")
-        if facts:
-            grouped = defaultdict(list)
-            for f in facts:
-                grouped[f.category].append(f)
+        # Separate condensed from raw facts
+        grouped = defaultdict(list)
+        for f in facts:
+            grouped[f.category].append(f)
 
-            for category in sorted(grouped.keys()):
-                print(f"\n  [{category}]")
-                for f in grouped[category]:
-                    print(f"    - {f.value}")
-                    print(f"      (observed: {fmt(f.observed_at)}, confidence: {f.confidence})")
+        # ---- Condensed Narratives ----
+        if "condensed" in grouped:
+            section("CONDENSED NARRATIVES")
+            for f in grouped["condensed"]:
+                print(f"\n  [{f.key}]")
+                print(f"    {f.value}")
+                print(f"    (condensed: {fmt(f.updated_at)})")
+
+        # ---- Static Facts ----
+        if "static" in grouped:
+            section("STATIC FACTS")
+            for f in grouped["static"]:
+                print(f"  - {f.value}")
+
+        # ---- Raw Observations ----
+        raw_categories = [c for c in sorted(grouped.keys()) if c not in ("condensed", "static", "system")]
+        raw_count = sum(len(grouped[c]) for c in raw_categories)
+        section(f"RAW OBSERVATIONS ({raw_count} across {len(raw_categories)} categories)")
+        if raw_categories:
+            for category in raw_categories:
+                print(f"\n  [{category}] ({len(grouped[category])} observations)")
+                for f in grouped[category][:3]:  # Show first 3 per category
+                    print(f"    - {f.value[:120]}...")
+                if len(grouped[category]) > 3:
+                    print(f"    ... and {len(grouped[category]) - 3} more")
         else:
-            print("  (no profile facts)")
+            print("  (no raw observations)")
 
         # ---- Recent Observations Timeline ----
         cutoff = datetime.now(pytz.utc).replace(tzinfo=None) - timedelta(days=obs_days)

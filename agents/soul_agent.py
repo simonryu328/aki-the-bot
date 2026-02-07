@@ -7,6 +7,7 @@ recognizes weight, and holds the story.
 """
 
 from typing import List, Dict, Optional
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import re
@@ -22,8 +23,8 @@ from core import get_logger
 from prompts import (
     OBSERVATION_PROMPT,
     REFLECTION_PROMPT,
-    PROFILE_SUMMARY_PROMPT,
 )
+from prompts.condensation import CONDENSATION_PROMPT
 from prompts.system_frame import SYSTEM_FRAME
 from prompts.personas import COMPANION_PERSONA
 
@@ -169,21 +170,34 @@ class SoulAgent:
         return result
 
     def _build_profile_context(self, context: UserContextSchema) -> str:
-        """Build a narrative profile context, not a data dump."""
+        """Build profile context from static facts and condensed narratives."""
         parts = []
 
         # Name
         if context.user_info.name:
             parts.append(f"Their name is {context.user_info.name}.")
 
-        # Profile facts as narrative
-        if context.profile:
+        if not context.profile:
+            return "(You're just getting to know them. This is early in the story.)"
+
+        # Static biographical facts
+        if "static" in context.profile:
+            for value in context.profile["static"].values():
+                parts.append(f"- {value}")
+
+        # Check for condensed narratives
+        if "condensed" in context.profile:
+            parts.append("")
+            parts.append("YOUR UNDERSTANDING OF THEM:")
+            for category, narrative in context.profile["condensed"].items():
+                parts.append(f"[{category}] {narrative}")
+        else:
+            # Fall back to raw observations (pre-condensation)
             for category, facts in context.profile.items():
-                if category == "system":
-                    continue  # Skip system facts
+                if category in ("system", "static", "condensed"):
+                    continue
                 if facts:
                     for value in facts.values():
-                        # Add observation directly (keys are now hashes)
                         parts.append(f"- {value}")
 
         if not parts:
@@ -426,6 +440,19 @@ class SoulAgent:
                     except Exception as e:
                         logger.warning("Failed to parse follow-up line", line=line, error=str(e))
 
+            # Trigger condensation if enough raw observations and not yet condensed
+            try:
+                obs_count = await self.memory.db.get_observation_count(user_id)
+                if obs_count >= 50:
+                    profile = await self.memory.get_user_profile(user_id)
+                    if "condensed" not in profile:
+                        user = await self.memory.get_user_by_id(user_id)
+                        user_name = user.name if user and user.name else "them"
+                        logger.info("Triggering auto-condensation", user_id=user_id, obs_count=obs_count)
+                        await self.compact_observations(user_id, user_name)
+            except Exception as e:
+                logger.error("Failed to check/run condensation", user_id=user_id, error=str(e))
+
         except Exception as e:
             logger.error("Failed to process observations", user_id=user_id, error=str(e))
 
@@ -479,59 +506,105 @@ class SoulAgent:
             logger.error("Failed to generate reflection", user_id=user_id, error=str(e))
             return None
 
-    async def generate_profile_summary(
-        self,
-        user_id: int,
-        user_name: str,
-        observations_with_dates: List[str],
-        recent_reflections: Optional[List[str]] = None,
-    ) -> Optional[str]:
-        """
-        Generate a profile summary from observations and reflections.
+    async def compact_observations(self, user_id: int, user_name: str) -> dict:
+        """Condense raw observations into persona-driven narratives per category.
 
         Args:
             user_id: User ID
-            user_name: User's name
-            observations_with_dates: List of observations with their dates
-            recent_reflections: Recent reflections (if any)
+            user_name: User's name for the condensation prompt
 
         Returns:
-            The profile summary text, or None if generation fails
+            Dict of {category: condensed_narrative}
         """
         try:
-            # Format observations
-            observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates)
-            if not observations_text:
-                return None  # Can't summarize nothing
+            # Fetch all observations
+            all_obs = await self.memory.db.get_all_observations(user_id, limit=1000)
+            if not all_obs:
+                return {}
 
-            # Format reflections section
-            if recent_reflections:
-                reflections_section = "RECENT REFLECTIONS:\n" + "\n---\n".join(recent_reflections)
-            else:
-                reflections_section = ""
+            # Group by category
+            grouped = defaultdict(list)
+            for obs in all_obs:
+                grouped[obs.category].append(obs)
 
-            prompt = PROFILE_SUMMARY_PROMPT.format(
-                name=user_name,
-                observations_with_dates=observations_text,
-                diary_section=reflections_section,
+            # Extract static facts for context
+            static_lines = []
+            if "static" in grouped:
+                for obs in grouped["static"]:
+                    if ":" in obs.value:
+                        key, value = obs.value.split(":", 1)
+                        static_lines.append(f"{key.strip().capitalize()}: {value.strip()}")
+                    else:
+                        static_lines.append(obs.value)
+
+            static_context = "\n".join(static_lines) if static_lines else "(Still learning about them)"
+
+            # Persona voice for condensation
+            persona_name = "their companion"
+            persona_description = (
+                "Someone who is genuinely here, genuinely curious, genuinely present. "
+                "You write like a caring friend keeping a journal — natural, warm, observant."
             )
 
-            summary = await llm_client.chat(
-                model=settings.MODEL_SUMMARY,
-                messages=[
-                    {"role": "system", "content": "You are summarizing what you know about someone you care about."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.5,
-                max_tokens=600,
-            )
+            # Condense each dynamic category
+            tz = pytz.timezone(settings.TIMEZONE)
+            condensed = {}
+            categories_to_condense = [
+                c for c in grouped.keys()
+                if c not in ("static", "condensed", "system")
+            ]
 
-            logger.info("Generated profile summary", user_id=user_id, length=len(summary))
-            return summary.strip()
+            for category in categories_to_condense:
+                observations = grouped[category]
+
+                # Format observations with timestamps
+                timestamped = []
+                for obs in observations:
+                    utc_time = obs.observed_at.replace(tzinfo=pytz.utc)
+                    local_time = utc_time.astimezone(tz)
+                    date_str = local_time.strftime("%Y-%m-%d")
+                    timestamped.append(f"[{date_str}] {obs.value}")
+
+                prompt = CONDENSATION_PROMPT.format(
+                    persona_name=persona_name,
+                    persona_description=persona_description,
+                    user_name=user_name,
+                    static_context=static_context,
+                    category=category,
+                    timestamped_observations="\n".join(timestamped),
+                )
+
+                result = await llm_client.chat(
+                    model=settings.MODEL_SUMMARY,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.5,
+                    max_tokens=300,
+                )
+
+                condensed[category] = result.strip()
+
+                # Store as condensed profile fact (overwrites previous)
+                await self.memory.add_profile_fact(
+                    user_id=user_id,
+                    category="condensed",
+                    key=category,
+                    value=result.strip(),
+                    confidence=1.0,
+                )
+
+                logger.info(
+                    "Condensed observations",
+                    user_id=user_id,
+                    category=category,
+                    raw_count=len(observations),
+                    condensed_length=len(result.strip()),
+                )
+
+            return condensed
 
         except Exception as e:
-            logger.error("Failed to generate profile summary", user_id=user_id, error=str(e))
-            return None
+            logger.error("Failed to compact observations", user_id=user_id, error=str(e))
+            return {}
 
     @classmethod
     def get_last_thinking(cls, user_id: int) -> Optional[str]:

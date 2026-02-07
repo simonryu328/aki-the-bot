@@ -34,23 +34,3 @@ Examples of the WRONG vibe (too formal, too therapist-y):
 
 Just talk to them. Like a friend who's been paying attention.
 """
-
-
-PROFILE_SUMMARY_PROMPT = """You know {name}. Based on everything you've observed, write a brief summary of who they are.
-
-OBSERVATIONS (oldest to newest):
-{observations_with_dates}
-
-{diary_section}
-
----
-
-Write 2-3 short paragraphs that capture:
-1. Who they are at their core - personality, values, what they fear, what they want
-2. What they're going through right now - the current chapter of their life
-3. Patterns you've noticed - how they tend to be, what repeats
-
-This is for you - a reminder of who this person is before you talk to them.
-
-Keep it natural. Not a list. A description of someone you know.
-"""

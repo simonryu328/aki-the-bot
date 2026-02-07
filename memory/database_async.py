@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
     AsyncEngine,
 )
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from tenacity import (
     retry,
@@ -322,6 +322,23 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to get all observations", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to get all observations: {e}")
+
+    async def get_observation_count(
+        self, user_id: int, exclude_categories: Optional[List[str]] = None
+    ) -> int:
+        """Count total observations for a user."""
+        try:
+            async with self.get_session() as session:
+                query = select(func.count()).select_from(ProfileFact).where(
+                    ProfileFact.user_id == user_id
+                )
+                if exclude_categories:
+                    query = query.where(ProfileFact.category.notin_(exclude_categories))
+                result = await session.execute(query)
+                return result.scalar()
+        except SQLAlchemyError as e:
+            logger.error("Failed to get observation count", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to get observation count: {e}")
 
     # ==================== Conversations ====================
 

@@ -40,5 +40,9 @@ logs/
 .coverage
 htmlcov/
 
+# Misc
+docs/
+users/
+
 # Claude Code
 .claude

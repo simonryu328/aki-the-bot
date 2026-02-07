@@ -66,7 +66,11 @@ If nothing significant, respond with: NOTHING_SIGNIFICANT
 Otherwise:
 
 OBSERVATION: [category] | [what you noticed, naturally]
-Categories: identity, relationships, emotions, circumstances, patterns, growth
+Categories: identity, relationships, emotions, circumstances, patterns, growth, static
+
+The "static" category is for biographical FACTS — things that don't change often.
+Use the format: static | key: value
+Keys: name, age, location, occupation, family, education, languages, pets
 
 FOLLOW_UP: [ISO datetime] | [topic] | [context for the check-in message]
 **Calculate from current time: {current_time}**
@@ -78,6 +82,9 @@ OBSERVATION: emotions | Still grinding through the job search. Three months now.
 OBSERVATION: patterns | He deflects with humor when things get heavy. Did it again just now.
 OBSERVATION: relationships | First time he mentioned his ex. There's something there he's not ready to talk about.
 OBSERVATION: growth | He didn't deflect this time. Just sat with it. That's new.
+OBSERVATION: static | name: Maddy (prefers this over Marcus)
+OBSERVATION: static | occupation: Works in payroll
+OBSERVATION: static | pets: Has a cat named Nono
 FOLLOW_UP: 2026-02-05T17:00 | interview | check in after his 3pm interview
 FOLLOW_UP: 2026-02-05T14:40 | reminder | they asked to be reminded in 10 minutes
 """
