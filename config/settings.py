@@ -62,20 +62,23 @@ class Settings(BaseSettings):
 
     # Models - one setting per purpose, all configurable from .env
     # claude-opus-4-20250514
+    # claude-haiku-4-5-20251001
+    # claude-sonnet-4-5-20250929
+
     MODEL_CONVERSATION: str = Field(
-        default="claude-3-5-haiku-latest",
+        default="claude-haiku-4-5-20251001",
         description="Model for main conversation responses",
     )
     MODEL_OBSERVATION: str = Field(
-        default="gpt-4o-mini",
+        default="claude-haiku-4-5-20251001",
         description="Model for observation/memory extraction",
     )
     MODEL_PROACTIVE: str = Field(
-        default="gpt-4o-mini",
+        default="claude-haiku-4-5-20251001",
         description="Model for proactive/scheduled messages",
     )
     MODEL_SUMMARY: str = Field(
-        default="gpt-4o-mini",
+        default="claude-haiku-4-5-20251001",
         description="Model for profile summaries",
     )
 
