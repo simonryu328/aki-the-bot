@@ -39,6 +39,7 @@ class SoulResponse:
     messages: List[str] = None  # Split messages (for sending)
     thinking: Optional[str] = None
     observations: Optional[List[str]] = None
+    emoji: Optional[str] = None  # Reaction emoji
 
     def __post_init__(self):
         if self.messages is None:
@@ -61,6 +62,7 @@ class SoulAgent:
     _last_profile_context: Dict[int, str] = {}
     _message_count: Dict[int, int] = {}
     _compact_message_count: Dict[int, int] = {}
+    _reaction_counter: Dict[int, int] = {}  # Track messages until next reaction
     OBSERVATION_INTERVAL = 10  # Run observation agent every N exchanges
     COMPACT_INTERVAL = 10  # Run compact summarization every N exchanges
 
@@ -135,11 +137,14 @@ class SoulAgent:
             max_tokens=500,
         )
 
-        # Parse thinking, response, and messages
-        thinking, response, messages = self._parse_response(raw_response)
+        # Parse thinking, response, messages, and emoji
+        thinking, response, messages, emoji = self._parse_response(raw_response)
 
         # Store thinking for debug
         SoulAgent._last_thinking[user_id] = thinking or "(no thinking captured)"
+
+        # Determine if we should trigger reaction this time
+        should_react = self._should_trigger_reaction(user_id)
 
         logger.debug(
             "Companion response generated",
@@ -147,12 +152,15 @@ class SoulAgent:
             has_thinking=bool(thinking),
             response_length=len(response),
             message_count=len(messages),
+            emoji=emoji,
+            should_react=should_react,
         )
 
         result = SoulResponse(
             response=response,
             messages=messages,
             thinking=thinking,
+            emoji=emoji if should_react else None,  # Only include emoji if we should react
         )
 
         # Background: Check if anything significant should be remembered
@@ -240,16 +248,50 @@ class SoulAgent:
 
         return "\n".join(lines)
 
-    def _parse_response(self, raw: str) -> tuple[Optional[str], str, List[str]]:
-        """Parse thinking, response, and multiple messages from raw LLM output.
+    def _should_trigger_reaction(self, user_id: int) -> bool:
+        """Determine if we should trigger a reaction for this message.
+        
+        Uses a counter that increments each message. When counter reaches
+        a random value between MIN and MAX, trigger reaction and reset.
+        """
+        import random
+        
+        # Initialize counter if not exists
+        if user_id not in SoulAgent._reaction_counter:
+            # Set initial target (random between min and max)
+            target = random.randint(
+                settings.REACTION_MIN_MESSAGES,
+                settings.REACTION_MAX_MESSAGES
+            )
+            SoulAgent._reaction_counter[user_id] = target
+        
+        # Decrement counter
+        SoulAgent._reaction_counter[user_id] -= 1
+        
+        # Check if we should trigger
+        if SoulAgent._reaction_counter[user_id] <= 0:
+            # Reset with new random target
+            target = random.randint(
+                settings.REACTION_MIN_MESSAGES,
+                settings.REACTION_MAX_MESSAGES
+            )
+            SoulAgent._reaction_counter[user_id] = target
+            return True
+        
+        return False
+
+    def _parse_response(self, raw: str) -> tuple[Optional[str], str, List[str], Optional[str]]:
+        """Parse thinking, response, messages, and emoji from raw LLM output.
         
         Supports multiple formats:
         1. [BREAK] markers: "text[BREAK]more text[BREAK]even more"
         2. XML: <response><message>text</message><message>text</message></response>
         3. Fallback: Plain text or ||| separator
         4. Auto-split: Long responses split intelligently
+        5. Emoji extraction from <emoji> tag
         """
         thinking = None
+        emoji = None
         response = raw
 
         # Extract thinking
@@ -258,6 +300,13 @@ class SoulAgent:
             thinking = thinking_match.group(1).strip()
             # Remove thinking from response
             response = re.sub(r'<thinking>.*?</thinking>', '', raw, flags=re.DOTALL).strip()
+
+        # Extract emoji
+        emoji_match = re.search(r'<emoji>(.*?)</emoji>', response, re.DOTALL)
+        if emoji_match:
+            emoji = emoji_match.group(1).strip()
+            # Remove emoji tag from response
+            response = re.sub(r'<emoji>.*?</emoji>', '', response, flags=re.DOTALL).strip()
 
         # Try to extract structured <response> tag first
         response_match = re.search(r'<response>(.*?)</response>', response, re.DOTALL)
@@ -293,7 +342,7 @@ class SoulAgent:
         # Full response for storage (join with newlines)
         full_response = '\n'.join(messages)
 
-        return thinking, full_response, messages
+        return thinking, full_response, messages, emoji
     
     def _smart_split_message(self, text: str, max_length: int = 250) -> List[str]:
         """Intelligently split a long message into natural chunks.

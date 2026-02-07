@@ -133,11 +133,12 @@ class TelegramBot:
             self._message_buffers[chat_id] = []
         self._message_buffers[chat_id].append(message_text)
 
-        # Store user metadata (overwrite is fine, same user)
+        # Store user metadata and the last message object for reactions
         self._debounce_metadata[chat_id] = {
             "telegram_id": user.id,
             "name": user.first_name or user.username,
             "username": user.username,
+            "last_message": update.message,  # Store for reaction
         }
 
         # Cancel any existing debounce timer for this chat
@@ -167,12 +168,21 @@ class TelegramBot:
             logger.info(f"Debounced {len(buffered)} messages from {metadata['telegram_id']} into one")
 
         try:
-            messages = await orchestrator.process_message(
+            messages, emoji = await orchestrator.process_message(
                 telegram_id=metadata["telegram_id"],
                 message=combined,
                 name=metadata["name"],
                 username=metadata["username"],
             )
+            
+            # Send reaction if emoji was generated
+            if emoji and "last_message" in metadata:
+                try:
+                    await metadata["last_message"].set_reaction(emoji)
+                    logger.info(f"Sent reaction {emoji} to user {metadata['telegram_id']}")
+                except Exception as e:
+                    logger.warning(f"Failed to send reaction: {e}")
+                    
         except Exception as e:
             logger.error(f"Error processing message: {e}")
             messages = [

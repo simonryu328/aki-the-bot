@@ -104,6 +104,18 @@ class Settings(BaseSettings):
         description="Default maximum days to keep trying reach-outs",
         ge=1,
     )
+    
+    # Reaction Configuration
+    REACTION_MIN_MESSAGES: int = Field(
+        default=1,
+        description="Minimum messages before triggering a reaction (set to 1 for debugging)",
+        ge=1,
+    )
+    REACTION_MAX_MESSAGES: int = Field(
+        default=1,
+        description="Maximum messages before triggering a reaction (set to 1 for debugging)",
+        ge=1,
+    )
 
     @field_validator("DATABASE_URL")
     @classmethod

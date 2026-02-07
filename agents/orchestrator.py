@@ -36,9 +36,9 @@ class AgentOrchestrator:
         message: str,
         name: Optional[str] = None,
         username: Optional[str] = None,
-    ) -> List[str]:
+    ) -> tuple[List[str], Optional[str]]:
         """
-        Process incoming message and return response messages.
+        Process incoming message and return response messages and emoji.
 
         Args:
             telegram_id: Telegram user ID
@@ -47,7 +47,7 @@ class AgentOrchestrator:
             username: User's Telegram username (optional)
 
         Returns:
-            List of response messages from companion (may be 1 or more)
+            Tuple of (response messages, emoji reaction or None)
         """
         # 1. Get or create user
         user = await self.memory.get_or_create_user(
@@ -93,7 +93,7 @@ class AgentOrchestrator:
             thinking=result.thinking,
         )
 
-        return result.messages
+        return result.messages, result.emoji
 
 
 # Singleton instance
