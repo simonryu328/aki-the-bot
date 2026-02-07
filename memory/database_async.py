@@ -446,6 +446,8 @@ class AsyncDatabase:
         content: str,
         importance: int,
         image_url: Optional[str] = None,
+        exchange_start: Optional[datetime] = None,
+        exchange_end: Optional[datetime] = None,
     ) -> DiaryEntrySchema:
         """Add a diary entry."""
         try:
@@ -458,6 +460,8 @@ class AsyncDatabase:
                     importance=importance,
                     image_url=image_url,
                     timestamp=datetime.utcnow(),
+                    exchange_start=exchange_start,
+                    exchange_end=exchange_end,
                 )
                 session.add(entry)
                 await session.flush()

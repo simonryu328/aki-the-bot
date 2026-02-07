@@ -585,6 +585,81 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error in reflect command: {e}")
             await update.message.reply_text(f"Error: {e}")
+    async def compact_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /compact command.
+        Manually triggers compact summarization and shows the full raw output.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+
+            # Show thinking indicator
+            await update.message.reply_text("📝 Creating compact summary...")
+
+            # Get user context
+            user_context = await memory_manager.get_user_context(user_id)
+            
+            # Build profile context (same as respond() does)
+            from agents.soul_agent import soul_agent
+            profile_context = soul_agent._build_profile_context(user_context)
+
+            # Get recent conversations to check if there's anything to summarize
+            recent_convos = await memory_manager.db.get_recent_conversations(user_id, limit=20)
+            
+            if not recent_convos:
+                await update.message.reply_text("No recent conversations to summarize.")
+                return
+
+            # Run compact summarization
+            await soul_agent._create_compact_summary(
+                user_id=user_id,
+                profile_context=profile_context,
+            )
+
+            # Get the compact prompt that was used
+            compact_prompt = soul_agent._last_compact_prompt.get(user_id, "")
+
+            # Get the most recent diary entry (should be the compact summary)
+            diary_entries = await memory_manager.get_diary_entries(user_id, limit=5)
+            
+            compact_summary = None
+            for entry in diary_entries:
+                if entry.entry_type == "compact_summary":
+                    compact_summary = entry
+                    break
+
+            if compact_summary:
+                # Send the full raw output (non-truncated)
+                response_parts = [
+                    "✅ Compact Summary Generated\n",
+                    "=" * 40,
+                    "\nRAW OUTPUT:",
+                    compact_summary.content,
+                    "\n" + "=" * 40,
+                    f"\nCreated: {compact_summary.timestamp.strftime('%Y-%m-%d %H:%M')}",
+                    f"Stored as diary entry ID: {compact_summary.id}",
+                ]
+                
+                response = "\n".join(response_parts)
+                
+                # Send using long message handler (splits if needed)
+                await self._send_long_message(update.effective_chat.id, response)
+                
+                # Optionally show the prompt used (for debugging)
+                if compact_prompt:
+                    prompt_preview = f"\n📋 Prompt used (first 500 chars):\n{compact_prompt[:500]}..."
+                    await update.message.reply_text(prompt_preview)
+            else:
+                await update.message.reply_text("⚠️ Compact summary was created but not found in diary entries.")
+
+        except Exception as e:
+            logger.error(f"Error in compact command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
 
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
@@ -788,6 +863,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("reflect", self.reflect_command)
+        )
+        self.application.add_handler(
+            CommandHandler("compact", self.compact_command)
         )
 
         # Message handlers

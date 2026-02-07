@@ -12,13 +12,19 @@ class DiaryEntryBaseSchema(BaseModel):
     entry_type: str = Field(
         ...,
         max_length=100,
-        description="Entry type (e.g., 'achievement', 'milestone', 'visual_memory')",
+        description="Entry type (e.g., 'achievement', 'milestone', 'visual_memory', 'compact_summary')",
     )
     title: str = Field(..., max_length=500, description="Entry title")
     content: str = Field(..., description="Entry content")
     importance: int = Field(..., ge=0, le=10, description="Importance score (0-10)")
     image_url: Optional[str] = Field(
         None, max_length=1000, description="Associated image URL"
+    )
+    exchange_start: Optional[datetime] = Field(
+        None, description="For compact_summary: when conversation exchange began"
+    )
+    exchange_end: Optional[datetime] = Field(
+        None, description="For compact_summary: when conversation exchange ended"
     )
 
 

@@ -13,6 +13,7 @@ from prompts.observation import OBSERVATION_PROMPT
 from prompts.reflection import REFLECTION_PROMPT
 from prompts.condensation import CONDENSATION_PROMPT
 from prompts.proactive import PROACTIVE_MESSAGE_PROMPT
+from prompts.compact import COMPACT_PROMPT
 
 __all__ = [
     "SYSTEM_FRAME",
@@ -20,4 +21,5 @@ __all__ = [
     "REFLECTION_PROMPT",
     "CONDENSATION_PROMPT",
     "PROACTIVE_MESSAGE_PROMPT",
+    "COMPACT_PROMPT",
 ]

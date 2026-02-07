@@ -93,12 +93,14 @@ class DiaryEntry(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    entry_type = Column(String(100), nullable=False)  # e.g., "achievement", "milestone", "significant_event", "visual_memory"
+    entry_type = Column(String(100), nullable=False)  # e.g., "achievement", "milestone", "significant_event", "visual_memory", "compact_summary"
     title = Column(String(500), nullable=False)
     content = Column(Text, nullable=False)
     importance = Column(Integer, nullable=False)  # 0-10 scale
     image_url = Column(String(1000), nullable=True)  # Path to stored image if applicable
     timestamp = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False, index=True)
+    exchange_start = Column(DateTime, nullable=True, index=True)  # For compact_summary: when conversation exchange began
+    exchange_end = Column(DateTime, nullable=True, index=True)  # For compact_summary: when conversation exchange ended
 
     # Relationships
     user = relationship("User", back_populates="diary_entries")

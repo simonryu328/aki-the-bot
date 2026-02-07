@@ -23,6 +23,7 @@ from core import get_logger
 from prompts import (
     OBSERVATION_PROMPT,
     REFLECTION_PROMPT,
+    COMPACT_PROMPT,
 )
 from prompts.condensation import CONDENSATION_PROMPT
 from prompts.system_frame import SYSTEM_FRAME
@@ -56,9 +57,12 @@ class SoulAgent:
     _last_thinking: Dict[int, str] = {}
     _last_system_prompt: Dict[int, str] = {}
     _last_observation_prompt: Dict[int, str] = {}
+    _last_compact_prompt: Dict[int, str] = {}
     _last_profile_context: Dict[int, str] = {}
     _message_count: Dict[int, int] = {}
+    _compact_message_count: Dict[int, int] = {}
     OBSERVATION_INTERVAL = 10  # Run observation agent every N exchanges
+    COMPACT_INTERVAL = 10  # Run compact summarization every N exchanges
 
     def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
@@ -154,16 +158,28 @@ class SoulAgent:
         # Background: Check if anything significant should be remembered
         # Only run every N exchanges to avoid excessive LLM calls
         import asyncio
-        SoulAgent._message_count[user_id] = SoulAgent._message_count.get(user_id, 0) + 1
-        if SoulAgent._message_count[user_id] >= self.OBSERVATION_INTERVAL:
-            SoulAgent._message_count[user_id] = 0
+        # DISABLED: Observation agent trigger
+        # SoulAgent._message_count[user_id] = SoulAgent._message_count.get(user_id, 0) + 1
+        # if SoulAgent._message_count[user_id] >= self.OBSERVATION_INTERVAL:
+        #     SoulAgent._message_count[user_id] = 0
+        #     asyncio.create_task(
+        #         self._maybe_store_observations(
+        #             user_id=user_id,
+        #             profile_context=profile_context,
+        #             user_message=message,
+        #             assistant_response=response,
+        #             thinking=thinking or "",
+        #         )
+        #     )
+
+        # Background: Create compact summary of exchanges
+        SoulAgent._compact_message_count[user_id] = SoulAgent._compact_message_count.get(user_id, 0) + 1
+        if SoulAgent._compact_message_count[user_id] >= self.COMPACT_INTERVAL:
+            SoulAgent._compact_message_count[user_id] = 0
             asyncio.create_task(
-                self._maybe_store_observations(
+                self._create_compact_summary(
                     user_id=user_id,
                     profile_context=profile_context,
-                    user_message=message,
-                    assistant_response=response,
-                    thinking=thinking or "",
                 )
             )
 
@@ -348,7 +364,7 @@ class SoulAgent:
                     if conv.timestamp:
                         utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
                         local_time = utc_time.astimezone(tz)
-                        ts = local_time.strftime("%H:%M")
+                        ts = local_time.strftime("%Y-%m-%d %H:%M")
                     else:
                         ts = ""
                     convo_lines.append(f"[{ts}] {role}: {conv.message}")
@@ -455,6 +471,105 @@ class SoulAgent:
 
         except Exception as e:
             logger.error("Failed to process observations", user_id=user_id, error=str(e))
+    async def _create_compact_summary(
+        self,
+        user_id: int,
+        profile_context: str,
+    ) -> None:
+        """Create a compact summary of recent message exchanges."""
+        logger.info("Running compact summarization", user_id=user_id)
+        try:
+            tz = pytz.timezone(settings.TIMEZONE)
+            
+            # Get user name
+            user = await self.memory.get_user_by_id(user_id)
+            user_name = user.name if user and user.name else "them"
+            
+            # Get recent conversation (last 20 messages = ~10 exchanges)
+            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=20)
+            if not recent_convos:
+                logger.debug("No recent conversations to summarize", user_id=user_id)
+                return
+            
+            # Extract start and end times from conversation objects
+            first_conv = recent_convos[0]
+            last_conv = recent_convos[-1]
+            
+            if first_conv.timestamp:
+                utc_start = first_conv.timestamp.replace(tzinfo=pytz.utc)
+                start_time = utc_start.astimezone(tz).strftime("%Y-%m-%d %H:%M")
+            else:
+                start_time = "unknown"
+            
+            if last_conv.timestamp:
+                utc_end = last_conv.timestamp.replace(tzinfo=pytz.utc)
+                end_time = utc_end.astimezone(tz).strftime("%Y-%m-%d %H:%M")
+            else:
+                end_time = "unknown"
+            
+            # Format conversations with timestamps
+            convo_lines = []
+            for conv in recent_convos:
+                role = "Them" if conv.role == "user" else "You"
+                if conv.timestamp:
+                    utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
+                    local_time = utc_time.astimezone(tz)
+                    ts = local_time.strftime("%Y-%m-%d %H:%M")
+                else:
+                    ts = ""
+                convo_lines.append(f"[{ts}] {role}: {conv.message}")
+            recent_conversation = "\n".join(convo_lines)
+            
+            # Build prompt with explicit start/end times
+            prompt = COMPACT_PROMPT.format(
+                user_name=user_name,
+                profile_context=profile_context,
+                start_time=start_time,
+                end_time=end_time,
+                recent_conversation=recent_conversation,
+            )
+            SoulAgent._last_compact_prompt[user_id] = prompt
+            
+            # Generate summary
+            result = await llm_client.chat(
+                model=settings.MODEL_SUMMARY,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=300,
+            )
+            
+            logger.info("Compact summary generated", user_id=user_id, summary_length=len(result))
+            
+            # Store summary as a diary entry with type "compact_summary"
+            if result and "SUMMARY:" in result:
+                # Extract the summary content
+                summary_content = result.split("SUMMARY:", 1)[1].strip()
+                
+                # Convert start/end times back to datetime objects for storage
+                exchange_start_dt = None
+                exchange_end_dt = None
+                if first_conv.timestamp:
+                    exchange_start_dt = first_conv.timestamp  # Store as UTC
+                if last_conv.timestamp:
+                    exchange_end_dt = last_conv.timestamp  # Store as UTC
+                
+                # Store in diary entries with exchange timestamps
+                await self.memory.add_diary_entry(
+                    user_id=user_id,
+                    entry_type="compact_summary",
+                    title="Conversation Summary",
+                    content=summary_content,
+                    importance=5,  # Medium importance
+                    exchange_start=exchange_start_dt,
+                    exchange_end=exchange_end_dt,
+                )
+                
+                logger.info("Stored compact summary", user_id=user_id,
+                           exchange_start=start_time, exchange_end=end_time)
+            
+        except Exception as e:
+            logger.error("Failed to create compact summary", user_id=user_id, error=str(e))
+
 
     async def generate_reflection(
         self,

@@ -420,17 +420,21 @@ class AsyncMemoryManager:
         content: str,
         importance: int,
         image_url: Optional[str] = None,
+        exchange_start: Optional[datetime] = None,
+        exchange_end: Optional[datetime] = None,
     ) -> DiaryEntrySchema:
         """
         Add a diary entry (milestone moment).
 
         Args:
             user_id: User ID
-            entry_type: Type of entry (e.g., "achievement", "milestone", "visual_memory")
+            entry_type: Type of entry (e.g., "achievement", "milestone", "visual_memory", "compact_summary")
             title: Entry title
             content: Entry content
             importance: Importance score (0-10)
             image_url: Path to associated image
+            exchange_start: For compact_summary: when conversation exchange began
+            exchange_end: For compact_summary: when conversation exchange ended
 
         Returns:
             DiaryEntrySchema with stored entry
@@ -440,7 +444,7 @@ class AsyncMemoryManager:
         """
         try:
             entry = await self.db.add_diary_entry(
-                user_id, entry_type, title, content, importance, image_url
+                user_id, entry_type, title, content, importance, image_url, exchange_start, exchange_end
             )
 
             # Store in vector store
