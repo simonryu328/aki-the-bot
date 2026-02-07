@@ -27,7 +27,7 @@ from prompts import (
 )
 from prompts.condensation import CONDENSATION_PROMPT
 from prompts.system_frame import SYSTEM_FRAME
-from prompts.personas import COMPANION_PERSONA
+from prompts.personas import FRIEND_PERSONA
 
 logger = get_logger(__name__)
 
@@ -64,7 +64,7 @@ class SoulAgent:
     OBSERVATION_INTERVAL = 10  # Run observation agent every N exchanges
     COMPACT_INTERVAL = 10  # Run compact summarization every N exchanges
 
-    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
+    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = FRIEND_PERSONA):
         """Initialize companion agent.
 
         Args:
@@ -241,7 +241,12 @@ class SoulAgent:
         return "\n".join(lines)
 
     def _parse_response(self, raw: str) -> tuple[Optional[str], str, List[str]]:
-        """Parse thinking, response, and multiple messages from raw LLM output."""
+        """Parse thinking, response, and multiple messages from raw LLM output.
+        
+        Supports two formats:
+        1. XML: <response><message>text</message><message>text</message></response>
+        2. Fallback: Plain text or ||| separator
+        """
         thinking = None
         response = raw
 
@@ -252,11 +257,25 @@ class SoulAgent:
             # Remove thinking from response
             response = re.sub(r'<thinking>.*?</thinking>', '', raw, flags=re.DOTALL).strip()
 
-        # Split into multiple messages if ||| separator is used
-        if '|||' in response:
-            messages = [msg.strip() for msg in response.split('|||') if msg.strip()]
+        # Try to extract structured <response> with <message> tags
+        response_match = re.search(r'<response>(.*?)</response>', response, re.DOTALL)
+        if response_match:
+            response_content = response_match.group(1)
+            # Extract individual <message> tags
+            message_matches = re.findall(r'<message>(.*?)</message>', response_content, re.DOTALL)
+            if message_matches:
+                messages = [msg.strip() for msg in message_matches if msg.strip()]
+            else:
+                # <response> tag exists but no <message> tags - treat content as single message
+                messages = [response_content.strip()]
         else:
-            messages = [response]
+            # Fallback: check for ||| separator or treat as single message
+            if '|||' in response:
+                messages = [msg.strip() for msg in response.split('|||') if msg.strip()]
+            else:
+                # Remove any stray <response> or <message> tags and use as-is
+                clean_response = re.sub(r'</?(?:response|message)>', '', response).strip()
+                messages = [clean_response] if clean_response else [response.strip()]
 
         # Full response for storage (join with newlines)
         full_response = '\n'.join(messages)

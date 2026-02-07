@@ -56,14 +56,32 @@ class TelegramBot:
         """
         Send a message with a typing indicator beforehand.
         Typing duration scales with message length for realism.
+        Handles Telegram API timeouts gracefully.
         """
         import asyncio
+        from telegram.error import TimedOut, NetworkError
 
-        await self.application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        try:
+            await self.application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        except (TimedOut, NetworkError) as e:
+            logger.warning(f"Typing indicator failed (timeout/network): {e}. Continuing with message send.")
+        
         # Typing duration: 0.5s base + scales with length, capped at 2.5s
         typing_duration = min(0.5 + len(text) * 0.02, 2.5)
         await asyncio.sleep(typing_duration)
-        await self.application.bot.send_message(chat_id=chat_id, text=text)
+        
+        try:
+            await self.application.bot.send_message(chat_id=chat_id, text=text)
+        except (TimedOut, NetworkError) as e:
+            logger.error(f"Failed to send message due to timeout/network error: {e}")
+            # Retry once after a brief delay
+            await asyncio.sleep(1)
+            try:
+                await self.application.bot.send_message(chat_id=chat_id, text=text)
+                logger.info("Message sent successfully on retry")
+            except Exception as retry_error:
+                logger.error(f"Retry also failed: {retry_error}")
+                raise
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
