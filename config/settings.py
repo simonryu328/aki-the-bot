@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     # Models - one setting per purpose, all configurable from .env
     # claude-opus-4-20250514
     MODEL_CONVERSATION: str = Field(
-        default="claude-opus-4-20250514                                                                                                  n ",
+        default="claude-3-5-haiku-latest",
         description="Model for main conversation responses",
     )
     MODEL_OBSERVATION: str = Field(

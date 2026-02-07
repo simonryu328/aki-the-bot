@@ -217,7 +217,7 @@ class SoulAgent:
             if conv.timestamp:
                 utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
                 local_time = utc_time.astimezone(tz)
-                ts = local_time.strftime("%H:%M")
+                ts = local_time.strftime("%Y-%m-%d %H:%M")
             else:
                 ts = ""
             lines.append(f"[{ts}] {role}: {conv.message}")
