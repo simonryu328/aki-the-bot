@@ -18,7 +18,7 @@ import streamlit as st
 from sqlalchemy import create_engine, select, desc, func
 from sqlalchemy.orm import Session, sessionmaker
 
-from memory.models import Base, User, ProfileFact, Conversation, ScheduledMessage, TimelineEvent
+from memory.models import Base, User, ProfileFact, Conversation, ScheduledMessage, TimelineEvent, DiaryEntry
 from config.settings import settings
 
 TZ = pytz.timezone(settings.TIMEZONE)
@@ -154,6 +154,49 @@ def load_scheduled(user_id: int):
         session.close()
 
 
+@st.cache_data(ttl=30)
+def load_diary_entries(user_id: int, limit: int = 10):
+    session = get_session()
+    try:
+        entries = session.execute(
+            select(DiaryEntry)
+            .where(DiaryEntry.user_id == user_id)
+            .order_by(desc(DiaryEntry.timestamp))
+            .limit(limit)
+        ).scalars().all()
+        
+        return [{
+            "type": e.entry_type,
+            "content": e.content,
+            "timestamp": e.timestamp,
+            "exchange_start": getattr(e, 'exchange_start', None),
+            "exchange_end": getattr(e, 'exchange_end', None),
+        } for e in entries]
+    finally:
+        session.close()
+
+
+@st.cache_data(ttl=30)
+def load_user_settings(user_id: int):
+    session = get_session()
+    try:
+        user = session.execute(
+            select(User).where(User.id == user_id)
+        ).scalar_one_or_none()
+        
+        if not user:
+            return None
+            
+        return {
+            "reach_out_enabled": user.reach_out_enabled,
+            "reach_out_min_silence_hours": user.reach_out_min_silence_hours,
+            "reach_out_max_silence_days": user.reach_out_max_silence_days,
+            "last_reach_out_at": user.last_reach_out_at,
+        }
+    finally:
+        session.close()
+
+
 # ---- Page config ----
 
 st.set_page_config(page_title="Companion Dashboard", page_icon="👁", layout="centered")
@@ -203,8 +246,8 @@ if st.sidebar.button("Refresh Data"):
 
 # ---- Tabs ----
 
-tab_overview, tab_conversations, tab_observations, tab_scheduled = st.tabs(
-    ["Overview", "Conversations", "Observations", "Scheduled"]
+tab_overview, tab_conversations, tab_observations, tab_scheduled, tab_diary, tab_settings = st.tabs(
+    ["Overview", "Conversations", "Observations", "Scheduled", "Diary", "Settings"]
 )
 
 profile = load_profile(selected_user_id)
@@ -304,3 +347,57 @@ with tab_scheduled:
                 st.caption(event["desc"])
     else:
         st.caption("No timeline events.")
+
+
+# ---- Tab: Diary ----
+
+with tab_diary:
+    st.subheader("Diary Entries")
+    
+    entry_limit = st.slider("Entries to load", 5, 50, 10, step=5)
+    diary_entries = load_diary_entries(selected_user_id, limit=entry_limit)
+    
+    if not diary_entries:
+        st.info("No diary entries yet.")
+    else:
+        for entry in diary_entries:
+            entry_type = entry["type"]
+            timestamp = fmt(entry["timestamp"])
+            
+            # Format exchange times if available
+            exchange_info = ""
+            if entry["exchange_start"] and entry["exchange_end"]:
+                start = fmt(entry["exchange_start"])
+                end = fmt(entry["exchange_end"])
+                exchange_info = f" (Exchange: {start} → {end})"
+            
+            with st.expander(f"**{entry_type}** — {timestamp}{exchange_info}", expanded=False):
+                st.write(entry["content"])
+
+
+# ---- Tab: Settings ----
+
+with tab_settings:
+    st.subheader("User Settings")
+    
+    user_settings = load_user_settings(selected_user_id)
+    
+    if not user_settings:
+        st.error("Could not load user settings.")
+    else:
+        st.markdown("### Reach-Out Configuration")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            enabled_status = "✅ Enabled" if user_settings["reach_out_enabled"] else "❌ Disabled"
+            st.metric("Status", enabled_status)
+            st.metric("Min Silence", f"{user_settings['reach_out_min_silence_hours']} hours")
+        
+        with col2:
+            st.metric("Max Silence", f"{user_settings['reach_out_max_silence_days']} days")
+            last_reach_out = fmt(user_settings["last_reach_out_at"]) if user_settings["last_reach_out_at"] else "Never"
+            st.metric("Last Reach-Out", last_reach_out)
+        
+        st.markdown("---")
+        st.caption("Users can configure these settings via Telegram commands: /reachout_settings, /reachout_enable, /reachout_disable, /reachout_min, /reachout_max")

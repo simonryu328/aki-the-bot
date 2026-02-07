@@ -33,5 +33,11 @@ class UserSchema(UserBaseSchema):
     id: int = Field(..., description="Internal user ID")
     created_at: datetime = Field(..., description="User creation timestamp")
     last_interaction: datetime = Field(..., description="Last interaction timestamp")
+    
+    # Reach-out configuration
+    reach_out_enabled: bool = Field(True, description="Whether reach-outs are enabled for this user")
+    reach_out_min_silence_hours: int = Field(6, description="Minimum hours of silence before reaching out")
+    reach_out_max_silence_days: int = Field(3, description="Maximum days to keep trying reach-outs")
+    last_reach_out_at: Optional[datetime] = Field(None, description="When bot last reached out")
 
     model_config = ConfigDict(from_attributes=True)

@@ -32,6 +32,12 @@ class User(Base):
     username = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     last_interaction = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
+    
+    # Reach-out configuration (per user)
+    reach_out_enabled = Column(Boolean, default=True, nullable=False)
+    reach_out_min_silence_hours = Column(Integer, default=6, nullable=False)
+    reach_out_max_silence_days = Column(Integer, default=3, nullable=False)
+    last_reach_out_at = Column(DateTime, nullable=True)
 
     # Relationships
     profile_facts = relationship("ProfileFact", back_populates="user", cascade="all, delete-orphan")

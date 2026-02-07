@@ -608,6 +608,115 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to clear scheduled messages", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to clear scheduled messages: {e}")
+    # ==================== Reach-Out Management ====================
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(SQLAlchemyError),
+    )
+    async def get_all_users(self) -> List[UserSchema]:
+        """
+        Get all users.
+
+        Returns:
+            List of UserSchema objects
+
+        Raises:
+            DatabaseException: If query fails
+        """
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User))
+                users = result.scalars().all()
+                return [UserSchema.model_validate(user) for user in users]
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get all users", error=str(e))
+            raise DatabaseException(f"Failed to get all users: {e}")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(SQLAlchemyError),
+    )
+    async def update_user_reach_out_timestamp(self, user_id: int, timestamp: datetime) -> None:
+        """
+        Update last_reach_out_at timestamp for a user.
+
+        Args:
+            user_id: User ID
+            timestamp: Timestamp to set
+
+        Raises:
+            DatabaseException: If update fails
+        """
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                
+                if not user:
+                    raise RecordNotFoundError(f"User {user_id} not found")
+                
+                # Convert timezone-aware datetime to naive UTC for database storage
+                if timestamp.tzinfo is not None:
+                    timestamp_utc = timestamp.astimezone(pytz.utc).replace(tzinfo=None)
+                else:
+                    timestamp_utc = timestamp
+                
+                user.last_reach_out_at = timestamp_utc
+                logger.debug("Updated reach-out timestamp", user_id=user_id, timestamp=timestamp_utc)
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to update reach-out timestamp", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to update reach-out timestamp: {e}")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(SQLAlchemyError),
+    )
+    async def update_user_reach_out_config(
+        self,
+        user_id: int,
+        enabled: Optional[bool] = None,
+        min_silence_hours: Optional[int] = None,
+        max_silence_days: Optional[int] = None,
+    ) -> None:
+        """
+        Update reach-out configuration for a user.
+
+        Args:
+            user_id: User ID
+            enabled: Whether reach-outs are enabled
+            min_silence_hours: Minimum hours before reach-out
+            max_silence_days: Maximum days to keep trying
+
+        Raises:
+            DatabaseException: If update fails
+        """
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                
+                if not user:
+                    raise RecordNotFoundError(f"User {user_id} not found")
+                
+                if enabled is not None:
+                    user.reach_out_enabled = enabled
+                if min_silence_hours is not None:
+                    user.reach_out_min_silence_hours = min_silence_hours
+                if max_silence_days is not None:
+                    user.reach_out_max_silence_days = max_silence_days
+                
+                logger.debug("Updated reach-out config", user_id=user_id)
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to update reach-out config", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to update reach-out config: {e}")
+
 
 
 # Singleton instance

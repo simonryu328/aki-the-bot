@@ -24,7 +24,7 @@ from agents import orchestrator
 from agents.soul_agent import SoulAgent
 from memory.memory_manager_async import memory_manager
 from utils.llm_client import llm_client
-from prompts import PROACTIVE_MESSAGE_PROMPT
+from prompts import PROACTIVE_MESSAGE_PROMPT, REACH_OUT_PROMPT
 
 # Configure logging
 logging.basicConfig(
@@ -66,8 +66,8 @@ class TelegramBot:
         except (TimedOut, NetworkError) as e:
             logger.warning(f"Typing indicator failed (timeout/network): {e}. Continuing with message send.")
         
-        # Typing duration: 0.5s base + scales with length, capped at 2.5s
-        typing_duration = min(0.5 + len(text) * 0.02, 2.5)
+        # Typing duration: 0.5s base + scales with length, capped at 30s
+        typing_duration = min(0.5 + len(text) * 0.2, 30.0)
         await asyncio.sleep(typing_duration)
         
         try:
@@ -678,6 +678,163 @@ class TelegramBot:
             logger.error(f"Error in compact command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
+    async def reachout_settings_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /reachout_settings command.
+        Shows current reach-out configuration for the user.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+
+            enabled = "✅ Enabled" if db_user.reach_out_enabled else "❌ Disabled"
+            min_hours = db_user.reach_out_min_silence_hours or settings.DEFAULT_REACH_OUT_MIN_SILENCE_HOURS
+            max_days = db_user.reach_out_max_silence_days or settings.DEFAULT_REACH_OUT_MAX_SILENCE_DAYS
+
+            response = (
+                f"🔔 Reach-Out Settings\n\n"
+                f"Status: {enabled}\n"
+                f"Min silence: {min_hours} hours\n"
+                f"Max silence: {max_days} days\n\n"
+                f"Commands:\n"
+                f"/reachout_enable - Enable reach-outs\n"
+                f"/reachout_disable - Disable reach-outs\n"
+                f"/reachout_min <hours> - Set minimum silence hours\n"
+                f"/reachout_max <days> - Set maximum silence days\n\n"
+                f"Example: /reachout_min 12"
+            )
+
+            await update.message.reply_text(response)
+
+        except Exception as e:
+            logger.error(f"Error in reachout_settings command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def reachout_enable_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /reachout_enable command.
+        Enables reach-out messages for the user.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            await memory_manager.update_user_reach_out_config(
+                user_id=db_user.id,
+                enabled=True,
+            )
+
+            await update.message.reply_text(
+                "✅ Reach-outs enabled! I'll check in if you're quiet for a while."
+            )
+
+        except Exception as e:
+            logger.error(f"Error in reachout_enable command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def reachout_disable_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /reachout_disable command.
+        Disables reach-out messages for the user.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            await memory_manager.update_user_reach_out_config(
+                user_id=db_user.id,
+                enabled=False,
+            )
+
+            await update.message.reply_text(
+                "❌ Reach-outs disabled. I won't initiate contact based on inactivity."
+            )
+
+        except Exception as e:
+            logger.error(f"Error in reachout_disable command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def reachout_min_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /reachout_min command.
+        Sets minimum silence hours before reach-out.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            # Parse hours from command args
+            if not context.args or len(context.args) != 1:
+                await update.message.reply_text(
+                    "Usage: /reachout_min <hours>\nExample: /reachout_min 12"
+                )
+                return
+
+            try:
+                hours = int(context.args[0])
+                if hours < 1:
+                    await update.message.reply_text("Hours must be at least 1.")
+                    return
+            except ValueError:
+                await update.message.reply_text("Please provide a valid number of hours.")
+                return
+
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            await memory_manager.update_user_reach_out_config(
+                user_id=db_user.id,
+                min_silence_hours=hours,
+            )
+
+            await update.message.reply_text(
+                f"✅ Minimum silence set to {hours} hours."
+            )
+
+        except Exception as e:
+            logger.error(f"Error in reachout_min command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
+    async def reachout_max_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /reachout_max command.
+        Sets maximum silence days for reach-outs.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+
+        try:
+            # Parse days from command args
+            if not context.args or len(context.args) != 1:
+                await update.message.reply_text(
+                    "Usage: /reachout_max <days>\nExample: /reachout_max 3"
+                )
+                return
+
+            try:
+                days = int(context.args[0])
+                if days < 1:
+                    await update.message.reply_text("Days must be at least 1.")
+                    return
+            except ValueError:
+                await update.message.reply_text("Please provide a valid number of days.")
+                return
+
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            await memory_manager.update_user_reach_out_config(
+                user_id=db_user.id,
+                max_silence_days=days,
+            )
+
+            await update.message.reply_text(
+                f"✅ Maximum silence set to {days} days."
+            )
+
+        except Exception as e:
+            logger.error(f"Error in reachout_max command: {e}")
+            await update.message.reply_text(f"Error: {e}")
 
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
@@ -769,6 +926,190 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Failed to generate proactive message: {e}")
             return None
+
+    async def _generate_reach_out_message(
+        self,
+        user_id: int,
+        hours_since_last_message: int,
+    ) -> Optional[str]:
+        """
+        Generate a natural reach-out message based on user inactivity.
+
+        Args:
+            user_id: Internal user ID
+            hours_since_last_message: Hours since user's last message
+
+        Returns:
+            The generated message or None if reach-out not appropriate
+        """
+        try:
+            # Get user context
+            user_context = await memory_manager.get_user_context(user_id)
+
+            # Build profile context
+            from agents.soul_agent import soul_agent
+            profile_context = soul_agent._build_profile_context(user_context)
+
+            # Get recent conversations (20 messages = ~10 exchanges)
+            tz = pytz.timezone(settings.TIMEZONE)
+            now = datetime.now(tz)
+            current_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
+            
+            conversations = await memory_manager.db.get_recent_conversations(user_id, limit=20)
+            if conversations:
+                history_lines = []
+                for conv in conversations:
+                    role = "Them" if conv.role == "user" else "You"
+                    if conv.timestamp:
+                        utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
+                        local_time = utc_time.astimezone(tz)
+                        ts = local_time.strftime("%Y-%m-%d %H:%M")
+                    else:
+                        ts = ""
+                    history_lines.append(f"[{ts}] {role}: {conv.message}")
+                conversation_history = "\n".join(history_lines)
+            else:
+                conversation_history = "(No recent conversation)"
+
+            # Get recent compact summaries
+            diary_entries = await memory_manager.get_diary_entries(user_id, limit=3)
+            compact_summaries = []
+            for entry in diary_entries:
+                if entry.entry_type == "compact_summary":
+                    compact_summaries.append(entry.content)
+            compact_text = "\n\n".join(compact_summaries) if compact_summaries else "(No summaries yet)"
+
+            # Format time since last message
+            if hours_since_last_message < 24:
+                time_since = f"{hours_since_last_message} hours"
+            else:
+                days = hours_since_last_message // 24
+                time_since = f"{days} day{'s' if days > 1 else ''}"
+
+            # Get persona from soul_agent instance
+            persona = soul_agent.persona
+
+            # Generate the message
+            prompt = REACH_OUT_PROMPT.format(
+                current_time=current_time,
+                time_since=time_since,
+                persona=persona,
+                profile_context=profile_context,
+                conversation_history=conversation_history,
+                compact_summaries=compact_text,
+            )
+
+            message = await llm_client.chat(
+                model=settings.MODEL_PROACTIVE,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.9,
+                max_tokens=200,
+            )
+
+            message = message.strip()
+
+            # LLM decided this reach-out isn't appropriate
+            if message.upper() == "SKIP":
+                logger.info(f"Skipping reach-out - LLM determined not appropriate")
+                return None
+
+            return message
+
+        except Exception as e:
+            logger.error(f"Failed to generate reach-out message: {e}")
+            return None
+
+    async def _check_inactive_users(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Check for inactive users and send reach-out messages.
+        This runs periodically via JobQueue.
+        """
+        try:
+            # Get all users
+            all_users = await memory_manager.get_all_users()
+            
+            if not all_users:
+                return
+
+            logger.info(f"Checking {len(all_users)} users for inactivity reach-outs")
+
+            tz = pytz.timezone(settings.TIMEZONE)
+            now = datetime.now(tz)
+            sent_count = 0
+
+            for user in all_users:
+                try:
+                    # Skip if reach-out disabled for this user
+                    if not user.reach_out_enabled:
+                        continue
+
+                    # Get user's last message
+                    last_user_msg = await memory_manager.get_last_user_message(user.id)
+                    
+                    if not last_user_msg:
+                        continue
+
+                    # Calculate hours since last message
+                    msg_time = last_user_msg.timestamp
+                    if msg_time.tzinfo is None:
+                        msg_time = tz.localize(msg_time)
+                    
+                    hours_since = (now - msg_time).total_seconds() / 3600
+
+                    # Check if within reach-out window
+                    min_hours = user.reach_out_min_silence_hours or settings.DEFAULT_REACH_OUT_MIN_SILENCE_HOURS
+                    max_days = user.reach_out_max_silence_days or settings.DEFAULT_REACH_OUT_MAX_SILENCE_DAYS
+                    max_hours = max_days * 24
+
+                    if hours_since < min_hours or hours_since > max_hours:
+                        continue
+
+                    # Rate limit: don't reach out too frequently
+                    if user.last_reach_out_at:
+                        last_reach_out = user.last_reach_out_at
+                        if last_reach_out.tzinfo is None:
+                            last_reach_out = tz.localize(last_reach_out)
+                        
+                        hours_since_last_reach_out = (now - last_reach_out).total_seconds() / 3600
+                        
+                        # Don't reach out more than once per minimum silence period
+                        if hours_since_last_reach_out < min_hours:
+                            continue
+
+                    # Generate and send reach-out
+                    message_text = await self._generate_reach_out_message(
+                        user_id=user.id,
+                        hours_since_last_message=int(hours_since),
+                    )
+
+                    if message_text:
+                        # Send the message
+                        await self.send_message(user.telegram_id, message_text)
+                        sent_count += 1
+
+                        # Store in conversation history
+                        await memory_manager.add_conversation(
+                            user_id=user.id,
+                            role="assistant",
+                            message=message_text,
+                            store_in_vector=False,
+                        )
+
+                        # Update last reach-out timestamp
+                        await memory_manager.update_user_reach_out_timestamp(user.id, now)
+
+                        logger.info(
+                            f"Sent reach-out to user {user.id} (inactive for {int(hours_since)}h): {message_text[:50]}..."
+                        )
+
+                except Exception as e:
+                    logger.error(f"Failed to process reach-out for user {user.id}: {e}")
+
+            if sent_count > 0:
+                logger.info(f"Sent {sent_count} reach-out message(s)")
+
+        except Exception as e:
+            logger.error(f"Error in inactive user checker: {e}")
 
     async def _process_scheduled_messages(self, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -885,6 +1226,21 @@ class TelegramBot:
         self.application.add_handler(
             CommandHandler("compact", self.compact_command)
         )
+        self.application.add_handler(
+            CommandHandler("reachout_settings", self.reachout_settings_command)
+        )
+        self.application.add_handler(
+            CommandHandler("reachout_enable", self.reachout_enable_command)
+        )
+        self.application.add_handler(
+            CommandHandler("reachout_disable", self.reachout_disable_command)
+        )
+        self.application.add_handler(
+            CommandHandler("reachout_min", self.reachout_min_command)
+        )
+        self.application.add_handler(
+            CommandHandler("reachout_max", self.reachout_max_command)
+        )
 
         # Message handlers
         self.application.add_handler(
@@ -919,6 +1275,17 @@ class TelegramBot:
             name="scheduled_message_processor",
         )
         logger.info("Proactive messaging scheduler configured (every 5 minutes)")
+
+        # Set up the reach-out checker
+        # Check for inactive users based on configured interval
+        reach_out_interval = settings.REACH_OUT_CHECK_INTERVAL_MINUTES * 60  # Convert to seconds
+        job_queue.run_repeating(
+            self._check_inactive_users,
+            interval=reach_out_interval,
+            first=120,  # Start after 2 minutes
+            name="inactive_user_checker",
+        )
+        logger.info(f"Reach-out checker configured (every {settings.REACH_OUT_CHECK_INTERVAL_MINUTES} minutes)")
 
         # Start the bot
         logger.info("Starting Telegram bot...")

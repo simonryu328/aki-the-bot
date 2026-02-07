@@ -85,6 +85,23 @@ class Settings(BaseSettings):
         description="Application environment",
     )
 
+    # Reach-Out Configuration
+    REACH_OUT_CHECK_INTERVAL_MINUTES: int = Field(
+        default=60,
+        description="How often to check for inactive users (in minutes)",
+        ge=1,
+    )
+    DEFAULT_REACH_OUT_MIN_SILENCE_HOURS: int = Field(
+        default=6,
+        description="Default minimum hours of silence before reaching out",
+        ge=1,
+    )
+    DEFAULT_REACH_OUT_MAX_SILENCE_DAYS: int = Field(
+        default=3,
+        description="Default maximum days to keep trying reach-outs",
+        ge=1,
+    )
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:

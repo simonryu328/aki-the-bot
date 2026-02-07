@@ -566,6 +566,63 @@ class AsyncMemoryManager:
             message_id: Message ID to mark as executed
         """
         await self.db.mark_message_executed(message_id)
+    # ==================== Reach-Out Management ====================
+
+    async def get_all_users(self) -> List[UserSchema]:
+        """
+        Get all users for reach-out checking.
+
+        Returns:
+            List of all UserSchema objects
+        """
+        return await self.db.get_all_users()
+
+    async def get_last_user_message(self, user_id: int) -> Optional[ConversationSchema]:
+        """
+        Get the last message FROM the user (not from bot).
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            ConversationSchema of last user message, or None if no messages
+        """
+        conversations = await self.db.get_recent_conversations(user_id, limit=100)
+        for conv in conversations:
+            if conv.role == "user":
+                return conv
+        return None
+
+    async def update_user_reach_out_timestamp(self, user_id: int, timestamp: datetime) -> None:
+        """
+        Update the last_reach_out_at timestamp for a user.
+
+        Args:
+            user_id: User ID
+            timestamp: Timestamp of reach-out
+        """
+        await self.db.update_user_reach_out_timestamp(user_id, timestamp)
+
+    async def update_user_reach_out_config(
+        self,
+        user_id: int,
+        enabled: Optional[bool] = None,
+        min_silence_hours: Optional[int] = None,
+        max_silence_days: Optional[int] = None,
+    ) -> None:
+        """
+        Update reach-out configuration for a user.
+
+        Args:
+            user_id: User ID
+            enabled: Whether reach-outs are enabled
+            min_silence_hours: Minimum hours before reach-out
+            max_silence_days: Maximum days to keep trying
+        """
+        await self.db.update_user_reach_out_config(
+            user_id, enabled, min_silence_hours, max_silence_days
+        )
+
 
 
 # Singleton instance

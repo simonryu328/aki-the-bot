@@ -14,6 +14,7 @@ from prompts.reflection import REFLECTION_PROMPT
 from prompts.condensation import CONDENSATION_PROMPT
 from prompts.proactive import PROACTIVE_MESSAGE_PROMPT
 from prompts.compact import COMPACT_PROMPT
+from prompts.reach_out import REACH_OUT_PROMPT
 
 __all__ = [
     "SYSTEM_FRAME",
@@ -22,4 +23,5 @@ __all__ = [
     "CONDENSATION_PROMPT",
     "PROACTIVE_MESSAGE_PROMPT",
     "COMPACT_PROMPT",
+    "REACH_OUT_PROMPT",
 ]

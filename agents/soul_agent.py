@@ -27,7 +27,7 @@ from prompts import (
 )
 from prompts.condensation import CONDENSATION_PROMPT
 from prompts.system_frame import SYSTEM_FRAME
-from prompts.personas import FRIEND_PERSONA
+from prompts.personas import COMPANION_PERSONA
 
 logger = get_logger(__name__)
 
@@ -64,7 +64,7 @@ class SoulAgent:
     OBSERVATION_INTERVAL = 10  # Run observation agent every N exchanges
     COMPACT_INTERVAL = 10  # Run compact summarization every N exchanges
 
-    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = FRIEND_PERSONA):
+    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
 
         Args:
