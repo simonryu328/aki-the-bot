@@ -864,19 +864,24 @@ class TelegramBot:
             # Get or create user
             user = await memory_manager.get_or_create_user(user_id)
             
-            # Create inline keyboard with web app button
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+            # Create reply keyboard with web app button (required for sendData to work)
+            from telegram import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo, ReplyKeyboardRemove
             
-            # URL to your hosted mini app (update this with your actual URL)
+            # URL to your hosted mini app
             web_app_url = f"{settings.WEB_APP_URL}/static/settings/index.html"
             
+            # Create keyboard with web app button
             keyboard = [
-                [InlineKeyboardButton(
+                [KeyboardButton(
                     text="⚙️ Open Settings",
                     web_app=WebAppInfo(url=web_app_url)
                 )]
             ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            reply_markup = ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
             
             await update.message.reply_text(
                 "Tap the button below to open your settings:",
