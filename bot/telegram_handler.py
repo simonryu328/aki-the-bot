@@ -1104,11 +1104,24 @@ class TelegramBot:
                     )
 
                     if message_text:
-                        # Send the message
-                        await self.send_message(user.telegram_id, message_text)
+                        # Parse message for multiple parts (support [BREAK] and |||)
+                        messages = []
+                        if '[BREAK]' in message_text:
+                            messages = [msg.strip() for msg in message_text.split('[BREAK]') if msg.strip()]
+                        elif '|||' in message_text:
+                            messages = [msg.strip() for msg in message_text.split('|||') if msg.strip()]
+                        else:
+                            messages = [message_text]
+                        
+                        # Send each message with delay
+                        for i, msg in enumerate(messages):
+                            await self.send_message(user.telegram_id, msg)
+                            if i < len(messages) - 1:
+                                await asyncio.sleep(1.5)  # Delay between messages
+                        
                         sent_count += 1
 
-                        # Store in conversation history
+                        # Store full message in conversation history
                         await memory_manager.add_conversation(
                             user_id=user.id,
                             role="assistant",
@@ -1120,7 +1133,7 @@ class TelegramBot:
                         await memory_manager.update_user_reach_out_timestamp(user.id, now)
 
                         logger.info(
-                            f"Sent reach-out to user {user.id} (inactive for {int(hours_since)}h): {message_text[:50]}..."
+                            f"Sent reach-out to user {user.id} (inactive for {int(hours_since)}h, {len(messages)} messages): {message_text[:50]}..."
                         )
 
                 except Exception as e:
