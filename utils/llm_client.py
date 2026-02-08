@@ -94,13 +94,32 @@ class LLMClient:
             )
 
             content = response.choices[0].message.content
+            finish_reason = response.choices[0].finish_reason
 
             logger.debug(
                 "LLM response",
                 model=model,
                 tokens_used=response.usage.total_tokens if response.usage else None,
                 response_length=len(content),
+                finish_reason=finish_reason,
             )
+            
+            # Log full raw response for debugging
+            logger.info(
+                "Raw LLM response (full)",
+                model=model,
+                finish_reason=finish_reason,
+                raw_response=content,
+            )
+            
+            # Warn if response was cut off
+            if finish_reason == "length":
+                logger.warning(
+                    "Response truncated by max_tokens limit",
+                    model=model,
+                    max_tokens=max_tokens,
+                    completion_tokens=response.usage.completion_tokens if response.usage else None,
+                )
 
             return content
 

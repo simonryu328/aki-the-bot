@@ -1,6 +1,13 @@
 """
 Soul Agent - The core conversational agent.
 
+Copyright 2026 Simon Ryu. Licensed under Apache 2.0.
+
+This module implements proprietary algorithms including:
+- Multi-stage processing with thinking/observation/reflection layers
+- Time-windowed compact summarization with exchange tracking
+- Context-aware response generation with smart message splitting
+
 Accepts a swappable persona to define personality and behavior.
 Inspired by soul.md: listens for what's beneath the words,
 recognizes weight, and holds the story.
@@ -129,11 +136,29 @@ class SoulAgent:
             system_prompt=system_prompt,
             user_message=message,
             temperature=0.7,
-            max_tokens=500,
+            max_tokens=750,
+        )
+        
+        # Log raw response before parsing for debugging
+        logger.info(
+            "Raw response before parsing",
+            user_id=user_id,
+            raw_length=len(raw_response),
+            raw_response=raw_response,
         )
 
         # Parse thinking, response, messages, and emoji
         thinking, response, messages, emoji = self._parse_response(raw_response)
+        
+        # Log parsed result
+        logger.info(
+            "Parsed response",
+            user_id=user_id,
+            thinking_length=len(thinking) if thinking else 0,
+            response_length=len(response),
+            message_count=len(messages),
+            has_emoji=bool(emoji),
+        )
 
         # Store thinking for debug
         SoulAgent._last_thinking[user_id] = thinking or "(no thinking captured)"
