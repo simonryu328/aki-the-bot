@@ -168,6 +168,52 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 51px;
+            height: 31px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 31px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 23px;
+            width: 23px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--tg-theme-button-color, #3390ec);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
         }
     </style>
 </head>
@@ -278,17 +324,26 @@
             }
         }
 
-        // Request location from Telegram
+        // Request location using browser geolocation API
         document.getElementById('location-item').addEventListener('click', () => {
-            tg.requestLocation((location) => {
-                if (location) {
-                    currentSettings.location_latitude = location.latitude;
-                    currentSettings.location_longitude = location.longitude;
-                    currentSettings.location_name = `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`;
-                    document.getElementById('location-value').textContent = currentSettings.location_name;
-                    showStatus('Location updated', 'success');
-                }
-            });
+            if (navigator.geolocation) {
+                showStatus('Requesting location...', 'info');
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        currentSettings.location_latitude = position.coords.latitude;
+                        currentSettings.location_longitude = position.coords.longitude;
+                        currentSettings.location_name = `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
+                        document.getElementById('location-value').textContent = currentSettings.location_name;
+                        showStatus('Location updated!', 'success');
+                    },
+                    (error) => {
+                        console.error('Location error:', error);
+                        showStatus('Location access denied', 'error');
+                    }
+                );
+            } else {
+                showStatus('Location not supported', 'error');
+            }
         });
 
         // Save settings
