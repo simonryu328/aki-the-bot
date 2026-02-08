@@ -310,8 +310,35 @@
         // Load current settings
         async function loadSettings() {
             try {
-                // Auto-detect timezone
-                detectTimezone();
+                // Fetch saved settings from backend
+                const response = await fetch(`/api/settings?telegram_id=${userId}`);
+                if (response.ok) {
+                    const savedSettings = await response.json();
+                    
+                    // Update state with saved settings
+                    if (savedSettings.timezone) {
+                        currentSettings.timezone = savedSettings.timezone;
+                        document.getElementById('timezone-value').textContent = savedSettings.timezone;
+                    } else {
+                        // Auto-detect timezone if not saved
+                        detectTimezone();
+                    }
+                    
+                    if (savedSettings.location_name) {
+                        currentSettings.location_latitude = savedSettings.location_latitude;
+                        currentSettings.location_longitude = savedSettings.location_longitude;
+                        currentSettings.location_name = savedSettings.location_name;
+                        document.getElementById('location-value').textContent = savedSettings.location_name;
+                    }
+                    
+                    if (savedSettings.reach_out_enabled !== null) {
+                        currentSettings.reach_out_enabled = savedSettings.reach_out_enabled;
+                        document.getElementById('reach-out-enabled').checked = savedSettings.reach_out_enabled;
+                    }
+                } else {
+                    // If user not found, just auto-detect timezone
+                    detectTimezone();
+                }
                 
                 // Hide loading, show content
                 document.getElementById('loading').classList.add('hidden');
@@ -320,7 +347,11 @@
                 showStatus('Settings loaded', 'success');
             } catch (e) {
                 console.error('Failed to load settings:', e);
-                showStatus('Failed to load settings', 'error');
+                // Fallback to auto-detect
+                detectTimezone();
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('settings-content').classList.remove('hidden');
+                showStatus('Settings loaded (defaults)', 'success');
             }
         }
 

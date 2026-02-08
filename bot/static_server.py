@@ -34,12 +34,48 @@ async def serve_static(request):
     
     return web.FileResponse(file_path, headers={'Content-Type': content_type})
 
+async def get_user_settings(request):
+    """Get user settings from database."""
+    try:
+        import json
+        from memory.database_async import db
+        
+        # Get telegram_id from query params
+        telegram_id = request.query.get('telegram_id')
+        if not telegram_id:
+            return web.Response(status=400, text="Missing telegram_id")
+        
+        telegram_id = int(telegram_id)
+        
+        # Get user from database
+        user = await db.get_user_by_telegram_id(telegram_id)
+        if not user:
+            return web.Response(status=404, text="User not found")
+        
+        # Return settings as JSON
+        settings = {
+            'timezone': user.timezone,
+            'location_latitude': user.location_latitude,
+            'location_longitude': user.location_longitude,
+            'location_name': user.location_name,
+            'reach_out_enabled': user.reach_out_enabled
+        }
+        
+        return web.json_response(settings)
+        
+    except Exception as e:
+        logger.error(f"Error fetching user settings: {e}")
+        return web.Response(status=500, text=str(e))
+
 def create_app():
     """Create and configure the aiohttp application."""
     app = web.Application()
     
     # Add route for static files
     app.router.add_get('/static/{path:.*}', serve_static)
+    
+    # API endpoint for user settings
+    app.router.add_get('/api/settings', get_user_settings)
     
     # Health check endpoint (useful for Railway)
     async def health(request):

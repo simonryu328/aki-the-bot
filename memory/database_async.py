@@ -189,6 +189,18 @@ class AsyncDatabase:
             logger.error("Failed to get user", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to get user: {e}")
 
+    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[UserSchema]:
+        """Get user by Telegram ID."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User).where(User.telegram_id == telegram_id))
+                user = result.scalar_one_or_none()
+                return UserSchema.model_validate(user) if user else None
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get user", telegram_id=telegram_id, error=str(e))
+            raise DatabaseException(f"Failed to get user: {e}")
+
     # ==================== Profile Facts ====================
 
     async def add_profile_fact(
