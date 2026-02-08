@@ -116,6 +116,42 @@ class Settings(BaseSettings):
         description="Maximum messages before triggering a reaction (set to 1 for debugging)",
         ge=1,
     )
+    
+    # Conversation Context Configuration
+    CONVERSATION_CONTEXT_LIMIT: int = Field(
+        default=20,
+        description="Number of recent messages to include in conversation context",
+        ge=1,
+    )
+    
+    # Observation and Compact Configuration
+    OBSERVATION_INTERVAL: int = Field(
+        default=10,
+        description="Number of exchanges before triggering observation agent (currently disabled)",
+        ge=1,
+    )
+    COMPACT_INTERVAL: int = Field(
+        default=10,
+        description="Number of exchanges before creating compact summary",
+        ge=1,
+    )
+    CONDENSATION_THRESHOLD: int = Field(
+        default=50,
+        description="Number of observations before triggering auto-condensation",
+        ge=1,
+    )
+    
+    # Message Splitting Configuration
+    AUTO_SPLIT_THRESHOLD: int = Field(
+        default=300,
+        description="Character length threshold for auto-splitting messages",
+        ge=100,
+    )
+    SMART_SPLIT_MAX_LENGTH: int = Field(
+        default=250,
+        description="Target max length for each split message chunk",
+        ge=100,
+    )
 
     @field_validator("DATABASE_URL")
     @classmethod

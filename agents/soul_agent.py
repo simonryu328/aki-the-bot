@@ -63,8 +63,6 @@ class SoulAgent:
     _message_count: Dict[int, int] = {}
     _compact_message_count: Dict[int, int] = {}
     _reaction_counter: Dict[int, int] = {}  # Track messages until next reaction
-    OBSERVATION_INTERVAL = 10  # Run observation agent every N exchanges
-    COMPACT_INTERVAL = 10  # Run compact summarization every N exchanges
 
     def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
@@ -168,7 +166,7 @@ class SoulAgent:
         import asyncio
         # DISABLED: Observation agent trigger
         # SoulAgent._message_count[user_id] = SoulAgent._message_count.get(user_id, 0) + 1
-        # if SoulAgent._message_count[user_id] >= self.OBSERVATION_INTERVAL:
+        # if SoulAgent._message_count[user_id] >= settings.OBSERVATION_INTERVAL:
         #     SoulAgent._message_count[user_id] = 0
         #     asyncio.create_task(
         #         self._maybe_store_observations(
@@ -182,7 +180,7 @@ class SoulAgent:
 
         # Background: Create compact summary of exchanges
         SoulAgent._compact_message_count[user_id] = SoulAgent._compact_message_count.get(user_id, 0) + 1
-        if SoulAgent._compact_message_count[user_id] >= self.COMPACT_INTERVAL:
+        if SoulAgent._compact_message_count[user_id] >= settings.COMPACT_INTERVAL:
             SoulAgent._compact_message_count[user_id] = 0
             asyncio.create_task(
                 self._create_compact_summary(
@@ -323,6 +321,16 @@ class SoulAgent:
             else:
                 # Single message in <response> tag
                 messages = [response_content]
+        # Handle unclosed <response> tag (LLM didn't close it properly)
+        elif response.startswith('<response>'):
+            # Extract everything after <response> tag
+            response_content = response[len('<response>'):].strip()
+            
+            # Check for [BREAK] markers
+            if '[BREAK]' in response_content:
+                messages = [msg.strip() for msg in response_content.split('[BREAK]') if msg.strip()]
+            else:
+                messages = [response_content]
         else:
             # No <response> tag - check for [BREAK] markers in raw response
             if '[BREAK]' in response:
@@ -336,7 +344,7 @@ class SoulAgent:
                 messages = [clean_response] if clean_response else [response.strip()]
         
         # Auto-split long single messages (fallback for when LLM doesn't use markers)
-        if len(messages) == 1 and len(messages[0]) > 300:
+        if len(messages) == 1 and len(messages[0]) > settings.AUTO_SPLIT_THRESHOLD:
             messages = self._smart_split_message(messages[0])
 
         # Full response for storage (join with newlines)
@@ -344,7 +352,7 @@ class SoulAgent:
 
         return thinking, full_response, messages, emoji
     
-    def _smart_split_message(self, text: str, max_length: int = 250) -> List[str]:
+    def _smart_split_message(self, text: str, max_length: int = None) -> List[str]:
         """Intelligently split a long message into natural chunks.
         
         Splits on:
@@ -352,6 +360,9 @@ class SoulAgent:
         - Line breaks
         - Natural pauses (emoji followed by text)
         """
+        if max_length is None:
+            max_length = settings.SMART_SPLIT_MAX_LENGTH
+            
         # If short enough, return as-is
         if len(text) <= max_length:
             return [text]
@@ -484,8 +495,10 @@ class SoulAgent:
             else:
                 pending_followups = "(none)"
 
-            # Get recent conversation for context (last 20 messages = ~10 exchanges)
-            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=20)
+            # Get recent conversation for context
+            recent_convos = await self.memory.db.get_recent_conversations(
+                user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
+            )
             if recent_convos:
                 convo_lines = []
                 for conv in recent_convos:
@@ -588,7 +601,7 @@ class SoulAgent:
             # Trigger condensation if enough raw observations and not yet condensed
             try:
                 obs_count = await self.memory.db.get_observation_count(user_id)
-                if obs_count >= 50:
+                if obs_count >= settings.CONDENSATION_THRESHOLD:
                     profile = await self.memory.get_user_profile(user_id)
                     if "condensed" not in profile:
                         user = await self.memory.get_user_by_id(user_id)
@@ -614,8 +627,10 @@ class SoulAgent:
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "them"
             
-            # Get recent conversation (last 20 messages = ~10 exchanges)
-            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=20)
+            # Get recent conversation
+            recent_convos = await self.memory.db.get_recent_conversations(
+                user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
+            )
             if not recent_convos:
                 logger.debug("No recent conversations to summarize", user_id=user_id)
                 return
