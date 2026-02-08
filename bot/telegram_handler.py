@@ -893,6 +893,8 @@ class TelegramBot:
 
     async def handle_web_app_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle data sent from the web app."""
+        logger.info(f"Web app data handler called! Update: {update}")
+        
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         
@@ -901,7 +903,9 @@ class TelegramBot:
             
             # Get data from web app
             web_app_data = update.effective_message.web_app_data.data
+            logger.info(f"Received web app data: {web_app_data}")
             data = json.loads(web_app_data)
+            logger.info(f"Parsed data: {data}")
             
             if data.get('action') == 'update_settings':
                 settings_data = data.get('settings', {})
