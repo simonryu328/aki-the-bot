@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     # claude-sonnet-4-5-20250929
 
     MODEL_CONVERSATION: str = Field(
-        default="claude-opus-4-20250514",
+        default="claude-sonnet-4-5-20250929",
         description="Model for main conversation responses",
     )
     MODEL_OBSERVATION: str = Field(
