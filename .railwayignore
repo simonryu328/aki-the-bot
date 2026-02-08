@@ -1,0 +1,32 @@
+# Ignore local development files
+.env
+.env.local
+*.log
+logs/
+
+# Ignore test files
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore local database files
+*.db
+*.sqlite
+
+# Ignore documentation and user data
+docs/
+users/
+
+# Ignore Claude Code
+.claude
