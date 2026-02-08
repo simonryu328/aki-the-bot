@@ -38,19 +38,51 @@ async def test_reach_out(user_id: int, hours_since: int = 24):
         print(f"Telegram ID: {user.telegram_id}")
         print(f"Simulating: {hours_since} hours since last message\n")
         
-        # Get user context
-        user_context = await memory_manager.get_user_context(user_id)
+        user_name = user.name or "friend"
         
-        # Build profile context (simplified version)
-        from agents.soul_agent import soul_agent
-        profile_context = soul_agent._build_profile_context(user_context)
-        
-        # Get recent conversations
+        # Get timezone
         tz = pytz.timezone(settings.TIMEZONE)
         now = datetime.now(tz)
         current_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
+
+        # Get recent compact summaries (last 5)
+        diary_entries = await memory_manager.get_diary_entries(user_id, limit=5)
+        compact_summaries = []
+        last_compact_end = None
         
-        conversations = await memory_manager.db.get_recent_conversations(user_id, limit=20)
+        for entry in diary_entries:
+            if entry.entry_type == "compact_summary":
+                # Format with timestamp
+                if entry.exchange_start and entry.exchange_end:
+                    start_time = entry.exchange_start.replace(tzinfo=pytz.utc).astimezone(tz)
+                    end_time = entry.exchange_end.replace(tzinfo=pytz.utc).astimezone(tz)
+                    compact_summaries.append(
+                        f"[START: {start_time.strftime('%Y-%m-%d %H:%M')}] "
+                        f"[END: {end_time.strftime('%Y-%m-%d %H:%M')}]\n{entry.content}"
+                    )
+                    # Track the most recent compact's end time
+                    if last_compact_end is None or entry.exchange_end > last_compact_end:
+                        last_compact_end = entry.exchange_end
+        
+        # Build RECENT EXCHANGES section
+        if compact_summaries:
+            recent_exchanges = "RECENT EXCHANGES:\n" + "\n\n".join(compact_summaries)
+        else:
+            recent_exchanges = ""
+
+        # Get current conversations (only messages AFTER last compact)
+        if last_compact_end:
+            # Query conversations after the last compact's end time
+            conversations = await memory_manager.db.get_conversations_after(
+                user_id=user_id,
+                after=last_compact_end,
+                limit=20
+            )
+        else:
+            # No compacts yet, get recent conversations
+            conversations = await memory_manager.db.get_recent_conversations(user_id, limit=20)
+
+        # Build CURRENT CONVERSATION section
         if conversations:
             history_lines = []
             for conv in conversations:
@@ -62,17 +94,9 @@ async def test_reach_out(user_id: int, hours_since: int = 24):
                 else:
                     ts = ""
                 history_lines.append(f"[{ts}] {role}: {conv.message}")
-            conversation_history = "\n".join(history_lines)
+            current_conversation = "CURRENT CONVERSATION:\n" + "\n".join(history_lines)
         else:
-            conversation_history = "(No recent conversation)"
-        
-        # Get compact summaries
-        diary_entries = await memory_manager.get_diary_entries(user_id, limit=3)
-        compact_summaries = []
-        for entry in diary_entries:
-            if entry.entry_type == "compact_summary":
-                compact_summaries.append(entry.content)
-        compact_text = "\n\n".join(compact_summaries) if compact_summaries else "(No summaries yet)"
+            current_conversation = "CURRENT CONVERSATION:\n(No recent messages)"
         
         # Format time since
         if hours_since < 24:
@@ -82,6 +106,7 @@ async def test_reach_out(user_id: int, hours_since: int = 24):
             time_since = f"{days} day{'s' if days > 1 else ''}"
         
         # Get persona
+        from agents.soul_agent import soul_agent
         persona = soul_agent.persona
         
         # Generate the message
@@ -90,9 +115,9 @@ async def test_reach_out(user_id: int, hours_since: int = 24):
             current_time=current_time,
             time_since=time_since,
             persona=persona,
-            profile_context=profile_context,
-            conversation_history=conversation_history,
-            compact_summaries=compact_text,
+            user_name=user_name,
+            recent_exchanges=recent_exchanges,
+            current_conversation=current_conversation,
         )
         
         print(f"{'='*60}")
