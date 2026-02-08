@@ -7,9 +7,6 @@ focusing on what was discussed and when, without categorization or analysis.
 
 COMPACT_PROMPT = """You are creating a detailed record of a recent conversation exchange.
 
-What you know about {user_name}:
-{profile_context}
-
 Exchange timeframe:
 START: {start_time}
 END: {end_time}

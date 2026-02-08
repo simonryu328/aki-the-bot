@@ -57,9 +57,6 @@ The [BREAK] marker tells the system to send these as separate messages with natu
 RIGHT NOW:
 {current_time}. {time_context}
 
-WHAT YOU KNOW:
-{profile_context}
-
 RECENT EXCHANGES:
 {recent_exchanges}
 

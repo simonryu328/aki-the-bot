@@ -93,10 +93,6 @@ class SoulAgent:
         Returns:
             SoulResponse with response, thinking, and any observations
         """
-        # Build context strings
-        profile_context = self._build_profile_context(context)
-        SoulAgent._last_profile_context[user_id] = profile_context
-        
         # Build recent exchanges context (compact summaries + current conversation)
         recent_exchanges_text, history_text = await self._build_conversation_context(user_id, conversation_history)
 
@@ -122,7 +118,6 @@ class SoulAgent:
             persona=self.persona,
             current_time=current_time,
             time_context=time_context,
-            profile_context=profile_context,
             observations=observations_text,
             recent_exchanges=recent_exchanges_text,
             conversation_history=history_text,
@@ -184,7 +179,6 @@ class SoulAgent:
         asyncio.create_task(
             self._maybe_create_compact_summary(
                 user_id=user_id,
-                profile_context=profile_context,
             )
         )
 
@@ -679,7 +673,6 @@ class SoulAgent:
     async def _maybe_create_compact_summary(
         self,
         user_id: int,
-        profile_context: str,
     ) -> None:
         """Check if compact summary should be created based on database count.
         
@@ -711,10 +704,7 @@ class SoulAgent:
             # Trigger compact if we have enough messages
             if message_count >= settings.COMPACT_INTERVAL:
                 logger.info("Triggering compact summary", user_id=user_id, message_count=message_count)
-                await self._create_compact_summary(
-                    user_id=user_id,
-                    profile_context=profile_context,
-                )
+                await self._create_compact_summary(user_id=user_id)
             
         except Exception as e:
             logger.error("Failed to check compact trigger", user_id=user_id, error=str(e))
@@ -722,7 +712,6 @@ class SoulAgent:
     async def _create_compact_summary(
         self,
         user_id: int,
-        profile_context: str,
     ) -> None:
         """Create a compact summary of recent message exchanges."""
         logger.info("Running compact summarization", user_id=user_id)
@@ -773,7 +762,6 @@ class SoulAgent:
             # Build prompt with explicit start/end times
             prompt = COMPACT_PROMPT.format(
                 user_name=user_name,
-                profile_context=profile_context,
                 start_time=start_time,
                 end_time=end_time,
                 recent_conversation=recent_conversation,
