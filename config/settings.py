@@ -29,6 +29,12 @@ class Settings(BaseSettings):
         description="Telegram bot token from BotFather",
         min_length=1,
     )
+    
+    # Web App URL (for Telegram Mini Apps)
+    WEB_APP_URL: str = Field(
+        default="https://your-domain.com",
+        description="Base URL for hosting Telegram mini apps (settings, etc.)",
+    )
 
     # OpenAI API
     OPENAI_API_KEY: str = Field(

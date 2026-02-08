@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aki Settings</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            padding: 16px;
+            padding-bottom: 80px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-bottom: 24px;
+        }
+
+        .section {
+            background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .setting-item {
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .setting-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-label {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .setting-value {
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-top: 4px;
+        }
+
+        .setting-icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+
+        .setting-content {
+            flex: 1;
+        }
+
+        .setting-action {
+            color: var(--tg-theme-link-color, #3390ec);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .button {
+            background-color: var(--tg-theme-button-color, #3390ec);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 16px;
+            font-weight: 500;
+            width: 100%;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .button:active {
+            opacity: 0.8;
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .button-secondary {
+            background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--tg-theme-hint-color, #999999);
+        }
+
+        .spinner {
+            border: 2px solid var(--tg-theme-hint-color, #999999);
+            border-top: 2px solid var(--tg-theme-button-color, #3390ec);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ Settings</h1>
+        <p class="subtitle">Customize your Aki experience</p>
+
+        <div id="status" class="status hidden"></div>
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Loading settings...</div>
+        </div>
+
+        <div id="settings-content" class="hidden">
+            <!-- Timezone Section -->
+            <div class="section">
+                <div class="section-title">Time & Location</div>
+                
+                <div class="setting-item" id="timezone-item">
+                    <span class="setting-icon">🌍</span>
+                    <div class="setting-content">
+                        <div class="setting-label">Timezone</div>
+                        <div class="setting-value" id="timezone-value">Detecting...</div>
+                    </div>
+                    <span class="setting-action">Auto</span>
+                </div>
+
+                <div class="setting-item" id="location-item" style="cursor: pointer;">
+                    <span class="setting-icon">📍</span>
+                    <div class="setting-content">
+                        <div class="setting-label">Location</div>
+                        <div class="setting-value" id="location-value">Not set</div>
+                    </div>
+                    <span class="setting-action">Share</span>
+                </div>
+            </div>
+
+            <!-- Reach-out Settings -->
+            <div class="section">
+                <div class="section-title">Reach-out Preferences</div>
+                
+                <div class="setting-item">
+                    <span class="setting-icon">💬</span>
+                    <div class="setting-content">
+                        <div class="setting-label">Proactive Messages</div>
+                        <div class="setting-value">Get messages when you're away</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="reach-out-enabled" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <button class="button" id="save-button">Save Settings</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        // Get user data
+        const initData = tg.initDataUnsafe;
+        const userId = initData?.user?.id;
+
+        // State
+        let currentSettings = {
+            timezone: null,
+            location_latitude: null,
+            location_longitude: null,
+            location_name: null,
+            reach_out_enabled: true
+        };
+
+        // Detect timezone automatically
+        function detectTimezone() {
+            try {
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                currentSettings.timezone = timezone;
+                document.getElementById('timezone-value').textContent = timezone;
+                return timezone;
+            } catch (e) {
+                console.error('Failed to detect timezone:', e);
+                document.getElementById('timezone-value').textContent = 'America/Toronto (default)';
+                return 'America/Toronto';
+            }
+        }
+
+        // Load current settings
+        async function loadSettings() {
+            try {
+                // Auto-detect timezone
+                detectTimezone();
+                
+                // Hide loading, show content
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('settings-content').classList.remove('hidden');
+                
+                showStatus('Settings loaded', 'success');
+            } catch (e) {
+                console.error('Failed to load settings:', e);
+                showStatus('Failed to load settings', 'error');
+            }
+        }
+
+        // Request location from Telegram
+        document.getElementById('location-item').addEventListener('click', () => {
+            tg.requestLocation((location) => {
+                if (location) {
+                    currentSettings.location_latitude = location.latitude;
+                    currentSettings.location_longitude = location.longitude;
+                    currentSettings.location_name = `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`;
+                    document.getElementById('location-value').textContent = currentSettings.location_name;
+                    showStatus('Location updated', 'success');
+                }
+            });
+        });
+
+        // Save settings
+        document.getElementById('save-button').addEventListener('click', async () => {
+            const button = document.getElementById('save-button');
+            button.disabled = true;
+            button.textContent = 'Saving...';
+
+            try {
+                // Get reach-out preference
+                currentSettings.reach_out_enabled = document.getElementById('reach-out-enabled').checked;
+
+                // Send data back to bot
+                tg.sendData(JSON.stringify({
+                    action: 'update_settings',
+                    user_id: userId,
+                    settings: currentSettings
+                }));
+
+                showStatus('Settings saved!', 'success');
+                
+                // Close after a short delay
+                setTimeout(() => {
+                    tg.close();
+                }, 1000);
+            } catch (e) {
+                console.error('Failed to save settings:', e);
+                showStatus('Failed to save settings', 'error');
+                button.disabled = false;
+                button.textContent = 'Save Settings';
+            }
+        });
+
+        // Show status message
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.classList.remove('hidden');
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    status.classList.add('hidden');
+                }, 3000);
+            }
+        }
+
+        // Initialize
+        loadSettings();
+    </script>
+</body>
+</html>

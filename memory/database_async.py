@@ -747,6 +747,58 @@ class AsyncDatabase:
 
         except SQLAlchemyError as e:
             logger.error("Failed to update reach-out config", user_id=user_id, error=str(e))
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(SQLAlchemyError),
+    )
+    async def update_user(
+        self,
+        user_id: int,
+        **kwargs
+    ) -> UserSchema:
+        """
+        Update user fields dynamically.
+        
+        Args:
+            user_id: User ID
+            **kwargs: Fields to update (name, username, timezone, location_*, reach_out_*)
+        
+        Returns:
+            Updated user schema
+            
+        Raises:
+            DatabaseException: If update fails
+        """
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                
+                if not user:
+                    raise RecordNotFoundError(f"User {user_id} not found")
+                
+                # Update allowed fields
+                allowed_fields = {
+                    'name', 'username', 'timezone', 
+                    'location_latitude', 'location_longitude', 'location_name',
+                    'reach_out_enabled', 'reach_out_min_silence_hours', 'reach_out_max_silence_days'
+                }
+                
+                for key, value in kwargs.items():
+                    if key in allowed_fields and hasattr(user, key):
+                        setattr(user, key, value)
+                
+                await session.commit()
+                await session.refresh(user)
+                
+                logger.debug("Updated user", user_id=user_id, fields=list(kwargs.keys()))
+                return UserSchema.model_validate(user)
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to update user", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to update user: {e}")
             raise DatabaseException(f"Failed to update reach-out config: {e}")
 
 

@@ -1,6 +1,13 @@
 """
 System frame - the structural scaffolding for assembling a system prompt.
 
+Copyright 2026 Simon Ryu. Licensed under Apache 2.0.
+
+This module implements a proprietary swappable persona framework that separates:
+- System frame (structural scaffolding)
+- Persona modules (pluggable personalities)
+- Dynamic context assembly (time, observations, history)
+
 This is the boilerplate that slots in all context blocks: persona,
 time, profile, observations, and conversation history. The persona
 is just one swappable variable — change it to change the AI's personality.

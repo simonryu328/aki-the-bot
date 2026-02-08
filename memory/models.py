@@ -33,6 +33,12 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     last_interaction = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     
+    # User preferences and location
+    timezone = Column(String(100), default="America/Toronto", nullable=False)  # IANA timezone
+    location_latitude = Column(Float, nullable=True)  # User's location latitude
+    location_longitude = Column(Float, nullable=True)  # User's location longitude
+    location_name = Column(String(255), nullable=True)  # Human-readable location name
+    
     # Reach-out configuration (per user)
     reach_out_enabled = Column(Boolean, default=True, nullable=False)
     reach_out_min_silence_hours = Column(Integer, default=6, nullable=False)

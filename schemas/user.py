@@ -25,6 +25,10 @@ class UserUpdateSchema(BaseModel):
 
     name: Optional[str] = Field(None, max_length=255)
     username: Optional[str] = Field(None, max_length=255)
+    timezone: Optional[str] = Field(None, max_length=100)
+    location_latitude: Optional[float] = Field(None)
+    location_longitude: Optional[float] = Field(None)
+    location_name: Optional[str] = Field(None, max_length=255)
 
 
 class UserSchema(UserBaseSchema):
@@ -33,6 +37,12 @@ class UserSchema(UserBaseSchema):
     id: int = Field(..., description="Internal user ID")
     created_at: datetime = Field(..., description="User creation timestamp")
     last_interaction: datetime = Field(..., description="Last interaction timestamp")
+    
+    # User preferences and location
+    timezone: str = Field("America/Toronto", description="User's IANA timezone")
+    location_latitude: Optional[float] = Field(None, description="User's location latitude")
+    location_longitude: Optional[float] = Field(None, description="User's location longitude")
+    location_name: Optional[str] = Field(None, description="Human-readable location name")
     
     # Reach-out configuration
     reach_out_enabled: bool = Field(True, description="Whether reach-outs are enabled for this user")

@@ -1,5 +1,13 @@
 """
 Async Memory Manager - Unified interface for all memory operations.
+
+Copyright 2026 Simon Ryu. Licensed under Apache 2.0.
+
+This module implements a proprietary dual-layer memory architecture:
+- Structured data storage (PostgreSQL with async SQLAlchemy)
+- Semantic search (Pinecone vector store)
+- Graceful degradation and unified type-safe interface
+
 Production-grade implementation combining database (structured data) and vector store (semantic search).
 """
 
