@@ -931,6 +931,7 @@ class TelegramBot:
                     update_data['reach_out_enabled'] = settings_data['reach_out_enabled']
                 
                 if update_data:
+                    # Pass telegram_id directly - more efficient!
                     await db.update_user(user_id, **update_data)
                     
                     # Confirm to user

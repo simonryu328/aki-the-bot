@@ -755,14 +755,14 @@ class AsyncDatabase:
     )
     async def update_user(
         self,
-        user_id: int,
+        telegram_id: int,
         **kwargs
     ) -> UserSchema:
         """
         Update user fields dynamically.
         
         Args:
-            user_id: User ID
+            telegram_id: Telegram user ID
             **kwargs: Fields to update (name, username, timezone, location_*, reach_out_*)
         
         Returns:
@@ -773,11 +773,11 @@ class AsyncDatabase:
         """
         try:
             async with self.get_session() as session:
-                result = await session.execute(select(User).where(User.id == user_id))
+                result = await session.execute(select(User).where(User.telegram_id == telegram_id))
                 user = result.scalar_one_or_none()
                 
                 if not user:
-                    raise RecordNotFoundError(f"User {user_id} not found")
+                    raise RecordNotFoundError(f"User {telegram_id} not found")
                 
                 # Update allowed fields
                 allowed_fields = {
@@ -793,11 +793,11 @@ class AsyncDatabase:
                 await session.commit()
                 await session.refresh(user)
                 
-                logger.debug("Updated user", user_id=user_id, fields=list(kwargs.keys()))
+                logger.debug("Updated user", telegram_id=telegram_id, fields=list(kwargs.keys()))
                 return UserSchema.model_validate(user)
 
         except SQLAlchemyError as e:
-            logger.error("Failed to update user", user_id=user_id, error=str(e))
+            logger.error("Failed to update user", telegram_id=telegram_id, error=str(e))
             raise DatabaseException(f"Failed to update user: {e}")
             raise DatabaseException(f"Failed to update reach-out config: {e}")
 
