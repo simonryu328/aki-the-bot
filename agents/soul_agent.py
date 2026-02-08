@@ -61,7 +61,6 @@ class SoulAgent:
     _last_compact_prompt: Dict[int, str] = {}
     _last_profile_context: Dict[int, str] = {}
     _message_count: Dict[int, int] = {}
-    _compact_message_count: Dict[int, int] = {}
     _reaction_counter: Dict[int, int] = {}  # Track messages until next reaction
 
     def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
@@ -178,16 +177,13 @@ class SoulAgent:
         #         )
         #     )
 
-        # Background: Create compact summary of exchanges
-        SoulAgent._compact_message_count[user_id] = SoulAgent._compact_message_count.get(user_id, 0) + 1
-        if SoulAgent._compact_message_count[user_id] >= settings.COMPACT_INTERVAL:
-            SoulAgent._compact_message_count[user_id] = 0
-            asyncio.create_task(
-                self._create_compact_summary(
-                    user_id=user_id,
-                    profile_context=profile_context,
-                )
+        # Background: Create compact summary of exchanges (database-based trigger)
+        asyncio.create_task(
+            self._maybe_create_compact_summary(
+                user_id=user_id,
+                profile_context=profile_context,
             )
+        )
 
         return result
 
@@ -613,6 +609,49 @@ class SoulAgent:
 
         except Exception as e:
             logger.error("Failed to process observations", user_id=user_id, error=str(e))
+    async def _maybe_create_compact_summary(
+        self,
+        user_id: int,
+        profile_context: str,
+    ) -> None:
+        """Check if compact summary should be created based on database count.
+        
+        This replaces the in-memory counter with a database-based check,
+        making it restart-proof.
+        """
+        try:
+            # Get last compact timestamp
+            diary_entries = await self.memory.get_diary_entries(user_id, limit=10)
+            last_compact = None
+            for entry in diary_entries:
+                if entry.entry_type == 'compact_summary':
+                    last_compact = entry.timestamp
+                    break
+            
+            # Get all conversations since last compact (or all if no compact exists)
+            all_convos = await self.memory.db.get_recent_conversations(user_id, limit=100)
+            
+            # Count messages after last compact
+            message_count = 0
+            if last_compact:
+                for conv in all_convos:
+                    if conv.timestamp and conv.timestamp > last_compact:
+                        message_count += 1
+            else:
+                # No compact exists yet, count all messages
+                message_count = len(all_convos)
+            
+            # Trigger compact if we have enough messages
+            if message_count >= settings.COMPACT_INTERVAL:
+                logger.info("Triggering compact summary", user_id=user_id, message_count=message_count)
+                await self._create_compact_summary(
+                    user_id=user_id,
+                    profile_context=profile_context,
+                )
+            
+        except Exception as e:
+            logger.error("Failed to check compact trigger", user_id=user_id, error=str(e))
+
     async def _create_compact_summary(
         self,
         user_id: int,
