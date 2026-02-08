@@ -83,6 +83,20 @@ Production mode:
 uv run python main.py
 ```
 
+## 6. Run the Dashboard (Optional)
+
+View conversation history, diary entries, and user profiles:
+
+```bash
+# Run with warnings suppressed
+uv run streamlit run scripts/dashboard.py --logger.level=error
+
+# Or run normally
+uv run streamlit run scripts/dashboard.py
+```
+
+The dashboard will open in your browser at `http://localhost:8501`
+
 ## Troubleshooting
 
 ### "password authentication failed"
