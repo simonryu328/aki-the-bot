@@ -976,8 +976,8 @@ class TelegramBot:
             now = datetime.now(tz)
             current_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
 
-            # Get recent compact summaries (last 5)
-            diary_entries = await memory_manager.get_diary_entries(user_id, limit=5)
+            # Get recent compact summaries
+            diary_entries = await memory_manager.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
             compact_summaries = []
             last_compact_end = None
             
@@ -994,6 +994,9 @@ class TelegramBot:
                         # Track the most recent compact's end time
                         if last_compact_end is None or entry.exchange_end > last_compact_end:
                             last_compact_end = entry.exchange_end
+                
+                # Limit to configured number of compacts
+                compact_summaries = compact_summaries[:settings.COMPACT_SUMMARY_LIMIT]
             
             # Build RECENT EXCHANGES section
             if compact_summaries:
@@ -1007,11 +1010,11 @@ class TelegramBot:
                 conversations = await memory_manager.db.get_conversations_after(
                     user_id=user_id,
                     after=last_compact_end,
-                    limit=20
+                    limit=settings.CONVERSATION_CONTEXT_LIMIT
                 )
             else:
                 # No compacts yet, get recent conversations
-                conversations = await memory_manager.db.get_recent_conversations(user_id, limit=20)
+                conversations = await memory_manager.db.get_recent_conversations(user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT)
 
             # Build CURRENT CONVERSATION section
             if conversations:

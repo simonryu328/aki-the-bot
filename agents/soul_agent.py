@@ -97,7 +97,7 @@ class SoulAgent:
         recent_exchanges_text, history_text = await self._build_conversation_context(user_id, conversation_history)
 
         # Build observations context
-        observations_with_dates = await memory_manager.get_observations_with_dates(user_id, limit=20)
+        observations_with_dates = await memory_manager.get_observations_with_dates(user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT)
         observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
 
         # Build time context
@@ -237,9 +237,9 @@ class SoulAgent:
         """
         tz = pytz.timezone(settings.TIMEZONE)
         
-        # Get last 5 compact summaries
-        diary_entries = await self.memory.get_diary_entries(user_id, limit=10)
-        compact_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:5]
+        # Get last N compact summaries
+        diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
+        compact_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:settings.COMPACT_SUMMARY_LIMIT]
         
         # Format compact summaries with timestamps
         if compact_summaries:
@@ -681,7 +681,7 @@ class SoulAgent:
         """
         try:
             # Get last compact timestamp
-            diary_entries = await self.memory.get_diary_entries(user_id, limit=10)
+            diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
             last_compact = None
             for entry in diary_entries:
                 if entry.entry_type == 'compact_summary':

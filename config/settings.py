@@ -117,28 +117,69 @@ class Settings(BaseSettings):
         ge=1,
     )
     
-    # Conversation Context Configuration
+    # ==================== Conversation Context Configuration ====================
+    # These settings control how much conversation history is included in the AI's context
+    
     CONVERSATION_CONTEXT_LIMIT: int = Field(
         default=20,
-        description="Number of recent messages to include in conversation context",
+        description="Number of recent messages to include in CURRENT CONVERSATION section. "
+                    "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
         ge=1,
     )
     
-    # Observation and Compact Configuration
+    COMPACT_SUMMARY_LIMIT: int = Field(
+        default=5,
+        description="Number of compact summaries to include in RECENT EXCHANGES section. "
+                    "Compact summaries are timestamped conversation summaries created every 10 messages. "
+                    "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
+        ge=1,
+        le=10,
+    )
+    
+    # ==================== Observation and Compact Configuration ====================
+    # These settings control when the AI creates summaries and observations
+    
     OBSERVATION_INTERVAL: int = Field(
         default=10,
-        description="Number of exchanges before triggering observation agent (currently disabled)",
+        description="Number of exchanges before triggering observation agent (currently disabled). "
+                    "Observations extract facts about the user from conversations.",
         ge=1,
     )
+    
     COMPACT_INTERVAL: int = Field(
         default=10,
-        description="Number of exchanges before creating compact summary",
+        description="Number of messages before creating a compact summary. "
+                    "Compact summaries condense recent conversations into timestamped summaries. "
+                    "Used in: soul_agent._maybe_create_compact_summary()",
         ge=1,
     )
+    
     CONDENSATION_THRESHOLD: int = Field(
         default=50,
-        description="Number of observations before triggering auto-condensation",
+        description="Number of raw observations before triggering auto-condensation. "
+                    "Condensation converts raw observations into narrative form (legacy feature).",
         ge=1,
+    )
+    
+    # ==================== Database Fetch Limits ====================
+    # These settings control how many records to fetch from the database
+    
+    DIARY_FETCH_LIMIT: int = Field(
+        default=10,
+        description="Number of diary entries to fetch when looking for compact summaries. "
+                    "Should be >= COMPACT_SUMMARY_LIMIT to ensure we get enough compacts. "
+                    "Used in: soul_agent._build_conversation_context(), _maybe_create_compact_summary()",
+        ge=5,
+        le=50,
+    )
+    
+    OBSERVATION_DISPLAY_LIMIT: int = Field(
+        default=20,
+        description="Number of observations to display in context. "
+                    "Used in: soul_agent._build_profile_context() when showing raw observations. "
+                    "Note: Observations are currently disabled in favor of compact summaries.",
+        ge=10,
+        le=100,
     )
     
     # Message Splitting Configuration
