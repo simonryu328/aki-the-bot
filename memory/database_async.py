@@ -382,6 +382,38 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to get conversations", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to get conversations: {e}")
+    async def get_conversations_after(
+        self, user_id: int, after: datetime, limit: int = 20
+    ) -> List[ConversationSchema]:
+        """Get conversation messages after a specific timestamp.
+        
+        Args:
+            user_id: User ID
+            after: Get conversations after this timestamp
+            limit: Maximum number of conversations to return
+            
+        Returns:
+            List of conversations in chronological order
+        """
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(
+                    select(Conversation)
+                    .where(
+                        Conversation.user_id == user_id,
+                        Conversation.timestamp > after
+                    )
+                    .order_by(Conversation.timestamp.asc())
+                    .limit(limit)
+                )
+                conversations = result.scalars().all()
+                return [ConversationSchema.model_validate(c) for c in conversations]
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get conversations after timestamp", 
+                        user_id=user_id, after=after, error=str(e))
+            raise DatabaseException(f"Failed to get conversations: {e}")
+
 
     # ==================== Timeline Events ====================
 

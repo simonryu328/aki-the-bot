@@ -60,6 +60,9 @@ RIGHT NOW:
 WHAT YOU KNOW:
 {profile_context}
 
-CONVERSATION:
+RECENT EXCHANGES:
+{recent_exchanges}
+
+CURRENT CONVERSATION:
 {conversation_history}
 """

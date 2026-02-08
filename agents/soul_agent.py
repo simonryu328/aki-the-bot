@@ -96,7 +96,9 @@ class SoulAgent:
         # Build context strings
         profile_context = self._build_profile_context(context)
         SoulAgent._last_profile_context[user_id] = profile_context
-        history_text = self._format_history(conversation_history)
+        
+        # Build recent exchanges context (compact summaries + current conversation)
+        recent_exchanges_text, history_text = await self._build_conversation_context(user_id, conversation_history)
 
         # Build observations context
         observations_with_dates = await memory_manager.get_observations_with_dates(user_id, limit=20)
@@ -122,6 +124,7 @@ class SoulAgent:
             time_context=time_context,
             profile_context=profile_context,
             observations=observations_text,
+            recent_exchanges=recent_exchanges_text,
             conversation_history=history_text,
         )
         SoulAgent._last_system_prompt[user_id] = system_prompt
@@ -222,6 +225,70 @@ class SoulAgent:
             return "(You're just getting to know them. This is early in the story.)"
 
         return "\n".join(parts)
+    async def _build_conversation_context(
+        self, 
+        user_id: int, 
+        conversation_history: List[ConversationSchema]
+    ) -> tuple[str, str]:
+        """Build recent exchanges and current conversation context.
+        
+        Fetches compact summaries and ensures no duplication with live conversation.
+        
+        Args:
+            user_id: User ID
+            conversation_history: Recent conversation messages
+            
+        Returns:
+            Tuple of (recent_exchanges_text, current_conversation_text)
+        """
+        tz = pytz.timezone(settings.TIMEZONE)
+        
+        # Get last 5 compact summaries
+        diary_entries = await self.memory.get_diary_entries(user_id, limit=10)
+        compact_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:5]
+        
+        # Format compact summaries with timestamps
+        if compact_summaries:
+            compact_lines = []
+            last_compact_end = None
+            
+            for compact in reversed(compact_summaries):  # Show oldest to newest
+                if compact.exchange_start and compact.exchange_end:
+                    start_utc = compact.exchange_start.replace(tzinfo=pytz.utc)
+                    end_utc = compact.exchange_end.replace(tzinfo=pytz.utc)
+                    start_local = start_utc.astimezone(tz)
+                    end_local = end_utc.astimezone(tz)
+                    
+                    # Format: [Jan 15, 10:30 AM - 11:45 AM] Summary text
+                    start_str = start_local.strftime("%b %d, %I:%M %p")
+                    end_str = end_local.strftime("%I:%M %p")
+                    compact_lines.append(f"[{start_str} - {end_str}] {compact.content}")
+                    
+                    # Track the most recent compact's end time
+                    if last_compact_end is None or compact.exchange_end > last_compact_end:
+                        last_compact_end = compact.exchange_end
+            
+            recent_exchanges_text = "\n".join(compact_lines)
+            
+            # Get conversations AFTER last compact to avoid duplication
+            if last_compact_end:
+                current_convos = await self.memory.db.get_conversations_after(
+                    user_id, 
+                    after=last_compact_end, 
+                    limit=settings.CONVERSATION_CONTEXT_LIMIT
+                )
+            else:
+                current_convos = conversation_history
+        else:
+            # No compacts yet, show placeholder
+            recent_exchanges_text = "(No previous exchanges summarized yet)"
+            current_convos = conversation_history
+        
+        # Format current conversation
+        current_conversation_text = self._format_history(current_convos)
+        
+        return recent_exchanges_text, current_conversation_text
+
 
     def _format_history(self, conversations: List[ConversationSchema]) -> str:
         """Format conversation history with timestamps converted to local time."""
