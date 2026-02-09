@@ -5,7 +5,7 @@ Creates unbiased summaries of conversations with preserved timestamps,
 focusing on what was discussed and when, without categorization or analysis.
 """
 
-COMPACT_PROMPT = """You are creating a detailed record of a recent conversation exchange between {user_name} and Aki.
+COMPACT_PROMPT = """You're Aki, and you are creating a detailed record of a recent conversation exchange between you and {user_name}.
 
 Exchange timeframe:
 START: {start_time}
@@ -17,12 +17,6 @@ Recent conversation:
 ---
 
 Create a detailed factual record of this exchange that captures EVERY important marker, detail, event, decision, action, feeling, or plan mentioned by {user_name}.
-
-Format your response as:
-
-SUMMARY:
-[START: {start_time}] [END: {end_time}]
-We discussed [detailed factual record of the conversation]. {user_name} [record every important marker, indicator, feeling, plan, or detail they shared]. [Include any specific times, dates, or events mentioned with their timestamps].
 
 Guidelines:
 - Write in first person plural: "We discussed..." not "They said..."
