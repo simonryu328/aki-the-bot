@@ -61,6 +61,7 @@ class TelegramBot:
         """
         import asyncio
         from telegram.error import TimedOut, NetworkError
+        import httpx
 
         # Typing duration: 0.5s base + scales with length, capped at 30s
         typing_duration = min(len(text) * 0.05, 30.0)
@@ -73,7 +74,7 @@ class TelegramBot:
         while elapsed < typing_duration:
             try:
                 await self.application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-            except (TimedOut, NetworkError) as e:
+            except (TimedOut, NetworkError, httpx.ReadError) as e:
                 logger.warning(f"Typing indicator failed (timeout/network): {e}. Continuing.")
             
             # Sleep for the shorter of: remaining time or typing_interval
@@ -83,7 +84,7 @@ class TelegramBot:
         
         try:
             await self.application.bot.send_message(chat_id=chat_id, text=text)
-        except (TimedOut, NetworkError) as e:
+        except (TimedOut, NetworkError, httpx.ReadError) as e:
             logger.error(f"Failed to send message due to timeout/network error: {e}")
             # Retry once after a brief delay
             await asyncio.sleep(1)
@@ -932,7 +933,9 @@ class TelegramBot:
                 
                 if update_data:
                     # Pass telegram_id directly - more efficient!
-                    await db.update_user(user_id, **update_data)
+                    logger.info(f"Updating user {user_id} with data: {update_data}")
+                    updated_user = await db.update_user(user_id, **update_data)
+                    logger.info(f"User updated successfully: {updated_user}")
                     
                     # Confirm to user
                     confirmation_parts = ["✅ Settings updated!"]
@@ -1364,8 +1367,25 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error in scheduled message processor: {e}")
 
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle errors caused by updates.
+        Logs errors gracefully instead of crashing the application.
+        """
+        logger.error(
+            f"Exception while handling an update",
+            exc_info=context.error,
+            extra={
+                "update": str(update) if update else "No update",
+                "error_type": type(context.error).__name__,
+            }
+        )
+
     def setup_handlers(self) -> None:
         """Set up message and command handlers."""
+        # Error handler - must be added first to catch all errors
+        self.application.add_error_handler(self.error_handler)
+        
         # Command handlers
         self.application.add_handler(
             CommandHandler("start", self.start_command)

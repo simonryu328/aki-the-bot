@@ -802,7 +802,8 @@ class AsyncDatabase:
                     if key in allowed_fields and hasattr(user, key):
                         setattr(user, key, value)
                 
-                await session.commit()
+                # Flush to database but don't commit yet (context manager will commit)
+                await session.flush()
                 await session.refresh(user)
                 
                 logger.debug("Updated user", telegram_id=telegram_id, fields=list(kwargs.keys()))
@@ -811,7 +812,6 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to update user", telegram_id=telegram_id, error=str(e))
             raise DatabaseException(f"Failed to update user: {e}")
-            raise DatabaseException(f"Failed to update reach-out config: {e}")
 
 
 
