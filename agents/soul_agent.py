@@ -136,7 +136,7 @@ class SoulAgent:
             system_prompt=system_prompt,
             user_message=message,
             temperature=0.7,
-            max_tokens=750,
+            max_tokens=1000,
         )
         
         # Log raw response before parsing for debugging
@@ -303,13 +303,17 @@ class SoulAgent:
             recent_exchanges_text = "(No previous exchanges summarized yet)"
             current_convos = conversation_history
         
+        # Get user name for formatting
+        user = await self.memory.get_user_by_id(user_id)
+        user_name = user.name if user and user.name else "them"
+        
         # Format current conversation
-        current_conversation_text = self._format_history(current_convos)
+        current_conversation_text = self._format_history(current_convos, user_name)
         
         return recent_exchanges_text, current_conversation_text
 
 
-    def _format_history(self, conversations: List[ConversationSchema]) -> str:
+    def _format_history(self, conversations: List[ConversationSchema], user_name: str = "them") -> str:
         """Format conversation history with timestamps converted to local time."""
         if not conversations:
             return "(This is the beginning of your conversation.)"
@@ -317,7 +321,7 @@ class SoulAgent:
         tz = pytz.timezone(settings.TIMEZONE)
         lines = []
         for conv in conversations:
-            role = "Them" if conv.role == "user" else "You"
+            role = user_name if conv.role == "user" else "Aki"
             if conv.timestamp:
                 utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
                 local_time = utc_time.astimezone(tz)
@@ -772,9 +776,10 @@ class SoulAgent:
                 end_time = "unknown"
             
             # Format conversations with timestamps
+            # Use user's name for their messages and "Aki" for assistant messages
             convo_lines = []
             for conv in recent_convos:
-                role = "Them" if conv.role == "user" else "You"
+                role = user_name if conv.role == "user" else "Aki"
                 if conv.timestamp:
                     utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
                     local_time = utc_time.astimezone(tz)

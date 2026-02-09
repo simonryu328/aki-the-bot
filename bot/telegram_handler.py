@@ -586,7 +586,7 @@ class TelegramBot:
             tz = pytz.timezone(settings.TIMEZONE)
             convo_lines = []
             for conv in recent_convos:
-                role = "Them" if conv.role == "user" else "You"
+                role = user_name if conv.role == "user" else "Aki"
                 if conv.timestamp:
                     utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
                     local_time = utc_time.astimezone(tz)
@@ -1016,8 +1016,10 @@ class TelegramBot:
             conversations = await memory_manager.db.get_recent_conversations(user_id, limit=10)
             if conversations:
                 history_lines = []
+                # Get user name for labeling
+                user_name = user_context.user_info.name or "them"
                 for conv in conversations[-5:]:
-                    role = "Them" if conv.role == "user" else "You"
+                    role = user_name if conv.role == "user" else "Aki"
                     if conv.timestamp:
                         utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
                         local_time = utc_time.astimezone(tz)
@@ -1128,7 +1130,7 @@ class TelegramBot:
             if conversations:
                 history_lines = []
                 for conv in conversations:
-                    role = "Them" if conv.role == "user" else "You"
+                    role = user_name if conv.role == "user" else "Aki"
                     if conv.timestamp:
                         utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
                         local_time = utc_time.astimezone(tz)

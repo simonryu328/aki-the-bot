@@ -5,7 +5,7 @@ Creates unbiased summaries of conversations with preserved timestamps,
 focusing on what was discussed and when, without categorization or analysis.
 """
 
-COMPACT_PROMPT = """You are creating a detailed record of a recent conversation exchange.
+COMPACT_PROMPT = """You are creating a detailed record of a recent conversation exchange between {user_name} and Aki.
 
 Exchange timeframe:
 START: {start_time}
