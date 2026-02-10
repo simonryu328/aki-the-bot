@@ -856,118 +856,6 @@ class TelegramBot:
 
         except Exception as e:
             logger.error(f"Error in reachout_max command: {e}")
-    async def settings_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle the /settings command - opens the settings mini app."""
-        chat_id = update.effective_chat.id
-        user_id = update.effective_user.id
-        
-        try:
-            # Get or create user
-            user = await memory_manager.get_or_create_user(user_id)
-            
-            # Create reply keyboard with web app button (required for sendData to work)
-            from telegram import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo, ReplyKeyboardRemove
-            
-            # URL to your hosted mini app
-            web_app_url = f"{settings.WEB_APP_URL}/static/settings/index.html"
-            
-            # Create keyboard with web app button
-            keyboard = [
-                [KeyboardButton(
-                    text="⚙️ Open Settings",
-                    web_app=WebAppInfo(url=web_app_url)
-                )]
-            ]
-            reply_markup = ReplyKeyboardMarkup(
-                keyboard,
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
-            
-            await update.message.reply_text(
-                "Tap the button below to open your settings:",
-                reply_markup=reply_markup
-            )
-            
-            logger.info(f"Settings command used by user {user_id}")
-            
-        except Exception as e:
-            logger.error(f"Error in settings command: {e}", exc_info=True)
-            await update.message.reply_text(
-                "Sorry, I couldn't open the settings. Please try again later."
-            )
-
-    async def handle_web_app_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle data sent from the web app."""
-        logger.info(f"Web app data handler called! Update: {update}")
-        
-        chat_id = update.effective_chat.id
-        user_id = update.effective_user.id
-        
-        try:
-            import json
-            
-            # Get data from web app
-            web_app_data = update.effective_message.web_app_data.data
-            logger.info(f"Received web app data: {web_app_data}")
-            data = json.loads(web_app_data)
-            logger.info(f"Parsed data: {data}")
-            
-            if data.get('action') == 'update_settings':
-                settings_data = data.get('settings', {})
-                
-                # Update user settings in database
-                from memory.database_async import db
-                
-                update_data = {}
-                if 'timezone' in settings_data:
-                    update_data['timezone'] = settings_data['timezone']
-                if 'location_latitude' in settings_data and settings_data['location_latitude']:
-                    update_data['location_latitude'] = settings_data['location_latitude']
-                if 'location_longitude' in settings_data and settings_data['location_longitude']:
-                    update_data['location_longitude'] = settings_data['location_longitude']
-                if 'location_name' in settings_data and settings_data['location_name']:
-                    update_data['location_name'] = settings_data['location_name']
-                if 'reach_out_enabled' in settings_data:
-                    update_data['reach_out_enabled'] = settings_data['reach_out_enabled']
-                
-                if update_data:
-                    # Pass telegram_id directly - more efficient!
-                    logger.info(f"Updating user {user_id} with data: {update_data}")
-                    updated_user = await db.update_user(user_id, **update_data)
-                    logger.info(f"User updated successfully: {updated_user}")
-                    
-                    # Confirm to user
-                    confirmation_parts = ["✅ Settings updated!"]
-                    if 'timezone' in update_data:
-                        confirmation_parts.append(f"🌍 Timezone: {update_data['timezone']}")
-                    if 'location_name' in update_data:
-                        confirmation_parts.append(f"📍 Location: {update_data['location_name']}")
-                    if 'reach_out_enabled' in update_data:
-                        status = "enabled" if update_data['reach_out_enabled'] else "disabled"
-                        confirmation_parts.append(f"💬 Reach-outs: {status}")
-                    
-                    await self.application.bot.send_message(
-                        chat_id=chat_id,
-                        text="\n".join(confirmation_parts)
-                    )
-                    
-                    logger.info(f"Settings updated for user {user_id}: {update_data}")
-                else:
-                    await self.application.bot.send_message(
-                        chat_id=chat_id,
-                        text="No settings were changed."
-                    )
-            
-        except Exception as e:
-            logger.error(f"Error handling web app data: {e}", exc_info=True)
-            await self.application.bot.send_message(
-                chat_id=chat_id,
-                text="Sorry, I couldn't save your settings. Please try again."
-            )
-
-            await update.message.reply_text(f"Error: {e}")
-
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
         Send a message to a user.
@@ -1437,15 +1325,6 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("reachout_max", self.reachout_max_command)
-        )
-
-        self.application.add_handler(
-            CommandHandler("settings", self.settings_command)
-        )
-        
-        # Web app data handler
-        self.application.add_handler(
-            MessageHandler(filters.StatusUpdate.WEB_APP_DATA, self.handle_web_app_data)
         )
         
         # Message handlers
