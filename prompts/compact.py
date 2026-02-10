@@ -15,13 +15,14 @@ Recent conversation:
 {recent_conversation}
 
 ---
+Create a detailed factual record of this exchange capturing all important details shared by {user_name}.
 
-Create a detailed factual record of this exchange that captures EVERY important marker, detail, event, decision, action, feeling, or plan mentioned by {user_name}.
+Return only one paragraph. No titles, no labels, no bullets, no extra lines. Use this structure:
+
+[Opening clause in first-person plural OR starting with {user_name}'s name][detailed factual record of the conversation]. {user_name} [record all important markers, feelings, plans, decisions, and details they shared]. [Include any times/dates mentioned in [YYYY-MM-DD HH:MM] format].
 
 Guidelines:
-- Write in first person plural: "We discussed..." not "They said..."
 - Always use {user_name}'s name when referring to them, never "they" or "the user"
-- Be thorough - capture EVERY important detail, marker, or indicator from {user_name}
 - If {user_name} mentioned specific times/dates for events, include them with format [YYYY-MM-DD HH:MM]
 - Include emotional states, concerns, plans, decisions, and any significant information
 - Be factual and unbiased - record what was said without interpretation
