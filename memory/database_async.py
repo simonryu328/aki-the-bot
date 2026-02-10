@@ -491,24 +491,26 @@ class AsyncDatabase:
             limit: Maximum number of conversations to return
             
         Returns:
-            List of conversations in chronological order
+            List of conversations in chronological order (most recent first, then reversed)
         """
         try:
             async with self.get_session() as session:
+                # Get most recent messages first (desc), then reverse to chronological order
                 result = await session.execute(
                     select(Conversation)
                     .where(
                         Conversation.user_id == user_id,
                         Conversation.timestamp > after
                     )
-                    .order_by(Conversation.timestamp.asc())
+                    .order_by(Conversation.timestamp.desc())
                     .limit(limit)
                 )
                 conversations = result.scalars().all()
-                return [ConversationSchema.model_validate(c) for c in conversations]
+                # Reverse to get chronological order (oldest to newest)
+                return [ConversationSchema.model_validate(c) for c in reversed(conversations)]
 
         except SQLAlchemyError as e:
-            logger.error("Failed to get conversations after timestamp", 
+            logger.error("Failed to get conversations after timestamp",
                         user_id=user_id, after=after, error=str(e))
             raise DatabaseException(f"Failed to get conversations: {e}")
 

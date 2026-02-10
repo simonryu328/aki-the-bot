@@ -809,9 +809,9 @@ class SoulAgent:
             logger.info("Compact summary generated", user_id=user_id, summary_length=len(result))
             
             # Store summary as a diary entry with type "compact_summary"
-            if result and "SUMMARY:" in result:
-                # Extract the summary content
-                summary_content = result.split("SUMMARY:", 1)[1].strip()
+            if result and result.strip():
+                # The LLM returns the summary directly without a "SUMMARY:" prefix
+                summary_content = result.strip()
                 
                 # Convert start/end times back to datetime objects for storage
                 exchange_start_dt = None
@@ -834,6 +834,8 @@ class SoulAgent:
                 
                 logger.info("Stored compact summary", user_id=user_id,
                            exchange_start=start_time, exchange_end=end_time)
+            else:
+                logger.warning("Empty compact summary generated", user_id=user_id)
             
         except Exception as e:
             logger.error("Failed to create compact summary", user_id=user_id, error=str(e))
