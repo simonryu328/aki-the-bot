@@ -200,6 +200,92 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to get user", telegram_id=telegram_id, error=str(e))
             raise DatabaseException(f"Failed to get user: {e}")
+    async def update_user_onboarding_state(
+        self, telegram_id: int, onboarding_state: Optional[str]
+    ) -> Optional[UserSchema]:
+        """
+        Update user's onboarding state.
+
+        Args:
+            telegram_id: Telegram user ID
+            onboarding_state: New onboarding state (None means completed)
+
+        Returns:
+            Updated UserSchema or None if user not found
+
+        Raises:
+            DatabaseException: If database operation fails
+        """
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(
+                    select(User).where(User.telegram_id == telegram_id)
+                )
+                user = result.scalar_one_or_none()
+
+                if user:
+                    user.onboarding_state = onboarding_state
+                    session.add(user)
+                    logger.debug(
+                        "Updated user onboarding state",
+                        telegram_id=telegram_id,
+                        state=onboarding_state,
+                    )
+                    return UserSchema.model_validate(user)
+                return None
+
+        except SQLAlchemyError as e:
+            logger.error(
+                "Failed to update onboarding state", telegram_id=telegram_id, error=str(e)
+            )
+            raise DatabaseException(f"Failed to update onboarding state: {e}")
+
+    async def create_user_with_state(
+        self,
+        telegram_id: int,
+        name: Optional[str] = None,
+        username: Optional[str] = None,
+        onboarding_state: str = "awaiting_name",
+    ) -> UserSchema:
+        """
+        Create a new user with specific onboarding state.
+
+        Args:
+            telegram_id: Telegram user ID
+            name: User's display name
+            username: Telegram username
+            onboarding_state: Initial onboarding state
+
+        Returns:
+            UserSchema with user data
+
+        Raises:
+            DatabaseException: If database operation fails
+        """
+        try:
+            async with self.get_session() as session:
+                user = User(
+                    telegram_id=telegram_id,
+                    name=name,
+                    username=username,
+                    onboarding_state=onboarding_state,
+                    created_at=datetime.utcnow(),
+                    last_interaction=datetime.utcnow(),
+                )
+                session.add(user)
+                await session.flush()  # Get the ID
+                logger.info(
+                    "Created new user with onboarding state",
+                    user_id=user.id,
+                    telegram_id=telegram_id,
+                    state=onboarding_state,
+                )
+                return UserSchema.model_validate(user)
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to create user", telegram_id=telegram_id, error=str(e))
+            raise DatabaseException(f"Failed to create user: {e}")
+
 
     # ==================== Profile Facts ====================
 

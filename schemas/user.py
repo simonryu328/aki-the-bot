@@ -38,6 +38,9 @@ class UserSchema(UserBaseSchema):
     created_at: datetime = Field(..., description="User creation timestamp")
     last_interaction: datetime = Field(..., description="Last interaction timestamp")
     
+    # Onboarding state
+    onboarding_state: Optional[str] = Field(None, description="Onboarding progress state")
+    
     # User preferences and location
     timezone: str = Field("America/Toronto", description="User's IANA timezone")
     location_latitude: Optional[float] = Field(None, description="User's location latitude")

@@ -33,6 +33,9 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     last_interaction = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     
+    # Onboarding state (null = completed, 'awaiting_name' = waiting for name choice)
+    onboarding_state = Column(String(50), nullable=True)
+    
     # User preferences and location
     timezone = Column(String(100), default="America/Toronto", nullable=False)  # IANA timezone
     location_latitude = Column(Float, nullable=True)  # User's location latitude

@@ -102,30 +102,62 @@ class TelegramBot:
         """
         user = update.effective_user
         telegram_id = user.id
-        name = user.first_name or user.username or "there"
+        first_name = user.first_name or "there"
         username = user.username
+        chat_id = update.effective_chat.id
 
         logger.info(f"User {telegram_id} ({username}) started the bot")
 
         try:
-            # Process /start as a greeting through orchestrator
-            messages = await orchestrator.process_message(
-                telegram_id=telegram_id,
-                message="Hello, I just started the bot.",
-                name=name,
-                username=username,
-            )
+            # Check if user already exists
+            existing_user = await memory_manager.db.get_user_by_telegram_id(telegram_id)
+            
+            if existing_user:
+                # Existing user - welcome them back
+                logger.info(f"Existing user {telegram_id} restarted the bot")
+                messages, _ = await orchestrator.process_message(
+                    telegram_id=telegram_id,
+                    message="Hello, I just started the bot.",
+                    name=existing_user.name,
+                    username=username,
+                )
+                for msg in messages:
+                    await self._send_with_typing(chat_id, msg)
+            else:
+                # New user - start onboarding with name selection
+                logger.info(f"New user {telegram_id} starting onboarding")
+                
+                # Create user with onboarding state
+                await memory_manager.db.create_user_with_state(
+                    telegram_id=telegram_id,
+                    name=None,  # Will be set after user chooses
+                    username=username,
+                    onboarding_state="awaiting_name"
+                )
+                
+                # Send name selection message
+                welcome_msg = "👋 Welcome! I'm Aki, your AI companion.\n\n"
+                welcome_msg += "Before we begin, what name should I call you?\n\n"
+                
+                # Build options based on available info
+                options = []
+                if first_name and first_name != "there":
+                    options.append(f"1️⃣ {first_name}")
+                if username:
+                    options.append(f"2️⃣ @{username}")
+                options.append(f"{'3️⃣' if len(options) == 2 else '2️⃣' if len(options) == 1 else '1️⃣'} Type a different name")
+                
+                welcome_msg += "\n".join(options)
+                welcome_msg += "\n\nJust reply with the number or type your preferred name!"
+                
+                await self._send_with_typing(chat_id, welcome_msg)
+                
         except Exception as e:
             logger.error(f"Error in start command: {e}")
-            messages = [
-                f"Hi {name}! I'm your AI companion. "
-                "I'm having a small hiccup right now, but try sending me a message!"
-            ]
-
-        # Send each message with typing indicator
-        chat_id = update.effective_chat.id
-        for msg in messages:
-            await self._send_with_typing(chat_id, msg)
+            await self._send_with_typing(
+                chat_id,
+                f"Hi! I'm your AI companion. I'm having a small hiccup right now, but try sending me a message!"
+            )
 
     async def handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -137,9 +169,73 @@ class TelegramBot:
         user = update.effective_user
         chat_id = update.effective_chat.id
         message_text = update.message.text
+        telegram_id = user.id
+        first_name = user.first_name or "there"
+        username = user.username
 
-        logger.info(f"Received message from {user.id} ({user.username}): {message_text[:50]}...")
+        logger.info(f"Received message from {telegram_id} ({username}): {message_text[:50]}...")
 
+        # Check if user is in onboarding
+        try:
+            existing_user = await memory_manager.db.get_user_by_telegram_id(telegram_id)
+            
+            if existing_user and existing_user.onboarding_state == "awaiting_name":
+                # User is in name selection phase
+                logger.info(f"User {telegram_id} responding to name selection")
+                
+                # Parse the response
+                chosen_name = None
+                if message_text.strip() in ["1", "1️⃣"]:
+                    # Option 1: first_name
+                    if first_name and first_name != "there":
+                        chosen_name = first_name
+                elif message_text.strip() in ["2", "2️⃣"]:
+                    # Option 2: could be username or custom name depending on what was shown
+                    if first_name and first_name != "there" and username:
+                        chosen_name = username
+                    elif not first_name or first_name == "there":
+                        # If no first_name, option 2 is custom name prompt
+                        chosen_name = None  # Will ask them to type it
+                elif message_text.strip() in ["3", "3️⃣"]:
+                    # Option 3: custom name (only if both first_name and username exist)
+                    chosen_name = None  # Will ask them to type it
+                else:
+                    # They typed a custom name directly
+                    chosen_name = message_text.strip()
+                
+                if chosen_name:
+                    # Update user with chosen name and complete onboarding
+                    await memory_manager.db.get_or_create_user(
+                        telegram_id=telegram_id,
+                        name=chosen_name,
+                        username=username
+                    )
+                    await memory_manager.db.update_user_onboarding_state(
+                        telegram_id=telegram_id,
+                        onboarding_state=None  # Onboarding complete
+                    )
+                    
+                    # Send welcome message
+                    welcome_msg = f"✨ Perfect! I'll call you {chosen_name}.\n\n"
+                    welcome_msg += "I'm Aki, your AI companion. I'm here to listen, remember what matters to you, "
+                    welcome_msg += "and be a thoughtful presence in your life.\n\n"
+                    welcome_msg += "Feel free to share anything on your mind - I'm all ears! 👂"
+                    
+                    await self._send_with_typing(chat_id, welcome_msg)
+                    logger.info(f"User {telegram_id} completed onboarding as '{chosen_name}'")
+                else:
+                    # Ask them to type their custom name
+                    await self._send_with_typing(
+                        chat_id,
+                        "Please type the name you'd like me to call you:"
+                    )
+                return
+                
+        except Exception as e:
+            logger.error(f"Error checking onboarding state: {e}")
+            # Continue with normal message processing
+
+        # Normal message processing (for users who completed onboarding)
         # Buffer the message
         if chat_id not in self._message_buffers:
             self._message_buffers[chat_id] = []
@@ -147,9 +243,9 @@ class TelegramBot:
 
         # Store user metadata and the last message object for reactions
         self._debounce_metadata[chat_id] = {
-            "telegram_id": user.id,
-            "name": user.first_name or user.username,
-            "username": user.username,
+            "telegram_id": telegram_id,
+            "name": first_name or username,
+            "username": username,
             "last_message": update.message,  # Store for reaction
         }
 
