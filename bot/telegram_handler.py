@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta
 import pytz
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.constants import ChatAction
 from telegram.ext import (
     Application,
@@ -98,7 +98,7 @@ class TelegramBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Handle the /start command.
-        Kicks off the onboarding conversation for new users.
+        Neutral system setup for new users, or welcome back for existing users.
         """
         user = update.effective_user
         telegram_id = user.id
@@ -113,7 +113,7 @@ class TelegramBot:
             existing_user = await memory_manager.db.get_user_by_telegram_id(telegram_id)
             
             if existing_user:
-                # Existing user - welcome them back
+                # Existing user - welcome them back through Aki
                 logger.info(f"Existing user {telegram_id} restarted the bot")
                 messages, _ = await orchestrator.process_message(
                     telegram_id=telegram_id,
@@ -124,7 +124,7 @@ class TelegramBot:
                 for msg in messages:
                     await self._send_with_typing(chat_id, msg)
             else:
-                # New user - start onboarding with name selection
+                # New user - neutral system setup (NOT Aki speaking)
                 logger.info(f"New user {telegram_id} starting onboarding")
                 
                 # Create user with onboarding state
@@ -135,28 +135,34 @@ class TelegramBot:
                     onboarding_state="awaiting_name"
                 )
                 
-                # Send name selection message
-                welcome_msg = "👋 Welcome! I'm Aki, your AI companion.\n\n"
-                welcome_msg += "Before we begin, what name should I call you?\n\n"
+                # System message: neutral setup tone
+                setup_msg = "Before you meet Aki, there's one small thing to set up.\n\n"
+                setup_msg += "What should Aki call you?"
                 
-                # Build options based on available info
-                options = []
+                # Build reply keyboard with name options
+                keyboard_buttons = []
                 if first_name and first_name != "there":
-                    options.append(f"1️⃣ {first_name}")
+                    keyboard_buttons.append([first_name])
                 if username:
-                    options.append(f"2️⃣ @{username}")
-                options.append(f"{'3️⃣' if len(options) == 2 else '2️⃣' if len(options) == 1 else '1️⃣'} Type a different name")
+                    keyboard_buttons.append([username])
+                keyboard_buttons.append(["Type a different name"])
                 
-                welcome_msg += "\n".join(options)
-                welcome_msg += "\n\nJust reply with the number or type your preferred name!"
+                reply_markup = ReplyKeyboardMarkup(
+                    keyboard_buttons,
+                    one_time_keyboard=True,
+                    resize_keyboard=True,
+                    input_field_placeholder="Choose or type your name"
+                )
                 
-                await self._send_with_typing(chat_id, welcome_msg)
+                await update.message.reply_text(
+                    setup_msg,
+                    reply_markup=reply_markup
+                )
                 
         except Exception as e:
             logger.error(f"Error in start command: {e}")
-            await self._send_with_typing(
-                chat_id,
-                f"Hi! I'm your AI companion. I'm having a small hiccup right now, but try sending me a message!"
+            await update.message.reply_text(
+                "Something went wrong. Please try /start again."
             )
 
     async def handle_text_message(
@@ -164,7 +170,7 @@ class TelegramBot:
     ) -> None:
         """
         Handle incoming text messages from users.
-        Buffers rapid messages and processes them together after a quiet period.
+        Handles onboarding name selection or buffers messages for normal conversation.
         """
         user = update.effective_user
         chat_id = update.effective_chat.id
@@ -180,30 +186,29 @@ class TelegramBot:
             existing_user = await memory_manager.db.get_user_by_telegram_id(telegram_id)
             
             if existing_user and existing_user.onboarding_state == "awaiting_name":
-                # User is in name selection phase
+                # User is in name selection phase (system setup, not Aki)
                 logger.info(f"User {telegram_id} responding to name selection")
                 
-                # Parse the response
+                # Parse the response - handle keyboard buttons or typed name
                 chosen_name = None
-                if message_text.strip() in ["1", "1️⃣"]:
-                    # Option 1: first_name
-                    if first_name and first_name != "there":
-                        chosen_name = first_name
-                elif message_text.strip() in ["2", "2️⃣"]:
-                    # Option 2: could be username or custom name depending on what was shown
-                    if first_name and first_name != "there" and username:
-                        chosen_name = username
-                    elif not first_name or first_name == "there":
-                        # If no first_name, option 2 is custom name prompt
-                        chosen_name = None  # Will ask them to type it
-                elif message_text.strip() in ["3", "3️⃣"]:
-                    # Option 3: custom name (only if both first_name and username exist)
-                    chosen_name = None  # Will ask them to type it
+                
+                # Check if they selected from keyboard or typed custom name
+                if message_text == first_name and first_name != "there":
+                    chosen_name = first_name
+                elif message_text == username:
+                    chosen_name = username
+                elif message_text == "Type a different name":
+                    # They want to type a custom name
+                    await update.message.reply_text(
+                        "Please type the name you'd like Aki to call you:",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                    return
                 else:
                     # They typed a custom name directly
                     chosen_name = message_text.strip()
                 
-                if chosen_name:
+                if chosen_name and len(chosen_name) > 0:
                     # Update user with chosen name and complete onboarding
                     await memory_manager.db.get_or_create_user(
                         telegram_id=telegram_id,
@@ -215,19 +220,19 @@ class TelegramBot:
                         onboarding_state=None  # Onboarding complete
                     )
                     
-                    # Send welcome message
-                    welcome_msg = f"✨ Perfect! I'll call you {chosen_name}.\n\n"
-                    welcome_msg += "I'm Aki, your AI companion. I'm here to listen, remember what matters to you, "
-                    welcome_msg += "and be a thoughtful presence in your life.\n\n"
-                    welcome_msg += "Feel free to share anything on your mind - I'm all ears! 👂"
+                    # System completion message (neutral, not Aki)
+                    completion_msg = "Setup is complete! You can say hi to Aki when you're ready."
                     
-                    await self._send_with_typing(chat_id, welcome_msg)
+                    await update.message.reply_text(
+                        completion_msg,
+                        reply_markup=ReplyKeyboardRemove()
+                    )
                     logger.info(f"User {telegram_id} completed onboarding as '{chosen_name}'")
                 else:
-                    # Ask them to type their custom name
-                    await self._send_with_typing(
-                        chat_id,
-                        "Please type the name you'd like me to call you:"
+                    # Invalid name, ask again
+                    await update.message.reply_text(
+                        "Please enter a valid name:",
+                        reply_markup=ReplyKeyboardRemove()
                     )
                 return
                 
