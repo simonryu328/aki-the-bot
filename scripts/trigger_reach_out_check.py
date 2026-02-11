@@ -117,6 +117,13 @@ async def generate_reach_out_message(user_id: int, hours_since_last_message: int
             current_conversation=current_conversation,
         )
         
+        # Log the full prompt for debugging
+        print(f"\n{'='*80}")
+        print(f"REACH-OUT PROMPT FOR USER {user_id} ({user_name}):")
+        print(f"{'='*80}")
+        print(prompt)
+        print(f"{'='*80}\n")
+        
         message = await llm_client.chat(
             model=settings.MODEL_PROACTIVE,
             messages=[{"role": "user", "content": prompt}],
@@ -124,7 +131,15 @@ async def generate_reach_out_message(user_id: int, hours_since_last_message: int
             max_tokens=200,
         )
         
-        return message.strip()
+        # Log the LLM response
+        print(f"\n{'='*80}")
+        print(f"REACH-OUT RESPONSE FOR USER {user_id} ({user_name}):")
+        print(f"{'='*80}")
+        print(message)
+        print(f"{'='*80}\n")
+        
+        # Return both message and prompt for storage in thinking field
+        return {"message": message.strip(), "prompt": prompt}
         
     except Exception as e:
         print(f"  ❌ Failed to generate message: {e}")
@@ -206,12 +221,16 @@ async def trigger_reach_out_check():
                 
                 # Generate and send reach-out
                 print(f"  ✅ Eligible for reach-out! Generating message...")
-                message_text = await generate_reach_out_message(
+                result = await generate_reach_out_message(
                     user_id=user.id,
                     hours_since_last_message=int(hours_since),
                 )
                 
-                if message_text:
+                if result:
+                    # Extract message and prompt
+                    message_text = result["message"]
+                    prompt_text = result["prompt"]
+                    
                     print(f"  📤 Sending: {message_text[:100]}...")
                     
                     # Send the message
@@ -221,12 +240,13 @@ async def trigger_reach_out_check():
                     )
                     sent_count += 1
                     
-                    # Store in conversation history
+                    # Store in conversation history with prompt in thinking field
                     await memory_manager.add_conversation(
                         user_id=user.id,
                         role="assistant",
                         message=message_text,
                         store_in_vector=False,
+                        thinking=prompt_text,
                     )
                     
                     # Update last reach-out timestamp

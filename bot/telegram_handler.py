@@ -1155,6 +1155,9 @@ class TelegramBot:
                 current_conversation=current_conversation,
             )
 
+            # Log the full prompt for debugging
+            logger.info(f"\n{'='*80}\nREACH-OUT PROMPT FOR USER {user_id} ({user_name}):\n{'='*80}\n{prompt}\n{'='*80}\n")
+
             message = await llm_client.chat(
                 model=settings.MODEL_PROACTIVE,
                 messages=[{"role": "user", "content": prompt}],
@@ -1164,12 +1167,16 @@ class TelegramBot:
 
             message = message.strip()
 
+            # Log the LLM response
+            logger.info(f"\n{'='*80}\nREACH-OUT RESPONSE FOR USER {user_id} ({user_name}):\n{'='*80}\n{message}\n{'='*80}\n")
+
             # LLM decided this reach-out isn't appropriate
             if message.upper() == "SKIP":
                 logger.info(f"Skipping reach-out - LLM determined not appropriate")
                 return None
 
-            return message
+            # Return both message and prompt for storage in thinking field
+            return {"message": message, "prompt": prompt}
 
         except Exception as e:
             logger.error(f"Failed to generate reach-out message: {e}")
@@ -1233,12 +1240,16 @@ class TelegramBot:
                             continue
 
                     # Generate and send reach-out
-                    message_text = await self._generate_reach_out_message(
+                    result = await self._generate_reach_out_message(
                         user_id=user.id,
                         hours_since_last_message=int(hours_since),
                     )
 
-                    if message_text:
+                    if result:
+                        # Extract message and prompt
+                        message_text = result["message"]
+                        prompt_text = result["prompt"]
+                        
                         # Parse message for multiple parts (support [BREAK] and |||)
                         messages = []
                         if '[BREAK]' in message_text:
@@ -1256,12 +1267,13 @@ class TelegramBot:
                         
                         sent_count += 1
 
-                        # Store full message in conversation history
+                        # Store full message in conversation history with prompt in thinking field
                         await memory_manager.add_conversation(
                             user_id=user.id,
                             role="assistant",
                             message=message_text,
                             store_in_vector=False,
+                            thinking=prompt_text,
                         )
 
                         # Update last reach-out timestamp
