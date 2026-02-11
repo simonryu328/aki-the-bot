@@ -1487,7 +1487,9 @@ class TelegramBot:
 
         # Start the bot in webhook or polling mode
         if settings.WEBHOOK_URL:
-            webhook_secret = settings.WEBHOOK_SECRET or settings.TELEGRAM_BOT_TOKEN[:32]
+            # Telegram secret_token only allows A-Za-z0-9_- characters
+            import hashlib
+            webhook_secret = settings.WEBHOOK_SECRET or hashlib.sha256(settings.TELEGRAM_BOT_TOKEN.encode()).hexdigest()[:32]
             webhook_path = f"/webhook/{webhook_secret}"
             webhook_url = f"{settings.WEBHOOK_URL}{webhook_path}"
 
