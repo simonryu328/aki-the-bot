@@ -64,7 +64,7 @@ class TelegramBot:
         import httpx
 
         # Typing duration: 0.5s base + scales with length, capped at 30s
-        typing_duration = min(len(text) * 0.05, 30.0)
+        typing_duration = min(0.4 + len(text) * 0.01, 30.0)
         
         # Keep typing indicator active throughout delay
         # Telegram typing indicator expires after ~5 seconds, so refresh every 4 seconds
