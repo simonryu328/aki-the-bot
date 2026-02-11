@@ -104,12 +104,17 @@ class LLMClient:
                 finish_reason=finish_reason,
             )
             
-            # Log full raw response for debugging
+            # Log truncated response for debugging (first 100 and last 100 chars)
+            if len(content) > 200:
+                truncated = f"{content[:100]}...{content[-100:]}"
+            else:
+                truncated = content
+            
             logger.info(
-                "Raw LLM response (full)",
+                "LLM response preview",
                 model=model,
                 finish_reason=finish_reason,
-                raw_response=content,
+                response_preview=truncated,
             )
             
             # Warn if response was cut off
