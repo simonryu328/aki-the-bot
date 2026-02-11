@@ -166,12 +166,32 @@ def load_diary_entries(user_id: int, limit: int = 10):
         ).scalars().all()
         
         return [{
+            "id": e.id,
             "type": e.entry_type,
+            "title": e.title,
             "content": e.content,
+            "importance": e.importance,
             "timestamp": e.timestamp,
             "exchange_start": getattr(e, 'exchange_start', None),
             "exchange_end": getattr(e, 'exchange_end', None),
+            "image_url": e.image_url,
         } for e in entries]
+    finally:
+        session.close()
+
+
+@st.cache_data(ttl=30)
+def load_diary_stats(user_id: int):
+    """Get counts of diary entries by type."""
+    session = get_session()
+    try:
+        result = session.execute(
+            select(DiaryEntry.entry_type, func.count(DiaryEntry.id))
+            .where(DiaryEntry.user_id == user_id)
+            .group_by(DiaryEntry.entry_type)
+        ).all()
+        
+        return {entry_type: count for entry_type, count in result}
     finally:
         session.close()
 
@@ -237,8 +257,31 @@ selected_user = next(u for u in users if u["id"] == selected_user_id)
 st.sidebar.markdown("---")
 st.sidebar.markdown(f"**ID:** {selected_user['id']}")
 st.sidebar.markdown(f"**Telegram:** {selected_user['telegram_id']}")
+if selected_user.get('username'):
+    st.sidebar.markdown(f"**Username:** @{selected_user['username']}")
 st.sidebar.markdown(f"**Created:** {fmt(selected_user['created_at'])}")
 st.sidebar.markdown(f"**Last Active:** {fmt(selected_user['last_interaction'])}")
+
+# Load additional user details
+session = get_session()
+try:
+    user_full = session.execute(
+        select(User).where(User.id == selected_user_id)
+    ).scalar_one_or_none()
+    if user_full:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("**User Details**")
+        tz = getattr(user_full, 'timezone', None)
+        loc = getattr(user_full, 'location_name', None)
+        onb = getattr(user_full, 'onboarding_state', None)
+        if tz and tz != "America/Toronto":
+            st.sidebar.markdown(f"🌍 Timezone: {tz}")
+        if loc:
+            st.sidebar.markdown(f"📍 Location: {loc}")
+        if onb:
+            st.sidebar.markdown(f"⚙️ Onboarding: {onb}")
+finally:
+    session.close()
 
 if st.sidebar.button("Refresh Data"):
     st.cache_data.clear()
@@ -246,8 +289,8 @@ if st.sidebar.button("Refresh Data"):
 
 # ---- Tabs ----
 
-tab_overview, tab_conversations, tab_observations, tab_scheduled, tab_diary, tab_settings = st.tabs(
-    ["Overview", "Conversations", "Observations", "Scheduled", "Diary", "Settings"]
+tab_overview, tab_conversations, tab_observations, tab_scheduled, tab_diary, tab_database, tab_settings = st.tabs(
+    ["Overview", "Conversations", "Observations", "Scheduled", "Diary", "Database", "Settings"]
 )
 
 profile = load_profile(selected_user_id)
@@ -354,25 +397,223 @@ with tab_scheduled:
 with tab_diary:
     st.subheader("Diary Entries")
     
-    entry_limit = st.slider("Entries to load", 5, 50, 10, step=5)
-    diary_entries = load_diary_entries(selected_user_id, limit=entry_limit)
+    # Get stats
+    diary_stats = load_diary_stats(selected_user_id)
     
-    if not diary_entries:
+    if not diary_stats:
         st.info("No diary entries yet.")
     else:
-        for entry in diary_entries:
-            entry_type = entry["type"]
-            timestamp = fmt(entry["timestamp"])
+        # Show stats
+        st.markdown("**Entry Types:**")
+        cols = st.columns(len(diary_stats))
+        for idx, (entry_type, count) in enumerate(sorted(diary_stats.items())):
+            with cols[idx]:
+                # Emoji mapping
+                emoji_map = {
+                    "compact_summary": "📝",
+                    "conversation_memory": "🧠",
+                    "achievement": "🏆",
+                    "milestone": "⭐",
+                    "visual_memory": "📸",
+                    "significant_event": "🎯"
+                }
+                emoji = emoji_map.get(entry_type, "📄")
+                st.metric(f"{emoji} {entry_type}", count)
+        
+        st.markdown("---")
+        
+        # Entry type filter
+        entry_types = ["All"] + sorted(diary_stats.keys())
+        selected_type = st.selectbox("Filter by type", entry_types)
+        
+        entry_limit = st.slider("Entries to load", 5, 100, 20, step=5)
+        diary_entries = load_diary_entries(selected_user_id, limit=entry_limit)
+        
+        # Filter by type if selected
+        if selected_type != "All":
+            diary_entries = [e for e in diary_entries if e["type"] == selected_type]
+        
+        if not diary_entries:
+            st.info(f"No {selected_type} entries found.")
+        else:
+            # Group by type for better organization
+            entries_by_type = {}
+            for entry in diary_entries:
+                entry_type = entry["type"]
+                if entry_type not in entries_by_type:
+                    entries_by_type[entry_type] = []
+                entries_by_type[entry_type].append(entry)
             
-            # Format exchange times if available
-            exchange_info = ""
-            if entry["exchange_start"] and entry["exchange_end"]:
-                start = fmt(entry["exchange_start"])
-                end = fmt(entry["exchange_end"])
-                exchange_info = f" (Exchange: {start} → {end})"
+            # Display entries grouped by type
+            for entry_type, entries in sorted(entries_by_type.items()):
+                emoji_map = {
+                    "compact_summary": "📝",
+                    "conversation_memory": "🧠",
+                    "achievement": "🏆",
+                    "milestone": "⭐",
+                    "visual_memory": "📸",
+                    "significant_event": "🎯"
+                }
+                emoji = emoji_map.get(entry_type, "📄")
+                
+                st.markdown(f"### {emoji} {entry_type.replace('_', ' ').title()} ({len(entries)})")
+                
+                for entry in entries:
+                    timestamp = fmt(entry["timestamp"])
+                    importance = entry.get("importance", "N/A")
+                    
+                    # Format exchange times if available
+                    exchange_info = ""
+                    if entry["exchange_start"] and entry["exchange_end"]:
+                        start = fmt(entry["exchange_start"])
+                        end = fmt(entry["exchange_end"])
+                        exchange_info = f"\n📅 Exchange: {start} → {end}"
+                    
+                    # Create title with metadata
+                    title = f"**{entry['title']}** — {timestamp}"
+                    if importance != "N/A":
+                        title += f" (Importance: {importance}/10)"
+                    
+                    with st.expander(title, expanded=False):
+                        st.write(entry["content"])
+                        if exchange_info:
+                            st.caption(exchange_info)
+                        if entry.get("image_url"):
+                            st.caption(f"🖼️ Image: {entry['image_url']}")
+                
+                st.markdown("---")
+
+
+# ---- Tab: Database ----
+
+with tab_database:
+    st.subheader("Database Overview")
+    st.caption(f"Complete view of all data for {selected_user['name']}")
+    
+    session = get_session()
+    try:
+        # Get counts for all tables
+        profile_count = session.execute(
+            select(func.count()).select_from(ProfileFact).where(ProfileFact.user_id == selected_user_id)
+        ).scalar()
+        
+        conv_count = session.execute(
+            select(func.count()).select_from(Conversation).where(Conversation.user_id == selected_user_id)
+        ).scalar()
+        
+        timeline_count = session.execute(
+            select(func.count()).select_from(TimelineEvent).where(TimelineEvent.user_id == selected_user_id)
+        ).scalar()
+        
+        diary_count = session.execute(
+            select(func.count()).select_from(DiaryEntry).where(DiaryEntry.user_id == selected_user_id)
+        ).scalar()
+        
+        scheduled_count = session.execute(
+            select(func.count()).select_from(ScheduledMessage)
+            .where(ScheduledMessage.user_id == selected_user_id, ScheduledMessage.executed == False)
+        ).scalar()
+        
+        # Display counts
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("👤 Profile Facts", profile_count)
+            st.metric("💬 Conversations", conv_count)
+        with col2:
+            st.metric("📅 Timeline Events", timeline_count)
+            st.metric("📔 Diary Entries", diary_count)
+        with col3:
+            st.metric("⏰ Scheduled Messages", scheduled_count)
+        
+        st.markdown("---")
+        
+        # Profile Facts breakdown by category
+        st.markdown("### Profile Facts by Category")
+        profile_by_cat = session.execute(
+            select(ProfileFact.category, func.count(ProfileFact.id))
+            .where(ProfileFact.user_id == selected_user_id)
+            .group_by(ProfileFact.category)
+            .order_by(func.count(ProfileFact.id).desc())
+        ).all()
+        
+        if profile_by_cat:
+            for category, count in profile_by_cat:
+                st.markdown(f"- **{category}**: {count} facts")
+        else:
+            st.caption("No profile facts yet")
+        
+        st.markdown("---")
+        
+        # Diary Entries breakdown by type
+        st.markdown("### Diary Entries by Type")
+        diary_by_type = session.execute(
+            select(DiaryEntry.entry_type, func.count(DiaryEntry.id))
+            .where(DiaryEntry.user_id == selected_user_id)
+            .group_by(DiaryEntry.entry_type)
+            .order_by(func.count(DiaryEntry.id).desc())
+        ).all()
+        
+        if diary_by_type:
+            for entry_type, count in diary_by_type:
+                emoji_map = {
+                    "compact_summary": "📝",
+                    "conversation_memory": "🧠",
+                    "achievement": "🏆",
+                    "milestone": "⭐",
+                    "visual_memory": "📸",
+                    "significant_event": "🎯"
+                }
+                emoji = emoji_map.get(entry_type, "📄")
+                st.markdown(f"- {emoji} **{entry_type}**: {count} entries")
+        else:
+            st.caption("No diary entries yet")
+        
+        st.markdown("---")
+        
+        # Conversation stats
+        st.markdown("### Conversation Statistics")
+        user_msg_count = session.execute(
+            select(func.count()).select_from(Conversation)
+            .where(Conversation.user_id == selected_user_id, Conversation.role == "user")
+        ).scalar()
+        
+        assistant_msg_count = session.execute(
+            select(func.count()).select_from(Conversation)
+            .where(Conversation.user_id == selected_user_id, Conversation.role == "assistant")
+        ).scalar()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("User Messages", user_msg_count)
+        with col2:
+            st.metric("Assistant Messages", assistant_msg_count)
+        
+        # First and last message times
+        first_msg = session.execute(
+            select(Conversation.timestamp)
+            .where(Conversation.user_id == selected_user_id)
+            .order_by(Conversation.timestamp)
+            .limit(1)
+        ).scalar()
+        
+        last_msg = session.execute(
+            select(Conversation.timestamp)
+            .where(Conversation.user_id == selected_user_id)
+            .order_by(Conversation.timestamp.desc())
+            .limit(1)
+        ).scalar()
+        
+        if first_msg and last_msg:
+            st.markdown(f"**First message:** {fmt(first_msg)}")
+            st.markdown(f"**Last message:** {fmt(last_msg)}")
             
-            with st.expander(f"**{entry_type}** — {timestamp}{exchange_info}", expanded=False):
-                st.write(entry["content"])
+            # Calculate conversation span
+            span = last_msg - first_msg
+            days = span.days
+            st.markdown(f"**Conversation span:** {days} days")
+        
+    finally:
+        session.close()
 
 
 # ---- Tab: Settings ----
