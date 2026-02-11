@@ -1485,9 +1485,28 @@ class TelegramBot:
         )
         logger.info(f"Reach-out checker configured (every {settings.REACH_OUT_CHECK_INTERVAL_MINUTES} minutes)")
 
-        # Start the bot
-        logger.info("Starting Telegram bot...")
-        self.application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Start the bot in webhook or polling mode
+        if settings.WEBHOOK_URL:
+            webhook_secret = settings.WEBHOOK_SECRET or settings.TELEGRAM_BOT_TOKEN[:32]
+            webhook_path = f"/webhook/{webhook_secret}"
+            webhook_url = f"{settings.WEBHOOK_URL}{webhook_path}"
+
+            logger.info(f"Starting Telegram bot in WEBHOOK mode on port {settings.PORT}")
+            self.application.run_webhook(
+                listen="0.0.0.0",
+                port=settings.PORT,
+                url_path=webhook_path,
+                webhook_url=webhook_url,
+                secret_token=webhook_secret,
+                allowed_updates=Update.ALL_TYPES,
+                drop_pending_updates=True,
+            )
+        else:
+            logger.info("Starting Telegram bot in POLLING mode (no WEBHOOK_URL set)")
+            self.application.run_polling(
+                allowed_updates=Update.ALL_TYPES,
+                drop_pending_updates=True,
+            )
 
 
 # Singleton instance

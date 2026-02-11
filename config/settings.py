@@ -88,6 +88,24 @@ class Settings(BaseSettings):
         description="Application environment",
     )
 
+    # Webhook Configuration (for production)
+    WEBHOOK_URL: str = Field(
+        default="",
+        description="Public URL for Telegram webhook (e.g., https://aki-bot.up.railway.app). "
+                    "When empty, bot uses polling mode.",
+    )
+    PORT: int = Field(
+        default=8443,
+        description="Port for the webhook server. Railway sets this via PORT env var.",
+        ge=1,
+        le=65535,
+    )
+    WEBHOOK_SECRET: str = Field(
+        default="",
+        description="Secret token for webhook verification. "
+                    "Auto-generated from bot token if empty.",
+    )
+
     # Reach-Out Configuration
     REACH_OUT_CHECK_INTERVAL_MINUTES: int = Field(
         default=60,
