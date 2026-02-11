@@ -122,15 +122,17 @@ class Settings(BaseSettings):
     
     CONVERSATION_CONTEXT_LIMIT: int = Field(
         default=20,
-        description="Number of recent messages to include in CURRENT CONVERSATION section. "
+        description="Number of recent raw messages to ALWAYS include in CURRENT CONVERSATION section. "
+                    "These are shown regardless of whether they overlap with compact summaries. "
                     "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
         ge=1,
     )
     
     COMPACT_SUMMARY_LIMIT: int = Field(
-        default=5,
-        description="Number of compact summaries to include in RECENT EXCHANGES section. "
+        default=3,
+        description="Number of compact summaries to ALWAYS include in RECENT EXCHANGES section. "
                     "Compact summaries are timestamped conversation summaries created every 10 messages. "
+                    "These are shown in addition to the raw messages in CURRENT CONVERSATION. "
                     "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
         ge=1,
         le=10,

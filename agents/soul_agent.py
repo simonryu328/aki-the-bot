@@ -31,6 +31,7 @@ from prompts import (
     OBSERVATION_PROMPT,
     REFLECTION_PROMPT,
     COMPACT_PROMPT,
+    MEMORY_PROMPT,
 )
 from prompts.condensation import CONDENSATION_PROMPT
 from prompts.system_frame import SYSTEM_FRAME
@@ -245,13 +246,18 @@ class SoulAgent:
 
         return "\n".join(parts)
     async def _build_conversation_context(
-        self, 
-        user_id: int, 
+        self,
+        user_id: int,
         conversation_history: List[ConversationSchema]
     ) -> tuple[str, str]:
         """Build recent exchanges and current conversation context.
         
-        Fetches compact summaries and ensures no duplication with live conversation.
+        Always includes:
+        - Most recent N compact summaries (RECENT EXCHANGES)
+        - Most recent M raw messages (CURRENT CONVERSATION)
+        
+        This provides both high-level context from summaries and detailed recent context
+        from raw messages, regardless of overlap.
         
         Args:
             user_id: User ID
@@ -262,14 +268,13 @@ class SoulAgent:
         """
         tz = pytz.timezone(settings.TIMEZONE)
         
-        # Get last N compact summaries
+        # Get last N compact summaries (always include these)
         diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
         compact_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:settings.COMPACT_SUMMARY_LIMIT]
         
         # Format compact summaries with timestamps
         if compact_summaries:
             compact_lines = []
-            last_compact_end = None
             
             for compact in reversed(compact_summaries):  # Show oldest to newest
                 if compact.exchange_start and compact.exchange_end:
@@ -282,26 +287,15 @@ class SoulAgent:
                     start_str = start_local.strftime("%b %d, %I:%M %p")
                     end_str = end_local.strftime("%I:%M %p")
                     compact_lines.append(f"[{start_str} - {end_str}] {compact.content}")
-                    
-                    # Track the most recent compact's end time
-                    if last_compact_end is None or compact.exchange_end > last_compact_end:
-                        last_compact_end = compact.exchange_end
             
             recent_exchanges_text = "\n".join(compact_lines)
-            
-            # Get conversations AFTER last compact to avoid duplication
-            if last_compact_end:
-                current_convos = await self.memory.db.get_conversations_after(
-                    user_id, 
-                    after=last_compact_end, 
-                    limit=settings.CONVERSATION_CONTEXT_LIMIT
-                )
-            else:
-                current_convos = conversation_history
         else:
             # No compacts yet, show placeholder
             recent_exchanges_text = "(No previous exchanges summarized yet)"
-            current_convos = conversation_history
+        
+        # Always get the most recent N raw messages for CURRENT CONVERSATION
+        # This provides detailed recent context regardless of compact summaries
+        current_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
         
         # Get user name for formatting
         user = await self.memory.get_user_by_id(user_id)
@@ -730,10 +724,11 @@ class SoulAgent:
                 # No compact exists yet, count all messages
                 message_count = len(all_convos)
             
-            # Trigger compact if we have enough messages
+            # Trigger compact and memory if we have enough messages
             if message_count >= settings.COMPACT_INTERVAL:
-                logger.info("Triggering compact summary", user_id=user_id, message_count=message_count)
+                logger.info("Triggering compact summary and memory entry", user_id=user_id, message_count=message_count)
                 await self._create_compact_summary(user_id=user_id)
+                await self._create_memory_entry(user_id=user_id)
             
         except Exception as e:
             logger.error("Failed to check compact trigger", user_id=user_id, error=str(e))
@@ -837,6 +832,107 @@ class SoulAgent:
             else:
                 logger.warning("Empty compact summary generated", user_id=user_id)
             
+        except Exception as e:
+            logger.error("Failed to create compact summary", user_id=user_id, error=str(e))
+
+    async def _create_memory_entry(
+        self,
+        user_id: int,
+    ) -> None:
+        """Create a memory entry about the user from recent conversation exchanges."""
+        logger.info("Running memory entry creation", user_id=user_id)
+        try:
+            tz = pytz.timezone(settings.TIMEZONE)
+            
+            # Get user name
+            user = await self.memory.get_user_by_id(user_id)
+            user_name = user.name if user and user.name else "them"
+            
+            # Get recent conversation
+            recent_convos = await self.memory.db.get_recent_conversations(
+                user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
+            )
+            if not recent_convos:
+                logger.debug("No recent conversations for memory entry", user_id=user_id)
+                return
+            
+            # Extract start and end times from conversation objects
+            first_conv = recent_convos[0]
+            last_conv = recent_convos[-1]
+            
+            if first_conv.timestamp:
+                utc_start = first_conv.timestamp.replace(tzinfo=pytz.utc)
+                start_time = utc_start.astimezone(tz).strftime("%Y-%m-%d %H:%M")
+            else:
+                start_time = "unknown"
+            
+            if last_conv.timestamp:
+                utc_end = last_conv.timestamp.replace(tzinfo=pytz.utc)
+                end_time = utc_end.astimezone(tz).strftime("%Y-%m-%d %H:%M")
+            else:
+                end_time = "unknown"
+            
+            # Format conversations with timestamps
+            convo_lines = []
+            for conv in recent_convos:
+                role = user_name if conv.role == "user" else "Aki"
+                if conv.timestamp:
+                    utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
+                    local_time = utc_time.astimezone(tz)
+                    ts = local_time.strftime("%Y-%m-%d %H:%M")
+                else:
+                    ts = ""
+                convo_lines.append(f"[{ts}] {role}: {conv.message}")
+            recent_conversation = "\n".join(convo_lines)
+            
+            # Build prompt with explicit start/end times
+            prompt = MEMORY_PROMPT.format(
+                user_name=user_name,
+                start_time=start_time,
+                end_time=end_time,
+                recent_conversation=recent_conversation,
+            )
+            
+            # Generate memory entry
+            result = await llm_client.chat(
+                model=settings.MODEL_SUMMARY,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,  # Slightly higher temperature for more natural, personal writing
+                max_tokens=300,
+            )
+            
+            logger.info("Memory entry generated", user_id=user_id, memory_length=len(result))
+            
+            # Store memory as a diary entry with type "conversation_memory"
+            if result and result.strip():
+                memory_content = result.strip()
+                
+                # Convert start/end times back to datetime objects for storage
+                exchange_start_dt = None
+                exchange_end_dt = None
+                if first_conv.timestamp:
+                    exchange_start_dt = first_conv.timestamp  # Store as UTC
+                if last_conv.timestamp:
+                    exchange_end_dt = last_conv.timestamp  # Store as UTC
+                
+                # Store in diary entries with exchange timestamps
+                await self.memory.add_diary_entry(
+                    user_id=user_id,
+                    entry_type="conversation_memory",
+                    title="Conversation Memory",
+                    content=memory_content,
+                    importance=6,  # Slightly higher importance than compact summaries
+                    exchange_start=exchange_start_dt,
+                    exchange_end=exchange_end_dt,
+                )
+                
+                logger.info("Stored conversation memory", user_id=user_id,
+                           exchange_start=start_time, exchange_end=end_time)
+            else:
+                logger.warning("Empty memory entry generated", user_id=user_id)
+            
+        except Exception as e:
+            logger.error("Failed to create memory entry", user_id=user_id, error=str(e))
         except Exception as e:
             logger.error("Failed to create compact summary", user_id=user_id, error=str(e))
 
