@@ -118,21 +118,8 @@ async def test_memory_system():
         print("-" * 60)
         print()
 
-        # Test 9: Search memories (if vector store available)
-        print("[Test 9] Testing semantic memory search...")
-        if memory_manager.vector_store_available:
-            memories = await memory_manager.search_relevant_memories(
-                user_id, "What does the user like to eat?", k=3
-            )
-            print(f"  Found {len(memories)} relevant memories")
-            for i, memory in enumerate(memories, 1):
-                print(f"  {i}. Score: {memory['score']:.3f} - {memory['text'][:60]}...")
-        else:
-            print("  ⚠ Vector store not available, skipping semantic search test")
-        print()
-
-        # Test 10: Scheduled messages
-        print("[Test 10] Testing scheduled messages...")
+        # Test 9: Scheduled messages
+        print("[Test 9] Testing scheduled messages...")
         scheduled_time = datetime.utcnow() + timedelta(hours=1)
         await memory_manager.add_scheduled_message(
             user_id=user_id,
@@ -143,8 +130,8 @@ async def test_memory_system():
         print(f"✓ Scheduled message for {scheduled_time.isoformat()}")
         print()
 
-        # Test 11: Get pending scheduled messages
-        print("[Test 11] Retrieving pending scheduled messages...")
+        # Test 10: Get pending scheduled messages
+        print("[Test 10] Retrieving pending scheduled messages...")
         pending = await memory_manager.get_pending_scheduled_messages()
         print(f"  Found {len(pending)} pending messages")
         print()
@@ -155,7 +142,6 @@ async def test_memory_system():
         print()
         print("Memory system is working correctly with:")
         print(f"  - PostgreSQL (async): ✓")
-        print(f"  - Pinecone vector store: {'✓' if memory_manager.vector_store_available else '⚠ Disabled'}")
         print(f"  - Pydantic schemas: ✓")
         print(f"  - Structured logging: ✓")
         print(f"  - Error handling: ✓")

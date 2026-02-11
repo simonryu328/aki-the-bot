@@ -1,6 +1,6 @@
 """
 Memory Manager - Unified interface for all memory operations.
-Combines database (structured data) and vector store (semantic search).
+Manages structured data storage (PostgreSQL).
 """
 
 import logging
@@ -8,7 +8,6 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from memory.database import db
-from memory.vector_store import vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -16,19 +15,12 @@ logger = logging.getLogger(__name__)
 class MemoryManager:
     """
     Unified memory interface for the AI Companion.
-    Manages both structured data (PostgreSQL) and semantic search (ChromaDB).
+    Manages structured data (PostgreSQL).
     """
 
     def __init__(self):
         """Initialize memory manager."""
         self.db = db
-        try:
-            self.vector_store = vector_store
-            self.vector_store_available = True
-        except Exception as e:
-            logger.warning(f"Vector store initialization failed: {e}. Continuing without semantic search.")
-            self.vector_store = None
-            self.vector_store_available = False
 
     # ==================== User Management ====================
 
@@ -102,70 +94,22 @@ class MemoryManager:
         logger.debug(f"Retrieved context for user {user_id}")
         return context
 
-    def search_relevant_memories(
-        self, user_id: int, query: str, k: int = 5
-    ) -> List[Dict[str, Any]]:
-        """
-        Search for relevant memories using semantic similarity.
-
-        Args:
-            user_id: User ID
-            query: Search query
-            k: Number of results
-
-        Returns:
-            List of relevant memory dicts
-        """
-        if not self.vector_store_available:
-            logger.warning("Vector store not available, returning empty results")
-            return []
-        return self.vector_store.search_memories(user_id, query, k=k)
-
     # ==================== Conversation Storage ====================
 
     def add_conversation(
-        self, user_id: int, role: str, message: str, store_in_vector: bool = True
+        self, user_id: int, role: str, message: str
     ):
         """
         Add a conversation message.
-        Stores in both database and vector store.
 
         Args:
             user_id: User ID
             role: "user" or "assistant"
             message: Message content
-            store_in_vector: Whether to also store in vector store for semantic search
         """
         # Store in database
         self.db.add_conversation(user_id, role, message)
-
-        # Store in vector store for semantic search
-        if store_in_vector and self.vector_store_available:
-            self.vector_store.add_memory(
-                user_id=user_id,
-                text=f"{role}: {message}",
-                metadata={
-                    "message_type": "single_message",
-                    "role": role,
-                },
-            )
-
         logger.debug(f"Stored conversation message for user {user_id}: {role}")
-
-    def add_conversation_chunk(
-        self, user_id: int, messages: List[Dict[str, str]], importance: int = 5
-    ):
-        """
-        Add a multi-turn conversation chunk to vector store.
-        Useful for storing context-rich conversation segments.
-
-        Args:
-            user_id: User ID
-            messages: List of message dicts with 'role' and 'content'
-            importance: Importance score (0-10)
-        """
-        if self.vector_store_available:
-            self.vector_store.add_conversation_chunk(user_id, messages, importance)
 
     # ==================== Profile Management ====================
 
@@ -188,19 +132,6 @@ class MemoryManager:
             confidence: Confidence score (0.0 to 1.0)
         """
         self.db.add_profile_fact(user_id, category, key, value, confidence)
-
-        # Also store in vector store for semantic search
-        if self.vector_store_available:
-            self.vector_store.add_memory(
-                user_id=user_id,
-                text=f"{key}: {value}",
-                metadata={
-                    "message_type": "profile_fact",
-                    "category": category,
-                    "key": key,
-                },
-            )
-
         logger.info(f"Added profile fact: {category}.{key} = {value} for user {user_id}")
 
     def get_user_profile(self, user_id: int) -> Dict[str, Dict[str, str]]:
@@ -228,20 +159,6 @@ class MemoryManager:
             datetime_obj: Event datetime
         """
         self.db.add_timeline_event(user_id, event_type, title, description, datetime_obj)
-
-        # Also store in vector store
-        event_text = f"Event: {title}. {description or ''} Scheduled for {datetime_obj.isoformat()}"
-        if self.vector_store_available:
-            self.vector_store.add_memory(
-                user_id=user_id,
-            text=event_text,
-            metadata={
-                "message_type": "timeline_event",
-                "event_type": event_type,
-                "datetime": datetime_obj.isoformat(),
-            },
-        )
-
         logger.info(f"Added timeline event: {title} for user {user_id}")
 
     def get_upcoming_events(self, user_id: int, days: int = 7):
@@ -271,20 +188,6 @@ class MemoryManager:
             image_url: Path to associated image
         """
         self.db.add_diary_entry(user_id, entry_type, title, content, importance, image_url)
-
-        # Store in vector store
-        diary_text = f"Milestone: {title}. {content}"
-        if self.vector_store_available:
-            self.vector_store.add_memory(
-                user_id=user_id,
-            text=diary_text,
-            metadata={
-                "message_type": "diary_entry",
-                "entry_type": entry_type,
-                "importance": importance,
-            },
-        )
-
         logger.info(f"Added diary entry: {title} (importance={importance}) for user {user_id}")
 
     def get_diary_entries(self, user_id: int, limit: int = 50):

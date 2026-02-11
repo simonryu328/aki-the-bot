@@ -12,7 +12,6 @@ dependencies = [
     "asyncpg>=0.29.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
-    "pinecone>=5.0.0",
     "apscheduler>=3.10.4",
     "structlog>=24.1.0",
     "tenacity>=8.2.3",

@@ -37,12 +37,6 @@ class Settings(BaseSettings):
         min_length=1,
     )
 
-    # Pinecone Vector Database
-    PINECONE_API_KEY: str = Field(
-        default="",
-        description="Pinecone API key (optional if vector store not used)",
-    )
-
     # Database
     DATABASE_URL: str = Field(
         default="postgresql://postgres:password@localhost:5432/ai_companion",

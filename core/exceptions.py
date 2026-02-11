@@ -79,37 +79,6 @@ class DatabaseConnectionError(DatabaseException):
         )
 
 
-# ==================== Vector Store Exceptions ====================
-
-
-class VectorStoreException(AICompanionException):
-    """Base exception for vector store errors."""
-
-    pass
-
-
-class VectorStoreConnectionError(VectorStoreException):
-    """Raised when vector store connection fails."""
-
-    def __init__(self, details: Optional[str] = None):
-        super().__init__(
-            message="Failed to connect to vector store",
-            error_code="VECTOR_STORE_CONNECTION_ERROR",
-            context={"details": details} if details else {},
-        )
-
-
-class EmbeddingError(VectorStoreException):
-    """Raised when embedding generation fails."""
-
-    def __init__(self, text_length: int, details: Optional[str] = None):
-        super().__init__(
-            message="Failed to generate embedding",
-            error_code="EMBEDDING_ERROR",
-            context={"text_length": text_length, "details": details},
-        )
-
-
 # ==================== Memory Exceptions ====================
 
 

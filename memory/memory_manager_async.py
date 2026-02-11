@@ -3,12 +3,8 @@ Async Memory Manager - Unified interface for all memory operations.
 
 Copyright 2026 Simon Ryu. Licensed under Apache 2.0.
 
-This module implements a proprietary dual-layer memory architecture:
-- Structured data storage (PostgreSQL with async SQLAlchemy)
-- Semantic search (Pinecone vector store)
-- Graceful degradation and unified type-safe interface
-
-Production-grade implementation combining database (structured data) and vector store (semantic search).
+This module implements structured data storage using PostgreSQL with async SQLAlchemy.
+Production-grade implementation with type-safe interface and comprehensive error handling.
 """
 
 from typing import Dict, List, Optional, Any
@@ -18,7 +14,6 @@ import pytz
 
 from config.settings import settings
 from memory.database_async import db
-from memory.vector_store import vector_store
 from core import get_logger, MemoryException, UserNotFoundError
 from schemas import (
     UserSchema,
@@ -40,25 +35,16 @@ class AsyncMemoryManager:
 
     Features:
     - Type-safe operations with Pydantic schemas
-    - Graceful degradation when vector store unavailable
     - Comprehensive error handling and logging
     - Async/await for high performance
 
-    Manages both:
-    - Structured data (PostgreSQL via async SQLAlchemy)
-    - Semantic search (Pinecone vector store)
+    Manages structured data (PostgreSQL via async SQLAlchemy).
     """
 
     def __init__(self):
-        """Initialize memory manager with database and optional vector store."""
+        """Initialize memory manager with database."""
         self.db = db
-        self.vector_store = vector_store
-        self.vector_store_available = vector_store is not None
-
-        if self.vector_store_available:
-            logger.info("Memory manager initialized with vector store")
-        else:
-            logger.warning("Memory manager initialized without vector store")
+        logger.info("Memory manager initialized")
 
     # ==================== User Management ====================
 
@@ -148,46 +134,19 @@ class AsyncMemoryManager:
             logger.error("Failed to get user context", user_id=user_id, error=str(e))
             raise MemoryException(f"Failed to get user context: {e}")
 
-    async def search_relevant_memories(
-        self, user_id: int, query: str, k: int = 5
-    ) -> List[Dict[str, Any]]:
-        """
-        Search for relevant memories using semantic similarity.
-
-        Args:
-            user_id: User ID
-            query: Search query
-            k: Number of results
-
-        Returns:
-            List of relevant memory dicts
-        """
-        if not self.vector_store_available:
-            logger.debug("Vector store not available, returning empty results")
-            return []
-
-        try:
-            memories = self.vector_store.search_memories(user_id, query, k=k)
-            logger.debug("Searched memories", user_id=user_id, query_length=len(query), results=len(memories))
-            return memories
-        except Exception as e:
-            logger.error("Failed to search memories", user_id=user_id, error=str(e))
-            return []  # Return empty list on error rather than failing
-
     # ==================== Conversation Storage ====================
 
     async def add_conversation(
-        self, user_id: int, role: str, message: str, store_in_vector: bool = True, thinking: Optional[str] = None
+        self, user_id: int, role: str, message: str, thinking: Optional[str] = None
     ) -> ConversationSchema:
         """
         Add a conversation message.
-        Stores in both database and vector store.
 
         Args:
             user_id: User ID
             role: "user" or "assistant"
             message: Message content
-            store_in_vector: Whether to also store in vector store for semantic search
+            thinking: Optional thinking/reasoning content
 
         Returns:
             ConversationSchema with stored conversation
@@ -198,55 +157,12 @@ class AsyncMemoryManager:
         try:
             # Store in database
             conversation = await self.db.add_conversation(user_id, role, message, thinking=thinking)
-
-            # Store in vector store for semantic search
-            if store_in_vector and self.vector_store_available:
-                try:
-                    self.vector_store.add_memory(
-                        user_id=user_id,
-                        text=f"{role}: {message}",
-                        metadata={
-                            "message_type": "single_message",
-                            "role": role,
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("Failed to store in vector store", user_id=user_id, error=str(e))
-                    # Don't fail the whole operation if vector store fails
-
             logger.debug("Added conversation", user_id=user_id, role=role, message_length=len(message))
             return conversation
 
         except Exception as e:
             logger.error("Failed to add conversation", user_id=user_id, error=str(e))
             raise MemoryException(f"Failed to add conversation: {e}")
-
-    def add_conversation_chunk(
-        self, user_id: int, messages: List[Dict[str, str]], importance: int = 5
-    ) -> Optional[str]:
-        """
-        Add a multi-turn conversation chunk to vector store.
-        Useful for storing context-rich conversation segments.
-
-        Args:
-            user_id: User ID
-            messages: List of message dicts with 'role' and 'content'
-            importance: Importance score (0-10)
-
-        Returns:
-            Memory ID if successful, None otherwise
-        """
-        if not self.vector_store_available:
-            logger.debug("Vector store not available, skipping conversation chunk")
-            return None
-
-        try:
-            memory_id = self.vector_store.add_conversation_chunk(user_id, messages, importance)
-            logger.debug("Added conversation chunk", user_id=user_id, message_count=len(messages))
-            return memory_id
-        except Exception as e:
-            logger.error("Failed to add conversation chunk", user_id=user_id, error=str(e))
-            return None
 
     # ==================== Profile Management ====================
 
@@ -276,22 +192,6 @@ class AsyncMemoryManager:
         """
         try:
             fact = await self.db.add_profile_fact(user_id, category, key, value, confidence)
-
-            # Also store in vector store for semantic search
-            if self.vector_store_available:
-                try:
-                    self.vector_store.add_memory(
-                        user_id=user_id,
-                        text=f"{key}: {value}",
-                        metadata={
-                            "message_type": "profile_fact",
-                            "category": category,
-                            "key": key,
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("Failed to store fact in vector store", error=str(e))
-
             logger.info("Added profile fact", user_id=user_id, category=category, key=key)
             return fact
 
@@ -379,23 +279,6 @@ class AsyncMemoryManager:
             event = await self.db.add_timeline_event(
                 user_id, event_type, title, description, datetime_obj
             )
-
-            # Also store in vector store
-            if self.vector_store_available:
-                event_text = f"Event: {title}. {description or ''} Scheduled for {datetime_obj.isoformat()}"
-                try:
-                    self.vector_store.add_memory(
-                        user_id=user_id,
-                        text=event_text,
-                        metadata={
-                            "message_type": "timeline_event",
-                            "event_type": event_type,
-                            "datetime": datetime_obj.isoformat(),
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("Failed to store event in vector store", error=str(e))
-
             logger.info("Added timeline event", user_id=user_id, title=title)
             return event
 
@@ -454,23 +337,6 @@ class AsyncMemoryManager:
             entry = await self.db.add_diary_entry(
                 user_id, entry_type, title, content, importance, image_url, exchange_start, exchange_end
             )
-
-            # Store in vector store
-            if self.vector_store_available:
-                diary_text = f"Milestone: {title}. {content}"
-                try:
-                    self.vector_store.add_memory(
-                        user_id=user_id,
-                        text=diary_text,
-                        metadata={
-                            "message_type": "diary_entry",
-                            "entry_type": entry_type,
-                            "importance": importance,
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("Failed to store diary entry in vector store", error=str(e))
-
             logger.info("Added diary entry", user_id=user_id, title=title, importance=importance)
             return entry
 
