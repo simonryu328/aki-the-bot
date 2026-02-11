@@ -1272,7 +1272,6 @@ class TelegramBot:
                             user_id=user.id,
                             role="assistant",
                             message=message_text,
-                            store_in_vector=False,
                             thinking=prompt_text,
                         )
 
@@ -1350,7 +1349,6 @@ class TelegramBot:
                             user_id=scheduled_msg.user_id,
                             role="assistant",
                             message=message_text,
-                            store_in_vector=False,
                         )
 
                         logger.info(

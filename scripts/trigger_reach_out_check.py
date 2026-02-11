@@ -245,7 +245,6 @@ async def trigger_reach_out_check():
                         user_id=user.id,
                         role="assistant",
                         message=message_text,
-                        store_in_vector=False,
                         thinking=prompt_text,
                     )
                     

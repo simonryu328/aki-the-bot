@@ -17,9 +17,6 @@ class ConversationCreateSchema(ConversationBaseSchema):
     """Schema for creating a conversation entry."""
 
     user_id: int = Field(..., description="User ID")
-    store_in_vector: bool = Field(
-        default=True, description="Whether to store in vector database"
-    )
 
 
 class ConversationSchema(ConversationBaseSchema):

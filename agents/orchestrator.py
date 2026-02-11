@@ -69,7 +69,6 @@ class AgentOrchestrator:
             user_id=user_id,
             role="user",
             message=message,
-            store_in_vector=False,
         )
 
         # 3. Gather context
@@ -89,7 +88,6 @@ class AgentOrchestrator:
             user_id=user_id,
             role="assistant",
             message=result.response,
-            store_in_vector=False,
             thinking=result.thinking,
         )
 

@@ -48,7 +48,6 @@ async def send_message(user_id: int, message: str):
             user_id=user_id,
             role="assistant",
             message=message,
-            store_in_vector=False,
         )
         
         print(f"✅ Message sent successfully!")
