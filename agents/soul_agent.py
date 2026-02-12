@@ -25,7 +25,7 @@ import dateparser
 from utils.llm_client import llm_client
 from config.settings import settings
 from memory.memory_manager_async import memory_manager
-from schemas import ConversationSchema, UserContextSchema
+from schemas import ConversationSchema, UserContextSchema, UserSchema
 from core import get_logger
 from prompts import (
     OBSERVATION_PROMPT,
@@ -88,6 +88,7 @@ class SoulAgent:
         message: str,
         context: UserContextSchema,
         conversation_history: List[ConversationSchema],
+        user: Optional['UserSchema'] = None,
     ) -> SoulResponse:
         """
         Respond to a message as a companion.
@@ -95,17 +96,23 @@ class SoulAgent:
         Args:
             user_id: User ID
             message: What they said
-            context: Their profile and context
-            conversation_history: Recent conversation
+            context: Their profile and context (includes pre-fetched profile)
+            conversation_history: Recent conversation (pre-fetched, up to 20 messages)
+            user: Pre-fetched user object (optional, will fetch if not provided)
 
         Returns:
             SoulResponse with response, thinking, and any observations
         """
         # Build recent exchanges context (compact summaries + current conversation)
-        recent_exchanges_text, history_text = await self._build_conversation_context(user_id, conversation_history)
+        # Pass user to avoid refetching
+        recent_exchanges_text, history_text = await self._build_conversation_context(
+            user_id, conversation_history, user
+        )
 
-        # Build observations context
-        observations_with_dates = await memory_manager.get_observations_with_dates(user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT)
+        # Build observations context from pre-fetched profile in context
+        observations_with_dates = await memory_manager.get_observations_with_dates(
+            user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT
+        )
         observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
 
         # Build time context
@@ -202,9 +209,11 @@ class SoulAgent:
         #     )
 
         # Background: Create compact summary of exchanges (database-based trigger)
+        # Pass the already-fetched conversation history to avoid re-querying
         asyncio.create_task(
             self._maybe_create_compact_summary(
                 user_id=user_id,
+                conversation_history=conversation_history,
             )
         )
 
@@ -248,7 +257,8 @@ class SoulAgent:
     async def _build_conversation_context(
         self,
         user_id: int,
-        conversation_history: List[ConversationSchema]
+        conversation_history: List[ConversationSchema],
+        user: Optional[UserSchema] = None,
     ) -> tuple[str, str]:
         """Build recent exchanges and current conversation context.
         
@@ -262,6 +272,7 @@ class SoulAgent:
         Args:
             user_id: User ID
             conversation_history: Recent conversation messages
+            user: Pre-fetched user object (optional, will fetch if not provided)
             
         Returns:
             Tuple of (recent_exchanges_text, current_conversation_text)
@@ -297,8 +308,9 @@ class SoulAgent:
         # This provides detailed recent context regardless of compact summaries
         current_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
         
-        # Get user name for formatting
-        user = await self.memory.get_user_by_id(user_id)
+        # Get user name for formatting - use pre-fetched user if available
+        if user is None:
+            user = await self.memory.get_user_by_id(user_id)
         user_name = user.name if user and user.name else "them"
         
         # Format current conversation
@@ -696,11 +708,16 @@ class SoulAgent:
     async def _maybe_create_compact_summary(
         self,
         user_id: int,
+        conversation_history: Optional[List[ConversationSchema]] = None,
     ) -> None:
         """Check if compact summary should be created based on database count.
         
         This replaces the in-memory counter with a database-based check,
         making it restart-proof.
+        
+        Args:
+            user_id: User ID
+            conversation_history: Pre-fetched conversation history (optional, will fetch if not provided)
         """
         try:
             # Get last compact timestamp
@@ -711,8 +728,12 @@ class SoulAgent:
                     last_compact = entry.timestamp
                     break
             
-            # Get all conversations since last compact (or all if no compact exists)
-            all_convos = await self.memory.db.get_recent_conversations(user_id, limit=100)
+            # Use pre-fetched conversations if available, otherwise fetch
+            if conversation_history is None:
+                all_convos = await self.memory.db.get_recent_conversations(user_id, limit=100)
+            else:
+                # We already have recent conversations, use them
+                all_convos = conversation_history
             
             # Count messages after last compact
             message_count = 0
@@ -725,10 +746,11 @@ class SoulAgent:
                 message_count = len(all_convos)
             
             # Trigger compact and memory if we have enough messages
+            # Pass the already-fetched conversations to avoid re-querying
             if message_count >= settings.COMPACT_INTERVAL:
                 logger.info("Triggering compact summary and memory entry", user_id=user_id, message_count=message_count)
-                await self._create_compact_summary(user_id=user_id)
-                await self._create_memory_entry(user_id=user_id)
+                await self._create_compact_summary(user_id=user_id, conversation_history=all_convos)
+                await self._create_memory_entry(user_id=user_id, conversation_history=all_convos)
             
         except Exception as e:
             logger.error("Failed to check compact trigger", user_id=user_id, error=str(e))
@@ -736,8 +758,14 @@ class SoulAgent:
     async def _create_compact_summary(
         self,
         user_id: int,
+        conversation_history: Optional[List[ConversationSchema]] = None,
     ) -> None:
-        """Create a compact summary of recent message exchanges."""
+        """Create a compact summary of recent message exchanges.
+        
+        Args:
+            user_id: User ID
+            conversation_history: Pre-fetched conversation history (optional, will fetch if not provided)
+        """
         logger.info("Running compact summarization", user_id=user_id)
         try:
             tz = pytz.timezone(settings.TIMEZONE)
@@ -746,10 +774,14 @@ class SoulAgent:
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "them"
             
-            # Get recent conversation
-            recent_convos = await self.memory.db.get_recent_conversations(
-                user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
-            )
+            # Use pre-fetched conversations if available, otherwise fetch
+            if conversation_history is None:
+                recent_convos = await self.memory.db.get_recent_conversations(
+                    user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
+                )
+            else:
+                # Use the first N messages from pre-fetched history
+                recent_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
             if not recent_convos:
                 logger.debug("No recent conversations to summarize", user_id=user_id)
                 return
@@ -838,8 +870,14 @@ class SoulAgent:
     async def _create_memory_entry(
         self,
         user_id: int,
+        conversation_history: Optional[List[ConversationSchema]] = None,
     ) -> None:
-        """Create a memory entry about the user from recent conversation exchanges."""
+        """Create a memory entry about the user from recent conversation exchanges.
+        
+        Args:
+            user_id: User ID
+            conversation_history: Pre-fetched conversation history (optional, will fetch if not provided)
+        """
         logger.info("Running memory entry creation", user_id=user_id)
         try:
             tz = pytz.timezone(settings.TIMEZONE)
@@ -848,10 +886,14 @@ class SoulAgent:
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "them"
             
-            # Get recent conversation
-            recent_convos = await self.memory.db.get_recent_conversations(
-                user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
-            )
+            # Use pre-fetched conversations if available, otherwise fetch
+            if conversation_history is None:
+                recent_convos = await self.memory.db.get_recent_conversations(
+                    user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
+                )
+            else:
+                # Use the first N messages from pre-fetched history
+                recent_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
             if not recent_convos:
                 logger.debug("No recent conversations for memory entry", user_id=user_id)
                 return

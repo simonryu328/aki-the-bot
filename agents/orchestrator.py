@@ -71,16 +71,30 @@ class AgentOrchestrator:
             message=message,
         )
 
-        # 3. Gather context
-        context = await self.memory.get_user_context(user_id)
+        # 3. Gather context - fetch conversations once with limit=20
+        # This will be reused in multiple places to avoid redundant queries
         history = await self.memory.db.get_recent_conversations(user_id, limit=20)
+        
+        # Get profile and events (user already fetched above, reuse it)
+        profile = await self.memory.db.get_user_profile(user_id)
+        events = await self.memory.db.get_upcoming_events(user_id, days=7)
+        
+        # Build context from already-fetched data
+        from schemas import UserContextSchema
+        context = UserContextSchema(
+            user_info=user,
+            profile=profile,
+            recent_conversations=history[:10],  # Context uses first 10
+            upcoming_events=events,
+        )
 
-        # 4. Get companion response
+        # 4. Get companion response - pass pre-fetched user and full history
         result = await self.agent.respond(
             user_id=user_id,
             message=message,
             context=context,
-            conversation_history=history,
+            conversation_history=history,  # Pass full 20 messages
+            user=user,  # Pass pre-fetched user to avoid refetching
         )
 
         # 5. Store assistant response (full response, not split)
