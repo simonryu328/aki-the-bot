@@ -172,3 +172,24 @@ class ScheduledMessage(Base):
 
     def __repr__(self):
         return f"<ScheduledMessage(user_id={self.user_id}, scheduled_time={self.scheduled_time}, executed={self.executed})>"
+
+
+class TokenUsage(Base):
+    """Token usage tracking - records LLM token consumption per call."""
+
+    __tablename__ = "token_usage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    model = Column(String(255), nullable=False)
+    input_tokens = Column(Integer, nullable=False, default=0)
+    output_tokens = Column(Integer, nullable=False, default=0)
+    total_tokens = Column(Integer, nullable=False, default=0)
+    call_type = Column(String(100), nullable=False)  # "conversation", "compact", "observation", "proactive", "reach_out"
+    timestamp = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
+
+    # Relationships
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<TokenUsage(user_id={self.user_id}, model='{self.model}', total={self.total_tokens}, type='{self.call_type}')>"

@@ -509,6 +509,44 @@ class AsyncMemoryManager:
             user_id, enabled, min_silence_hours, max_silence_days
         )
 
+    # ==================== Token Usage Tracking ====================
+
+    async def record_token_usage(
+        self,
+        user_id: int,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        total_tokens: int,
+        call_type: str,
+    ) -> None:
+        """
+        Record token usage for an LLM call.
+
+        Args:
+            user_id: User ID
+            model: LLM model name
+            input_tokens: Input/prompt token count
+            output_tokens: Output/completion token count
+            total_tokens: Total token count
+            call_type: Type of call (conversation, compact, observation, proactive, reach_out)
+        """
+        await self.db.record_token_usage(
+            user_id, model, input_tokens, output_tokens, total_tokens, call_type
+        )
+
+    async def get_user_token_usage_today(self, user_id: int) -> int:
+        """
+        Get total tokens used by a user today.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Total tokens used today
+        """
+        return await self.db.get_user_token_usage_today(user_id)
+
 
 
 # Singleton instance

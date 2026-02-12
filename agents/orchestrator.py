@@ -105,6 +105,20 @@ class AgentOrchestrator:
             thinking=result.thinking,
         )
 
+        # 6. Record token usage (background, non-blocking)
+        if result.usage and result.usage.total_tokens > 0:
+            import asyncio
+            asyncio.create_task(
+                self.memory.record_token_usage(
+                    user_id=user_id,
+                    model=result.usage.model,
+                    input_tokens=result.usage.input_tokens,
+                    output_tokens=result.usage.output_tokens,
+                    total_tokens=result.usage.total_tokens,
+                    call_type="conversation",
+                )
+            )
+
         return result.messages, result.emoji
 
 

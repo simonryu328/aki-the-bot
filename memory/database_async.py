@@ -34,6 +34,7 @@ from memory.models import (
     DiaryEntry,
     Conversation,
     ScheduledMessage,
+    TokenUsage,
 )
 from schemas import (
     UserSchema,
@@ -48,6 +49,7 @@ from schemas import (
     DiaryEntryCreateSchema,
     ScheduledMessageSchema,
     ScheduledMessageCreateSchema,
+    TokenUsageSchema,
 )
 
 logger = get_logger(__name__)
@@ -940,6 +942,86 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to update user", telegram_id=telegram_id, error=str(e))
             raise DatabaseException(f"Failed to update user: {e}")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(SQLAlchemyError),
+    )
+    async def record_token_usage(
+        self,
+        user_id: int,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        total_tokens: int,
+        call_type: str,
+    ) -> None:
+        """
+        Record token usage for an LLM call.
+
+        Args:
+            user_id: User ID
+            model: LLM model name
+            input_tokens: Input/prompt token count
+            output_tokens: Output/completion token count
+            total_tokens: Total token count
+            call_type: Type of call (conversation, compact, observation, proactive, reach_out)
+        """
+        try:
+            async with self.get_session() as session:
+                usage = TokenUsage(
+                    user_id=user_id,
+                    model=model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    call_type=call_type,
+                )
+                session.add(usage)
+                await session.commit()
+
+                logger.debug(
+                    "Recorded token usage",
+                    user_id=user_id,
+                    model=model,
+                    total_tokens=total_tokens,
+                    call_type=call_type,
+                )
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to record token usage", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to record token usage: {e}")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(SQLAlchemyError),
+    )
+    async def get_user_token_usage_today(self, user_id: int) -> int:
+        """
+        Get total tokens used by a user today (UTC).
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Total tokens used today
+        """
+        try:
+            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            async with self.get_session() as session:
+                result = await session.execute(
+                    select(func.coalesce(func.sum(TokenUsage.total_tokens), 0)).where(
+                        TokenUsage.user_id == user_id,
+                        TokenUsage.timestamp >= today_start,
+                    )
+                )
+                return result.scalar()
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get token usage", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to get token usage: {e}")
 
 
 

@@ -10,6 +10,7 @@ Examples:
     - "command-r-plus" (Cohere)
 """
 
+from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 import litellm
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -21,6 +22,16 @@ logger = get_logger(__name__)
 
 # Configure LiteLLM
 litellm.set_verbose = False  # Set True for debugging
+
+
+@dataclass
+class LLMResponse:
+    """Response from an LLM call, including content and token usage."""
+    content: str
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
 
 
 class LLMClient:
@@ -132,6 +143,84 @@ class LLMClient:
             logger.error("LLM request failed", model=model, error=str(e))
             raise
 
+    async def chat_with_usage(
+        self,
+        model: str,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """
+        Generate a chat completion and return content + usage metadata.
+
+        Same as chat() but returns an LLMResponse with token counts.
+        """
+        logger.debug(
+            "LLM request (with usage)",
+            model=model,
+            message_count=len(messages),
+            temperature=temperature,
+        )
+
+        try:
+            response = await litellm.acompletion(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **kwargs,
+            )
+
+            content = response.choices[0].message.content
+            finish_reason = response.choices[0].finish_reason
+            usage = response.usage
+
+            input_tokens = usage.prompt_tokens if usage else 0
+            output_tokens = usage.completion_tokens if usage else 0
+            total_tokens = usage.total_tokens if usage else 0
+
+            logger.debug(
+                "LLM response (with usage)",
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                finish_reason=finish_reason,
+            )
+
+            if len(content) > 200:
+                truncated = f"{content[:100]}...{content[-100:]}"
+            else:
+                truncated = content
+
+            logger.info(
+                "LLM response preview",
+                model=model,
+                finish_reason=finish_reason,
+                response_preview=truncated,
+            )
+
+            if finish_reason == "length":
+                logger.warning(
+                    "Response truncated by max_tokens limit",
+                    model=model,
+                    max_tokens=max_tokens,
+                    completion_tokens=output_tokens,
+                )
+
+            return LLMResponse(
+                content=content,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+            )
+
+        except Exception as e:
+            logger.error("LLM request failed", model=model, error=str(e))
+            raise
+
     async def chat_with_system(
         self,
         model: str,
@@ -161,6 +250,28 @@ class LLMClient:
         messages.append({"role": "user", "content": user_message})
 
         return await self.chat(model=model, messages=messages, **kwargs)
+
+    async def chat_with_system_and_usage(
+        self,
+        model: str,
+        system_prompt: str,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """
+        Convenience method for chat with system prompt, returning usage metadata.
+
+        Same as chat_with_system() but returns LLMResponse with token counts.
+        """
+        messages = [{"role": "system", "content": system_prompt}]
+
+        if conversation_history:
+            messages.extend(conversation_history)
+
+        messages.append({"role": "user", "content": user_message})
+
+        return await self.chat_with_usage(model=model, messages=messages, **kwargs)
 
 
 # Singleton instance

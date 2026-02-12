@@ -22,7 +22,7 @@ import hashlib
 import pytz
 import dateparser
 
-from utils.llm_client import llm_client
+from utils.llm_client import llm_client, LLMResponse
 from config.settings import settings
 from memory.memory_manager_async import memory_manager
 from schemas import ConversationSchema, UserContextSchema, UserSchema
@@ -48,6 +48,7 @@ class SoulResponse:
     thinking: Optional[str] = None
     observations: Optional[List[str]] = None
     emoji: Optional[str] = None  # Reaction emoji
+    usage: Optional[LLMResponse] = None  # Token usage from the LLM call
 
     def __post_init__(self):
         if self.messages is None:
@@ -139,13 +140,14 @@ class SoulAgent:
         )
         SoulAgent._last_system_prompt[user_id] = system_prompt
 
-        raw_response = await llm_client.chat_with_system(
+        llm_response = await llm_client.chat_with_system_and_usage(
             model=self.model,
             system_prompt=system_prompt,
             user_message=message,
             temperature=0.7,
             max_tokens=1000,
         )
+        raw_response = llm_response.content
         
         # Log raw response before parsing for debugging
         logger.info(
@@ -153,6 +155,7 @@ class SoulAgent:
             user_id=user_id,
             raw_length=len(raw_response),
             raw_response=raw_response,
+            tokens_used=llm_response.total_tokens,
         )
 
         # Parse thinking, response, messages, and emoji
@@ -189,6 +192,7 @@ class SoulAgent:
             messages=messages,
             thinking=thinking,
             emoji=emoji if should_react else None,  # Only include emoji if we should react
+            usage=llm_response,  # Pass token usage through
         )
 
         # Background: Check if anything significant should be remembered

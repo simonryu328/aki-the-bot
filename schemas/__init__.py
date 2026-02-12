@@ -9,6 +9,7 @@ from schemas.timeline import TimelineEventSchema, TimelineEventCreateSchema
 from schemas.diary import DiaryEntrySchema, DiaryEntryCreateSchema
 from schemas.scheduled_message import ScheduledMessageSchema, ScheduledMessageCreateSchema
 from schemas.context import UserContextSchema
+from schemas.token_usage import TokenUsageSchema, TokenUsageCreateSchema
 
 __all__ = [
     "UserSchema",
@@ -26,4 +27,6 @@ __all__ = [
     "ScheduledMessageSchema",
     "ScheduledMessageCreateSchema",
     "UserContextSchema",
+    "TokenUsageSchema",
+    "TokenUsageCreateSchema",
 ]
