@@ -451,6 +451,18 @@ class AsyncMemoryManager:
         """
         return await self.db.get_all_users()
 
+    async def get_users_for_reach_out(self, min_silence_hours: int = 6) -> List[UserSchema]:
+        """
+        Get users eligible for reach-out, filtered in SQL.
+
+        Args:
+            min_silence_hours: Minimum hours since last reach-out
+
+        Returns:
+            List of eligible UserSchema objects
+        """
+        return await self.db.get_users_for_reach_out(min_silence_hours)
+
     async def get_last_user_message(self, user_id: int) -> Optional[ConversationSchema]:
         """
         Get the last message FROM the user (not from bot).

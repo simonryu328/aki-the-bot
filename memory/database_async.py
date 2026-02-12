@@ -772,6 +772,46 @@ class AsyncDatabase:
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(SQLAlchemyError),
     )
+    async def get_users_for_reach_out(self, min_silence_hours: int = 6) -> List[UserSchema]:
+        """
+        Get users eligible for reach-out messages, filtered in SQL.
+
+        Filters:
+        - reach_out_enabled = TRUE
+        - onboarding_state IS NULL (completed onboarding)
+        - last_reach_out_at is NULL or older than min_silence_hours
+
+        Args:
+            min_silence_hours: Minimum hours since last reach-out
+
+        Returns:
+            List of UserSchema objects eligible for reach-out
+
+        Raises:
+            DatabaseException: If query fails
+        """
+        try:
+            cutoff = datetime.utcnow() - timedelta(hours=min_silence_hours)
+            async with self.get_session() as session:
+                result = await session.execute(
+                    select(User).where(
+                        User.reach_out_enabled == True,
+                        User.onboarding_state.is_(None),
+                        (User.last_reach_out_at.is_(None) | (User.last_reach_out_at < cutoff)),
+                    )
+                )
+                users = result.scalars().all()
+                return [UserSchema.model_validate(user) for user in users]
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to get users for reach-out", error=str(e))
+            raise DatabaseException(f"Failed to get users for reach-out: {e}")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(SQLAlchemyError),
+    )
     async def update_user_reach_out_timestamp(self, user_id: int, timestamp: datetime) -> None:
         """
         Update last_reach_out_at timestamp for a user.

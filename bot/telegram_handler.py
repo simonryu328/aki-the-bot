@@ -1188,24 +1188,22 @@ class TelegramBot:
         This runs periodically via JobQueue.
         """
         try:
-            # Get all users
-            all_users = await memory_manager.get_all_users()
+            # Get only eligible users (filtered in SQL: reach_out_enabled, onboarding complete, not recently reached out)
+            eligible_users = await memory_manager.get_users_for_reach_out(
+                min_silence_hours=settings.DEFAULT_REACH_OUT_MIN_SILENCE_HOURS
+            )
             
-            if not all_users:
+            if not eligible_users:
                 return
 
-            logger.info(f"Checking {len(all_users)} users for inactivity reach-outs")
+            logger.info(f"Checking {len(eligible_users)} eligible users for inactivity reach-outs")
 
             tz = pytz.timezone(settings.TIMEZONE)
             now = datetime.now(tz)
             sent_count = 0
 
-            for user in all_users:
+            for user in eligible_users:
                 try:
-                    # Skip if reach-out disabled for this user
-                    if not user.reach_out_enabled:
-                        continue
-
                     # Get user's last message
                     last_user_msg = await memory_manager.get_last_user_message(user.id)
                     
@@ -1226,18 +1224,6 @@ class TelegramBot:
 
                     if hours_since < min_hours or hours_since > max_hours:
                         continue
-
-                    # Rate limit: don't reach out too frequently
-                    if user.last_reach_out_at:
-                        last_reach_out = user.last_reach_out_at
-                        if last_reach_out.tzinfo is None:
-                            last_reach_out = tz.localize(last_reach_out)
-                        
-                        hours_since_last_reach_out = (now - last_reach_out).total_seconds() / 3600
-                        
-                        # Don't reach out more than once per minimum silence period
-                        if hours_since_last_reach_out < min_hours:
-                            continue
 
                     # Generate and send reach-out
                     result = await self._generate_reach_out_message(
