@@ -749,11 +749,14 @@ class SoulAgent:
                 # No compact exists yet, count all messages
                 message_count = len(all_convos)
             
-            # Trigger compact and memory if we have enough messages
-            # Pass the already-fetched conversations to avoid re-querying
+            # Trigger compact summary if we have enough messages
             if message_count >= settings.COMPACT_INTERVAL:
-                logger.info("Triggering compact summary and memory entry", user_id=user_id, message_count=message_count)
+                logger.info("Triggering compact summary", user_id=user_id, message_count=message_count)
                 await self._create_compact_summary(user_id=user_id, conversation_history=all_convos)
+            
+            # Trigger memory entry if we have enough messages (can be different threshold)
+            if message_count >= settings.MEMORY_ENTRY_INTERVAL:
+                logger.info("Triggering memory entry", user_id=user_id, message_count=message_count)
                 await self._create_memory_entry(user_id=user_id, conversation_history=all_convos)
             
         except Exception as e:

@@ -108,7 +108,7 @@ class Settings(BaseSettings):
         ge=1,
     )
     DEFAULT_REACH_OUT_MIN_SILENCE_HOURS: int = Field(
-        default=6,
+        default=12,
         description="Default minimum hours of silence before reaching out",
         ge=1,
     )
@@ -163,9 +163,21 @@ class Settings(BaseSettings):
     
     COMPACT_INTERVAL: int = Field(
         default=10,
-        description="Number of messages before creating a compact summary. "
+        description="Number of messages (user + assistant combined) before creating a compact summary AND memory entry. "
+                    "Both are triggered together when this threshold is reached. "
                     "Compact summaries condense recent conversations into timestamped summaries. "
+                    "Memory entries extract significant moments and insights from the exchange. "
                     "Used in: soul_agent._maybe_create_compact_summary()",
+        ge=1,
+    )
+    
+    MEMORY_ENTRY_INTERVAL: int = Field(
+        default=10,
+        description="Number of messages (user + assistant combined) before creating a conversation memory entry. "
+                    "Currently uses COMPACT_INTERVAL value (both triggered together). "
+                    "Memory entries capture significant moments, emotional beats, and relationship insights. "
+                    "Stored as diary entries with type 'conversation_memory'. "
+                    "Used in: soul_agent._maybe_create_compact_summary() -> _create_memory_entry()",
         ge=1,
     )
     
@@ -209,11 +221,24 @@ class Settings(BaseSettings):
         ge=100,
     )
     
+    # ==================== Message Debouncing Configuration ====================
+    # Controls how long to wait for additional messages before processing
+    
+    DEBOUNCE_SECONDS: float = Field(
+        default=3.0,
+        description="Seconds to wait after last message before processing buffered messages. "
+                    "Allows users to send multiple messages that get combined into one response. "
+                    "Lower values = faster response but may split multi-message thoughts. "
+                    "Higher values = better message grouping but slower perceived response.",
+        ge=0.5,
+        le=10.0,
+    )
+    
     # ==================== Rate Limiting Configuration ====================
     # These settings control per-user message rate limits to prevent abuse
     
     USER_RATE_LIMIT_MESSAGES: int = Field(
-        default=30,
+        default=10,
         description="Maximum number of messages a user can send per time window. "
                     "Prevents spam and runaway LLM costs. Set to 0 to disable rate limiting.",
         ge=0,

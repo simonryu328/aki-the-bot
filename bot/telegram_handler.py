@@ -117,8 +117,6 @@ class RateLimiter:
 class TelegramBot:
     """Telegram bot handler for the AI Companion."""
 
-    DEBOUNCE_SECONDS = 3  # Wait this long for more messages before processing
-
     def __init__(self):
         """Initialize the Telegram bot."""
         self.application: Optional[Application] = None
@@ -351,7 +349,7 @@ class TelegramBot:
 
     async def _process_buffered_messages(self, chat_id: int) -> None:
         """Wait for the debounce period, then process all buffered messages as one."""
-        await asyncio.sleep(self.DEBOUNCE_SECONDS)
+        await asyncio.sleep(settings.DEBOUNCE_SECONDS)
 
         # Grab and clear the buffer
         buffered = self._message_buffers.pop(chat_id, [])
