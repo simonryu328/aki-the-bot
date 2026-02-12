@@ -345,19 +345,20 @@ tab_overview, tab_conversations, tab_observations, tab_scheduled, tab_diary, tab
     ["Overview", "Conversations", "Observations", "Scheduled", "Diary", "Usage", "Database", "Settings"]
 )
 
-profile = load_profile(selected_user_id)
-
 # ---- Tab: Overview ----
 
 with tab_overview:
     @st.fragment
-    def overview_fragment():
-        st.header(f"{selected_user['name']}")
+    def overview_fragment(user_id):
+        user = next(u for u in users if u["id"] == user_id)
+        user_profile = load_profile(user_id)
+        
+        st.header(f"{user['name']}")
 
         # Condensed narratives
-        if "condensed" in profile:
+        if "condensed" in user_profile:
             st.subheader("Condensed Narratives")
-            for item in profile["condensed"]:
+            for item in user_profile["condensed"]:
                 with st.expander(f"**{item['key']}**", expanded=True):
                     st.write(item["value"])
                     st.caption(f"Condensed: {fmt(item['updated_at'])}")
@@ -365,28 +366,28 @@ with tab_overview:
             st.info("No condensed narratives yet. Run `uv run python scripts/run_condensation.py` to generate.")
 
         # Static facts
-        if "static" in profile:
+        if "static" in user_profile:
             st.subheader("Static Facts")
-            for item in profile["static"]:
+            for item in user_profile["static"]:
                 st.markdown(f"- {item['value']}")
 
         # Quick stats
         st.subheader("Stats")
-        raw_categories = [c for c in profile.keys() if c not in ("condensed", "static", "system")]
-        raw_count = sum(len(profile[c]) for c in raw_categories)
+        raw_categories = [c for c in user_profile.keys() if c not in ("condensed", "static", "system")]
+        raw_count = sum(len(user_profile[c]) for c in raw_categories)
         col1, col2, col3 = st.columns(3)
-        col1.metric("Messages", selected_user["msg_count"])
+        col1.metric("Messages", user["msg_count"])
         col2.metric("Observations", raw_count)
         col3.metric("Categories", len(raw_categories))
 
-    overview_fragment()
+    overview_fragment(selected_user_id)
 
 
 # ---- Tab: Conversations ----
 
 with tab_conversations:
     @st.fragment
-    def conversations_fragment():
+    def conversations_fragment(user_id):
         msg_limit = st.slider(
             "Messages to load",
             10, 500,
@@ -394,7 +395,7 @@ with tab_conversations:
             step=10,
             key="msg_limit"
         )
-        messages, total = load_conversations(selected_user_id, limit=msg_limit)
+        messages, total = load_conversations(user_id, limit=msg_limit)
         st.caption(f"Showing {len(messages)} of {total} messages")
 
         for msg in messages:
@@ -409,47 +410,52 @@ with tab_conversations:
                     with st.expander("thinking"):
                         st.text(msg["thinking"])
 
-    conversations_fragment()
+    conversations_fragment(selected_user_id)
 
 
 # ---- Tab: Observations ----
 
 with tab_observations:
     @st.fragment
-    def observations_fragment():
-        raw_categories = [c for c in sorted(profile.keys()) if c not in ("condensed", "static", "system")]
+    def observations_fragment(user_id):
+        user_profile = load_profile(user_id)
+        raw_categories = [c for c in sorted(user_profile.keys()) if c not in ("condensed", "static", "system")]
 
         if not raw_categories:
             st.info("No observations yet.")
         else:
             # Category filter
-            # Initialize default if not set
-            if st.session_state.selected_observation_cats is None:
-                st.session_state.selected_observation_cats = raw_categories
+            # Filter session state defaults to only include categories that exist for this user
+            valid_defaults = [cat for cat in (st.session_state.selected_observation_cats or []) if cat in raw_categories]
+            if not valid_defaults:
+                valid_defaults = raw_categories
             
             selected_cats = st.multiselect(
                 "Filter by category",
                 raw_categories,
-                default=st.session_state.selected_observation_cats,
+                default=valid_defaults,
                 key="observation_cats"
             )
+            
+            # Update session state with current selection
+            st.session_state.selected_observation_cats = selected_cats
 
             for category in selected_cats:
-                items = profile[category]
+                items = user_profile[category]
                 with st.expander(f"**{category}** ({len(items)} observations)", expanded=False):
                     for item in items:
                         st.markdown(f"**[{fmt(item['observed_at'])}]** {item['value']}")
                         st.divider()
 
-    observations_fragment()
+    observations_fragment(selected_user_id)
 
 
 # ---- Tab: Scheduled ----
 
 with tab_scheduled:
     @st.fragment
-    def scheduled_fragment():
-        scheduled_msgs, events = load_scheduled(selected_user_id)
+    def scheduled_fragment(user_id):
+        scheduled_msgs, events = load_scheduled(user_id)
 
         st.subheader(f"Pending Messages ({len(scheduled_msgs)})")
         if scheduled_msgs:
@@ -468,18 +474,18 @@ with tab_scheduled:
         else:
             st.caption("No timeline events.")
 
-    scheduled_fragment()
+    scheduled_fragment(selected_user_id)
 
 
 # ---- Tab: Diary ----
 
 with tab_diary:
     @st.fragment
-    def diary_fragment():
+    def diary_fragment(user_id):
         st.subheader("Diary Entries")
         
         # Get stats
-        diary_stats = load_diary_stats(selected_user_id)
+        diary_stats = load_diary_stats(user_id)
         
         if not diary_stats:
             st.info("No diary entries yet.")
@@ -519,7 +525,7 @@ with tab_diary:
                 step=5,
                 key="entry_limit"
             )
-            diary_entries = load_diary_entries(selected_user_id, limit=entry_limit)
+            diary_entries = load_diary_entries(user_id, limit=entry_limit)
             
             # Filter by type if selected
             if selected_type != "All":
@@ -575,39 +581,40 @@ with tab_diary:
                     
                     st.markdown("---")
 
-    diary_fragment()
+    diary_fragment(selected_user_id)
 
 
 # ---- Tab: Database ----
 
 with tab_database:
     @st.fragment
-    def database_fragment():
+    def database_fragment(user_id):
+        user = next(u for u in users if u["id"] == user_id)
         st.subheader("Database Overview")
-        st.caption(f"Complete view of all data for {selected_user['name']}")
+        st.caption(f"Complete view of all data for {user['name']}")
         
         session = get_session()
         try:
             # Get counts for all tables
             profile_count = session.execute(
-                select(func.count()).select_from(ProfileFact).where(ProfileFact.user_id == selected_user_id)
+                select(func.count()).select_from(ProfileFact).where(ProfileFact.user_id == user_id)
             ).scalar()
             
             conv_count = session.execute(
-                select(func.count()).select_from(Conversation).where(Conversation.user_id == selected_user_id)
+                select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
             ).scalar()
             
             timeline_count = session.execute(
-                select(func.count()).select_from(TimelineEvent).where(TimelineEvent.user_id == selected_user_id)
+                select(func.count()).select_from(TimelineEvent).where(TimelineEvent.user_id == user_id)
             ).scalar()
             
             diary_count = session.execute(
-                select(func.count()).select_from(DiaryEntry).where(DiaryEntry.user_id == selected_user_id)
+                select(func.count()).select_from(DiaryEntry).where(DiaryEntry.user_id == user_id)
             ).scalar()
             
             scheduled_count = session.execute(
                 select(func.count()).select_from(ScheduledMessage)
-                .where(ScheduledMessage.user_id == selected_user_id, ScheduledMessage.executed == False)
+                .where(ScheduledMessage.user_id == user_id, ScheduledMessage.executed == False)
             ).scalar()
             
             # Display counts
@@ -627,7 +634,7 @@ with tab_database:
             st.markdown("### Profile Facts by Category")
             profile_by_cat = session.execute(
                 select(ProfileFact.category, func.count(ProfileFact.id))
-                .where(ProfileFact.user_id == selected_user_id)
+                .where(ProfileFact.user_id == user_id)
                 .group_by(ProfileFact.category)
                 .order_by(func.count(ProfileFact.id).desc())
             ).all()
@@ -644,7 +651,7 @@ with tab_database:
             st.markdown("### Diary Entries by Type")
             diary_by_type = session.execute(
                 select(DiaryEntry.entry_type, func.count(DiaryEntry.id))
-                .where(DiaryEntry.user_id == selected_user_id)
+                .where(DiaryEntry.user_id == user_id)
                 .group_by(DiaryEntry.entry_type)
                 .order_by(func.count(DiaryEntry.id).desc())
             ).all()
@@ -670,12 +677,12 @@ with tab_database:
             st.markdown("### Conversation Statistics")
             user_msg_count = session.execute(
                 select(func.count()).select_from(Conversation)
-                .where(Conversation.user_id == selected_user_id, Conversation.role == "user")
+                .where(Conversation.user_id == user_id, Conversation.role == "user")
             ).scalar()
             
             assistant_msg_count = session.execute(
                 select(func.count()).select_from(Conversation)
-                .where(Conversation.user_id == selected_user_id, Conversation.role == "assistant")
+                .where(Conversation.user_id == user_id, Conversation.role == "assistant")
             ).scalar()
             
             col1, col2 = st.columns(2)
@@ -687,14 +694,14 @@ with tab_database:
             # First and last message times
             first_msg = session.execute(
                 select(Conversation.timestamp)
-                .where(Conversation.user_id == selected_user_id)
+                .where(Conversation.user_id == user_id)
                 .order_by(Conversation.timestamp)
                 .limit(1)
             ).scalar()
             
             last_msg = session.execute(
                 select(Conversation.timestamp)
-                .where(Conversation.user_id == selected_user_id)
+                .where(Conversation.user_id == user_id)
                 .order_by(Conversation.timestamp.desc())
                 .limit(1)
             ).scalar()
@@ -711,17 +718,17 @@ with tab_database:
         finally:
             session.close()
 
-    database_fragment()
+    database_fragment(selected_user_id)
 
 
 # ---- Tab: Usage ----
 
 with tab_usage:
     @st.fragment
-    def usage_fragment():
+    def usage_fragment(user_id):
         st.subheader("Token Usage & Costs")
         
-        usage_data, type_breakdown = load_token_usage(selected_user_id)
+        usage_data, type_breakdown = load_token_usage(user_id)
         
         if not usage_data:
             st.info("No token usage recorded yet.")
@@ -787,17 +794,17 @@ with tab_usage:
             ])
             st.bar_chart(df_type.set_index("Call Type"))
 
-    usage_fragment()
+    usage_fragment(selected_user_id)
 
 
 # ---- Tab: Settings ----
 
 with tab_settings:
     @st.fragment
-    def settings_fragment():
+    def settings_fragment(user_id):
         st.subheader("User Settings")
         
-        user_settings = load_user_settings(selected_user_id)
+        user_settings = load_user_settings(user_id)
         
         if not user_settings:
             st.error("Could not load user settings.")
@@ -819,5 +826,5 @@ with tab_settings:
             st.markdown("---")
             st.caption("Users can configure these settings via Telegram commands: /reachout_settings, /reachout_enable, /reachout_disable, /reachout_min, /reachout_max")
 
-    settings_fragment()
+    settings_fragment(selected_user_id)
 

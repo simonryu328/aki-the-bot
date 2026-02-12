@@ -267,10 +267,10 @@ class SoulAgent:
         """Build recent exchanges and current conversation context.
         
         Always includes:
-        - Most recent N compact summaries (RECENT EXCHANGES)
+        - Most recent N memory entries (RECENT EXCHANGES)
         - Most recent M raw messages (CURRENT CONVERSATION)
         
-        This provides both high-level context from summaries and detailed recent context
+        This provides both high-level context from memory entries and detailed recent context
         from raw messages, regardless of overlap.
         
         Args:
@@ -283,30 +283,30 @@ class SoulAgent:
         """
         tz = pytz.timezone(settings.TIMEZONE)
         
-        # Get last N compact summaries (always include these)
+        # Get last N memory entries (always include these)
         diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
-        compact_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:settings.COMPACT_SUMMARY_LIMIT]
+        memory_entries = [e for e in diary_entries if e.entry_type == 'conversation_memory'][:settings.MEMORY_ENTRY_LIMIT]
         
-        # Format compact summaries with timestamps
-        if compact_summaries:
-            compact_lines = []
+        # Format memory entries with timestamps
+        if memory_entries:
+            memory_lines = []
             
-            for compact in reversed(compact_summaries):  # Show oldest to newest
-                if compact.exchange_start and compact.exchange_end:
-                    start_utc = compact.exchange_start.replace(tzinfo=pytz.utc)
-                    end_utc = compact.exchange_end.replace(tzinfo=pytz.utc)
+            for memory in reversed(memory_entries):  # Show oldest to newest
+                if memory.exchange_start and memory.exchange_end:
+                    start_utc = memory.exchange_start.replace(tzinfo=pytz.utc)
+                    end_utc = memory.exchange_end.replace(tzinfo=pytz.utc)
                     start_local = start_utc.astimezone(tz)
                     end_local = end_utc.astimezone(tz)
                     
-                    # Format: [Jan 15, 10:30 AM - 11:45 AM] Summary text
+                    # Format: [Jan 15, 10:30 AM - 11:45 AM] Memory text
                     start_str = start_local.strftime("%b %d, %I:%M %p")
                     end_str = end_local.strftime("%I:%M %p")
-                    compact_lines.append(f"[{start_str} - {end_str}] {compact.content}")
+                    memory_lines.append(f"[{start_str} - {end_str}] {memory.content}")
             
-            recent_exchanges_text = "\n".join(compact_lines)
+            recent_exchanges_text = "\n".join(memory_lines)
         else:
-            # No compacts yet, show placeholder
-            recent_exchanges_text = "(No previous exchanges summarized yet)"
+            # No memory entries yet, show placeholder
+            recent_exchanges_text = "(No previous exchanges remembered yet)"
         
         # Always get the most recent N raw messages for CURRENT CONVERSATION
         # This provides detailed recent context regardless of compact summaries

@@ -1182,44 +1182,44 @@ class TelegramBot:
             now = datetime.now(tz)
             current_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
 
-            # Get recent compact summaries
+            # Get recent memory entries
             diary_entries = await memory_manager.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
-            compact_summaries = []
-            last_compact_end = None
+            memory_entries = []
+            last_memory_end = None
             
             for entry in diary_entries:
-                if entry.entry_type == "compact_summary":
+                if entry.entry_type == "conversation_memory":
                     # Format with timestamp
                     if entry.exchange_start and entry.exchange_end:
                         start_time = entry.exchange_start.replace(tzinfo=pytz.utc).astimezone(tz)
                         end_time = entry.exchange_end.replace(tzinfo=pytz.utc).astimezone(tz)
-                        compact_summaries.append(
+                        memory_entries.append(
                             f"[START: {start_time.strftime('%Y-%m-%d %H:%M')}] "
                             f"[END: {end_time.strftime('%Y-%m-%d %H:%M')}]\n{entry.content}"
                         )
-                        # Track the most recent compact's end time
-                        if last_compact_end is None or entry.exchange_end > last_compact_end:
-                            last_compact_end = entry.exchange_end
+                        # Track the most recent memory's end time
+                        if last_memory_end is None or entry.exchange_end > last_memory_end:
+                            last_memory_end = entry.exchange_end
                 
-                # Limit to configured number of compacts
-                compact_summaries = compact_summaries[:settings.COMPACT_SUMMARY_LIMIT]
+                # Limit to configured number of memory entries
+                memory_entries = memory_entries[:settings.MEMORY_ENTRY_LIMIT]
             
             # Build RECENT EXCHANGES section
-            if compact_summaries:
-                recent_exchanges = "RECENT EXCHANGES:\n" + "\n\n".join(compact_summaries)
+            if memory_entries:
+                recent_exchanges = "RECENT EXCHANGES:\n" + "\n\n".join(memory_entries)
             else:
                 recent_exchanges = ""
 
-            # Get current conversations (only messages AFTER last compact)
-            if last_compact_end:
-                # Query conversations after the last compact's end time
+            # Get current conversations (only messages AFTER last memory entry)
+            if last_memory_end:
+                # Query conversations after the last memory entry's end time
                 conversations = await memory_manager.db.get_conversations_after(
                     user_id=user_id,
-                    after=last_compact_end,
+                    after=last_memory_end,
                     limit=settings.CONVERSATION_CONTEXT_LIMIT
                 )
             else:
-                # No compacts yet, get recent conversations
+                # No memory entries yet, get recent conversations
                 conversations = await memory_manager.db.get_recent_conversations(user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT)
 
             # Build CURRENT CONVERSATION section

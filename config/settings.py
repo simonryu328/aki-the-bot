@@ -143,8 +143,15 @@ class Settings(BaseSettings):
     
     COMPACT_SUMMARY_LIMIT: int = Field(
         default=3,
-        description="Number of compact summaries to ALWAYS include in RECENT EXCHANGES section. "
-                    "Compact summaries are timestamped conversation summaries created every 10 messages. "
+        description="DEPRECATED: Use MEMORY_ENTRY_LIMIT instead. Kept for backwards compatibility.",
+        ge=1,
+        le=10,
+    )
+    
+    MEMORY_ENTRY_LIMIT: int = Field(
+        default=3,
+        description="Number of memory entries to ALWAYS include in RECENT EXCHANGES section. "
+                    "Memory entries are timestamped reflections on conversation exchanges created every 10 messages. "
                     "These are shown in addition to the raw messages in CURRENT CONVERSATION. "
                     "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
         ge=1,
