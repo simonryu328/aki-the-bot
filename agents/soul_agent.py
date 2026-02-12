@@ -898,7 +898,7 @@ class SoulAgent:
                 model=settings.MODEL_SUMMARY,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.5,  # Slightly higher temperature for more natural, personal writing
-                max_tokens=300,
+                max_tokens=500,
             )
             
             logger.info("Memory entry generated", user_id=user_id, memory_length=len(result))

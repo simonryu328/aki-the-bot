@@ -55,12 +55,13 @@ class Settings(BaseSettings):
     )
 
     # Models - one setting per purpose, all configurable from .env
+    # claude-opus-4-6
     # claude-opus-4-20250514
     # claude-haiku-4-5-20251001
     # claude-sonnet-4-5-20250929
 
     MODEL_CONVERSATION: str = Field(
-        default="claude-opus-4-6",
+        default="claude-sonnet-4-5-20250929",
         description="Model for main conversation responses",
     )
     MODEL_OBSERVATION: str = Field(

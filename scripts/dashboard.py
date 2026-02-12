@@ -221,6 +221,21 @@ def load_user_settings(user_id: int):
 
 st.set_page_config(page_title="Companion Dashboard", page_icon="👁", layout="centered")
 
+# ---- Session State Initialization ----
+
+# Initialize session state for persistent widget values
+if "msg_limit" not in st.session_state:
+    st.session_state.msg_limit = 50
+
+if "entry_limit" not in st.session_state:
+    st.session_state.entry_limit = 20
+
+if "selected_diary_type" not in st.session_state:
+    st.session_state.selected_diary_type = "All"
+
+if "selected_observation_cats" not in st.session_state:
+    st.session_state.selected_observation_cats = None
+
 st.markdown("""
 <style>
     .main .block-container {
@@ -283,7 +298,7 @@ try:
 finally:
     session.close()
 
-if st.sidebar.button("Refresh Data"):
+if st.sidebar.button("Refresh Data", key="refresh_button"):
     st.cache_data.clear()
     st.rerun()
 
@@ -329,7 +344,13 @@ with tab_overview:
 # ---- Tab: Conversations ----
 
 with tab_conversations:
-    msg_limit = st.slider("Messages to load", 10, 500, 50, step=10)
+    msg_limit = st.slider(
+        "Messages to load",
+        10, 500,
+        value=st.session_state.msg_limit,
+        step=10,
+        key="msg_limit"
+    )
     messages, total = load_conversations(selected_user_id, limit=msg_limit)
     st.caption(f"Showing {len(messages)} of {total} messages")
 
@@ -355,10 +376,15 @@ with tab_observations:
         st.info("No observations yet.")
     else:
         # Category filter
+        # Initialize default if not set
+        if st.session_state.selected_observation_cats is None:
+            st.session_state.selected_observation_cats = raw_categories
+        
         selected_cats = st.multiselect(
             "Filter by category",
             raw_categories,
-            default=raw_categories,
+            default=st.session_state.selected_observation_cats,
+            key="observation_cats"
         )
 
         for category in selected_cats:
@@ -424,9 +450,20 @@ with tab_diary:
         
         # Entry type filter
         entry_types = ["All"] + sorted(diary_stats.keys())
-        selected_type = st.selectbox("Filter by type", entry_types)
+        selected_type = st.selectbox(
+            "Filter by type",
+            entry_types,
+            index=entry_types.index(st.session_state.selected_diary_type) if st.session_state.selected_diary_type in entry_types else 0,
+            key="diary_type_filter"
+        )
         
-        entry_limit = st.slider("Entries to load", 5, 100, 20, step=5)
+        entry_limit = st.slider(
+            "Entries to load",
+            5, 100,
+            value=st.session_state.entry_limit,
+            step=5,
+            key="entry_limit"
+        )
         diary_entries = load_diary_entries(selected_user_id, limit=entry_limit)
         
         # Filter by type if selected
