@@ -8,6 +8,7 @@ import asyncio
 import logging
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta
+from collections import deque
 import pytz
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.constants import ChatAction
@@ -34,6 +35,85 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class RateLimiter:
+    """
+    Sliding-window rate limiter for per-user message throttling.
+    
+    Prevents spam and runaway LLM costs by limiting messages per time window.
+    Uses in-memory storage (no Redis needed at this scale).
+    """
+    
+    def __init__(self, max_messages: int, window_seconds: int):
+        """
+        Initialize rate limiter.
+        
+        Args:
+            max_messages: Maximum messages allowed per window
+            window_seconds: Time window in seconds
+        """
+        self.max_messages = max_messages
+        self.window_seconds = window_seconds
+        self.disabled = max_messages == 0
+        
+        # Store timestamps per user_id using deque for efficient sliding window
+        self._timestamps: Dict[int, deque] = {}
+        
+        logger.info(
+            f"Rate limiter initialized: {max_messages} messages per {window_seconds}s "
+            f"({'disabled' if self.disabled else 'enabled'})"
+        )
+    
+    def check_rate_limit(self, user_id: int) -> tuple[bool, int]:
+        """
+        Check if user has exceeded rate limit.
+        
+        Args:
+            user_id: User ID to check
+            
+        Returns:
+            Tuple of (is_allowed, remaining_messages)
+            - is_allowed: True if user can send message, False if rate limited
+            - remaining_messages: Number of messages remaining in current window
+        """
+        if self.disabled:
+            return True, self.max_messages
+        
+        now = datetime.now().timestamp()
+        cutoff = now - self.window_seconds
+        
+        # Initialize or get user's timestamp queue
+        if user_id not in self._timestamps:
+            self._timestamps[user_id] = deque()
+        
+        timestamps = self._timestamps[user_id]
+        
+        # Remove timestamps outside the window (sliding window)
+        while timestamps and timestamps[0] < cutoff:
+            timestamps.popleft()
+        
+        # Check if under limit
+        current_count = len(timestamps)
+        remaining = max(0, self.max_messages - current_count)
+        
+        if current_count >= self.max_messages:
+            logger.warning(
+                f"Rate limit exceeded for user {user_id}: "
+                f"{current_count}/{self.max_messages} messages in {self.window_seconds}s"
+            )
+            return False, 0
+        
+        # Add current timestamp
+        timestamps.append(now)
+        
+        return True, remaining - 1  # -1 because we just added one
+    
+    def reset_user(self, user_id: int) -> None:
+        """Reset rate limit for a specific user."""
+        if user_id in self._timestamps:
+            self._timestamps[user_id].clear()
+            logger.info(f"Rate limit reset for user {user_id}")
+
+
 class TelegramBot:
     """Telegram bot handler for the AI Companion."""
 
@@ -46,6 +126,12 @@ class TelegramBot:
         self._message_buffers: Dict[int, List[str]] = {}
         self._debounce_tasks: Dict[int, asyncio.Task] = {}
         self._debounce_metadata: Dict[int, dict] = {}  # Store user info per chat
+        
+        # Rate limiter: prevent spam and runaway costs
+        self.rate_limiter = RateLimiter(
+            max_messages=settings.USER_RATE_LIMIT_MESSAGES,
+            window_seconds=settings.USER_RATE_LIMIT_WINDOW_SECONDS,
+        )
 
     async def _send_long_message(self, chat_id: int, text: str, chunk_size: int = 4000) -> None:
         """Send a long message split across multiple Telegram messages."""
@@ -275,14 +361,34 @@ class TelegramBot:
         if not buffered or not metadata:
             return
 
+        telegram_id = metadata["telegram_id"]
+        
+        # Check rate limit before processing
+        is_allowed, remaining = self.rate_limiter.check_rate_limit(telegram_id)
+        
+        if not is_allowed:
+            # Rate limit exceeded - send friendly message without LLM call
+            logger.warning(f"Rate limit exceeded for user {telegram_id}")
+            rate_limit_msg = (
+                "Hey, I need a moment to catch up! 😅\n\n"
+                "You're sending messages faster than I can thoughtfully respond. "
+                "Give me a few seconds to process everything, and then we can continue our conversation."
+            )
+            await self._send_with_typing(chat_id, rate_limit_msg)
+            return
+
         # Combine into a single message
         combined = "\n".join(buffered)
         if len(buffered) > 1:
-            logger.info(f"Debounced {len(buffered)} messages from {metadata['telegram_id']} into one")
+            logger.info(f"Debounced {len(buffered)} messages from {telegram_id} into one")
+        
+        # Log remaining messages in rate limit window
+        if remaining <= 5 and not self.rate_limiter.disabled:
+            logger.info(f"User {telegram_id} has {remaining} messages remaining in rate limit window")
 
         try:
             messages, emoji = await orchestrator.process_message(
-                telegram_id=metadata["telegram_id"],
+                telegram_id=telegram_id,
                 message=combined,
                 name=metadata["name"],
                 username=metadata["username"],

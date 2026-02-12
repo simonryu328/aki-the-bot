@@ -208,6 +208,23 @@ class Settings(BaseSettings):
         description="Target max length for each split message chunk",
         ge=100,
     )
+    
+    # ==================== Rate Limiting Configuration ====================
+    # These settings control per-user message rate limits to prevent abuse
+    
+    USER_RATE_LIMIT_MESSAGES: int = Field(
+        default=30,
+        description="Maximum number of messages a user can send per time window. "
+                    "Prevents spam and runaway LLM costs. Set to 0 to disable rate limiting.",
+        ge=0,
+    )
+    
+    USER_RATE_LIMIT_WINDOW_SECONDS: int = Field(
+        default=60,
+        description="Time window in seconds for rate limiting. "
+                    "Used with USER_RATE_LIMIT_MESSAGES to create a sliding window rate limit.",
+        ge=1,
+    )
 
     @field_validator("DATABASE_URL")
     @classmethod
