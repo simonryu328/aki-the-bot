@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
     Column,
+    Index,
     Integer,
     BigInteger,
     String,
@@ -25,6 +26,9 @@ class User(Base):
     """User table - stores Telegram user information."""
 
     __tablename__ = "users"
+    __table_args__ = (
+        Index("idx_users_reach_out", "reach_out_enabled", postgresql_where="reach_out_enabled = TRUE"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
@@ -63,6 +67,9 @@ class ProfileFact(Base):
     """Profile facts - stores observations about the user."""
 
     __tablename__ = "profile_facts"
+    __table_args__ = (
+        Index("idx_profile_facts_user_category", "user_id", "category"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -128,6 +135,9 @@ class Conversation(Base):
     """Conversation history - all messages exchanged with the user."""
 
     __tablename__ = "conversations"
+    __table_args__ = (
+        Index("idx_conversations_user_timestamp", "user_id", "timestamp"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
