@@ -225,7 +225,7 @@ class Settings(BaseSettings):
     # Controls how long to wait for additional messages before processing
     
     DEBOUNCE_SECONDS: float = Field(
-        default=3.0,
+        default=5.0,
         description="Seconds to wait after last message before processing buffered messages. "
                     "Allows users to send multiple messages that get combined into one response. "
                     "Lower values = faster response but may split multi-message thoughts. "
