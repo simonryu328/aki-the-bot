@@ -133,13 +133,13 @@ class LLMClient:
                 finish_reason=finish_reason,
             )
             
-            # Log truncated response for debugging
+            # Log truncated response for debugging at DEBUG level
             if len(content) > 200:
                 truncated = f"{content[:100]}...{content[-100:]}"
             else:
                 truncated = content
             
-            logger.info(
+            logger.debug(
                 "LLM response preview",
                 model=model,
                 finish_reason=finish_reason,
@@ -226,7 +226,7 @@ class LLMClient:
             else:
                 truncated = content
 
-            logger.info(
+            logger.debug(
                 "LLM response preview",
                 model=model,
                 finish_reason=finish_reason,

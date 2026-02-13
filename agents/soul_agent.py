@@ -13,6 +13,7 @@ Inspired by soul.md: listens for what's beneath the words,
 recognizes weight, and holds the story.
 """
 
+import asyncio
 from typing import List, Dict, Optional
 from collections import defaultdict
 from dataclasses import dataclass
@@ -108,28 +109,17 @@ class SoulAgent:
         Returns:
             SoulResponse with response, thinking, and any observations
         """
-        # Build recent exchanges context (compact summaries + current conversation)
-        # Pass user to avoid refetching
-        recent_exchanges_text, history_text = await self._build_conversation_context(
-            user_id, conversation_history, user
+        # Build recent exchanges and observations in parallel
+        conv_context_task = self._build_conversation_context(user_id, conversation_history, user)
+        obs_task = memory_manager.get_observations_with_dates(user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT)
+        
+        (recent_exchanges_text, history_text), observations_with_dates = await asyncio.gather(
+            conv_context_task,
+            obs_task
         )
-
-        # Build observations and profile context (cached)
-        # Invalidate if memory_manager cache has been cleared
-        is_profile_fresh = user_id in memory_manager._profile_cache
-        if not is_profile_fresh:
-            # If memory manager evicted the user, we should also clear our formatting cache
-            self._observations_cache.pop(user_id, None)
-            self._profile_string_cache.pop(user_id, None)
-
-        if user_id in self._observations_cache:
-            observations_text = self._observations_cache[user_id]
-        else:
-            observations_with_dates = await memory_manager.get_observations_with_dates(
-                user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT
-            )
-            observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
-            self._observations_cache[user_id] = observations_text
+        
+        observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
+        self._observations_cache[user_id] = observations_text
 
         # Use cached profile string (implemented as part of _build_profile_context update if needed, 
         # but here we inline the check for visibility as requested in Phase 4.2)
@@ -190,7 +180,8 @@ class SoulAgent:
         raw_response = llm_response.content
         
         # Log raw response before parsing for debugging
-        logger.info(
+        log_func = logger.info if settings.LOG_RAW_LLM else logger.debug
+        log_func(
             "Raw response before parsing",
             user_id=user_id,
             raw_length=len(raw_response),
@@ -237,7 +228,6 @@ class SoulAgent:
 
         # Background: Check if anything significant should be remembered
         # Only run every N exchanges to avoid excessive LLM calls
-        import asyncio
         # DISABLED: Observation agent trigger
         # SoulAgent._message_count[user_id] = SoulAgent._message_count.get(user_id, 0) + 1
         # if SoulAgent._message_count[user_id] >= settings.OBSERVATION_INTERVAL:
@@ -677,8 +667,12 @@ class SoulAgent:
                 max_tokens=500,
             )
 
-            # Log the raw observation result for debugging
-            logger.info("Observation agent raw result", user_id=user_id, result=result[:200])
+            # Log the raw observation result for debugging at DEBUG level
+            logger.debug(
+                "Observation agent raw result", 
+                user_id=user_id, 
+                result=result[:200]
+            )
 
             if "NOTHING_SIGNIFICANT" in result:
                 logger.info("No significant observations from this exchange", user_id=user_id)
@@ -798,15 +792,21 @@ class SoulAgent:
                 # No compact exists yet, count all messages
                 message_count = len(all_convos)
             
+            # Bundle background tasks
+            tasks = []
+            
             # Trigger compact summary if we have enough messages
             if message_count >= settings.COMPACT_INTERVAL:
                 logger.info("Triggering compact summary", user_id=user_id, message_count=message_count)
-                await self._create_compact_summary(user_id=user_id, conversation_history=all_convos)
+                tasks.append(self._create_compact_summary(user_id=user_id, conversation_history=all_convos))
             
             # Trigger memory entry if we have enough messages (can be different threshold)
             if message_count >= settings.MEMORY_ENTRY_INTERVAL:
                 logger.info("Triggering memory entry", user_id=user_id, message_count=message_count)
-                await self._create_memory_entry(user_id=user_id, conversation_history=all_convos)
+                tasks.append(self._create_memory_entry(user_id=user_id, conversation_history=all_convos))
+            
+            if tasks:
+                await asyncio.gather(*tasks)
             
         except Exception as e:
             logger.error("Failed to check compact trigger", user_id=user_id, error=str(e))
@@ -889,7 +889,12 @@ class SoulAgent:
                 max_tokens=300,
             )
             
-            logger.info("Compact summary generated", user_id=user_id, summary_length=len(result))
+            logger.debug(
+                "Compact summary generated", 
+                user_id=user_id, 
+                summary_length=len(result),
+                summary=result[:100]
+            )
             
             # Store summary as a diary entry with type "compact_summary"
             if result and result.strip():
@@ -999,7 +1004,12 @@ class SoulAgent:
                 max_tokens=500,
             )
             
-            logger.info("Memory entry generated", user_id=user_id, memory_length=len(result))
+            logger.debug(
+                "Memory entry generated", 
+                user_id=user_id, 
+                memory_length=len(result),
+                memory=result[:100]
+            )
             
             # Store memory as a diary entry with type "conversation_memory"
             if result and result.strip():

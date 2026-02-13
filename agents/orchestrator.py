@@ -71,13 +71,19 @@ class AgentOrchestrator:
             message=message,
         )
 
-        # 3. Gather context - fetch conversations once with limit=20
-        # This will be reused in multiple places to avoid redundant queries
-        history = await self.memory.db.get_recent_conversations(user_id, limit=20)
+        # 3. Gather context - parallelize independent DB fetches
+        import asyncio
         
-        # Get profile and events (user already fetched above, reuse it)
-        profile = await self.memory.db.get_user_profile(user_id)
-        events = await self.memory.db.get_upcoming_events(user_id, days=7)
+        # history must be fetched AFTER add_conversation to pick up the user's just-sent message
+        history_task = self.memory.db.get_recent_conversations(user_id, limit=20)
+        profile_task = self.memory.db.get_user_profile(user_id)
+        events_task = self.memory.db.get_upcoming_events(user_id, days=7)
+        
+        history, profile, events = await asyncio.gather(
+            history_task,
+            profile_task,
+            events_task
+        )
         
         # Build context from already-fetched data
         from schemas import UserContextSchema

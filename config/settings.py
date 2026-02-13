@@ -265,6 +265,12 @@ class Settings(BaseSettings):
         ge=0,
     )
 
+    LOG_RAW_LLM: bool = Field(
+        default=False,
+        description="Whether to log raw LLM responses at INFO level for debugging. "
+                    "When False, raw responses are logged at DEBUG level.",
+    )
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
