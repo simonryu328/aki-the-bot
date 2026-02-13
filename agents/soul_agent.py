@@ -29,7 +29,6 @@ from memory.memory_manager_async import memory_manager
 from schemas import ConversationSchema, UserContextSchema, UserSchema
 from core import get_logger
 from prompts import (
-    REACTION_PROMPT,
     REFLECTION_PROMPT,
     COMPACT_PROMPT,
     MEMORY_PROMPT,

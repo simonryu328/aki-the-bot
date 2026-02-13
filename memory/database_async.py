@@ -414,6 +414,17 @@ class AsyncDatabase:
 
     # ==================== Reach-Out Management ====================
 
+    async def get_all_users(self) -> List[UserSchema]:
+        """Get all users (for reach-out checker or admin scripts)."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User))
+                users = result.scalars().all()
+                return [UserSchema.model_validate(u) for u in users]
+        except SQLAlchemyError as e:
+            logger.error("Failed to get all users", error=str(e))
+            raise DatabaseException(f"Failed to get all users: {e}")
+
     async def get_users_for_reach_out(self, min_silence_hours: int = 6) -> List[UserSchema]:
         """
         Get users who are eligible for a reach-out message.
@@ -564,6 +575,30 @@ class AsyncDatabase:
             logger.error("Failed to record usage", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to record token usage: {e}")
 
+    async def get_user_token_usage_today(self, user_id: int) -> int:
+        """
+        Get total tokens used by a user today (UTC).
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            Total tokens used today as integer
+        """
+        try:
+            cutoff = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            async with self.get_session() as session:
+                stmt = select(func.sum(TokenUsage.total_tokens)).where(
+                    TokenUsage.user_id == user_id,
+                    TokenUsage.timestamp >= cutoff
+                )
+                result = await session.execute(stmt)
+                res = result.scalar()
+                return int(res) if res else 0
+        except SQLAlchemyError as e:
+            logger.error("Failed to get token usage", user_id=user_id, error=str(e))
+            return 0
+
     async def get_user_token_usage(
         self, user_id: int, days: int = 1
     ) -> Dict[str, int]:
@@ -593,3 +628,7 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to get token usage", user_id=user_id, error=str(e))
             return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+
+# Singleton instance
+db = AsyncDatabase()

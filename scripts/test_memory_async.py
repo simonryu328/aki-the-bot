@@ -30,87 +30,64 @@ async def test_memory_system():
         # Test 1: Create user
         print("[Test 1] Creating test user...")
         user = await memory_manager.get_or_create_user(
-            telegram_id=12345,
-            name="Test User",
-            username="testuser",
+            telegram_id=99999,
+            name="Test User Async",
+            username="testuser_async",
         )
         user_id = user.id
         print(f"✓ Created user with ID: {user_id}")
         print()
 
-        # Test 2: Add profile facts
-        print("[Test 2] Adding profile facts...")
-        await memory_manager.add_profile_fact(
-            user_id, "basic_info", "job", "Software Engineer"
-        )
-        await memory_manager.add_profile_fact(
-            user_id, "basic_info", "location", "Toronto"
-        )
-        await memory_manager.add_profile_fact(
-            user_id, "preferences", "favorite_food", "Pizza"
-        )
-        await memory_manager.add_profile_fact(
-            user_id, "relationships", "best_friend", "Alex"
-        )
-        print("✓ Added 4 profile facts")
-        print()
-
-        # Test 3: Retrieve profile
-        print("[Test 3] Retrieving user profile...")
-        profile = await memory_manager.get_user_profile(user_id)
-        for category, facts in profile.items():
-            print(f"  {category}:")
-            for key, value in facts.items():
-                print(f"    - {key}: {value}")
-        print()
-
-        # Test 4: Add conversations
-        print("[Test 4] Adding conversation messages...")
-        await memory_manager.add_conversation(user_id, "user", "Hello! How are you?")
-        await memory_manager.add_conversation(user_id, "assistant", "I'm doing great! How can I help you today?")
-        await memory_manager.add_conversation(user_id, "user", "I want to learn about Python")
+        # Test 2: Add conversations
+        print("[Test 2] Adding conversation messages...")
+        await memory_manager.add_conversation(user_id, "user", "Hello! I'm testing the new memory system.")
+        await memory_manager.add_conversation(user_id, "assistant", "I see! Everything seems to be working smoothly.")
+        await memory_manager.add_conversation(user_id, "user", "That's great. I'm focusing on simplicity now.")
         await memory_manager.add_conversation(
-            user_id, "assistant", "Python is a great language! Let's start with the basics."
+            user_id, "assistant", "Simplicity is a virtue. I've moved away from complex profiles."
         )
         print("✓ Added 4 conversation messages")
         print()
 
-        # Test 5: Add timeline event
-        print("[Test 5] Adding timeline event...")
-        event_time = datetime.utcnow() + timedelta(days=3)
-        await memory_manager.add_timeline_event(
-            user_id=user_id,
-            event_type="meeting",
-            title="Project Review Meeting",
-            description="Quarterly review with team",
-            datetime_obj=event_time,
-        )
-        print(f"✓ Added timeline event: Project Review Meeting at {event_time}")
-        print()
-
-        # Test 6: Add diary entry
-        print("[Test 6] Adding diary entry...")
+        # Test 3: Add diary entries (The new primary memory)
+        print("[Test 3] Adding diary entries...")
         await memory_manager.add_diary_entry(
             user_id=user_id,
-            entry_type="achievement",
-            title="Completed Python Course",
-            content="Finished the advanced Python course with excellent grades!",
-            importance=8,
+            entry_type="milestone",
+            title="First Step into Simplicity",
+            content="Began the journey of simplifying the AI Companion architecture.",
+            importance=9,
         )
-        print("✓ Added diary entry with importance=8")
+        await memory_manager.add_diary_entry(
+            user_id=user_id,
+            entry_type="conversation_memory",
+            title="Recent Progress",
+            content="The user discussed their focus on simplicity and architectural cleanup.",
+            importance=7,
+            exchange_start=datetime.utcnow() - timedelta(minutes=10),
+            exchange_end=datetime.utcnow(),
+        )
+        print("✓ Added 2 diary entries")
         print()
 
-        # Test 7: Get complete user context
-        print("[Test 7] Retrieving complete user context...")
+        # Test 4: Retrieve diary entries
+        print("[Test 4] Retrieving diary entries...")
+        entries = await memory_manager.get_diary_entries(user_id, limit=5)
+        print(f"  Found {len(entries)} entries:")
+        for entry in entries:
+            print(f"    - [{entry.entry_type}] {entry.title} (Importance: {entry.importance})")
+        print()
+
+        # Test 5: Get complete user context
+        print("[Test 5] Retrieving complete user context...")
         context = await memory_manager.get_user_context(user_id)
         print(f"  User: {context.user_info.name} (@{context.user_info.username})")
-        print(f"  Profile categories: {len(context.profile)}")
         print(f"  Recent conversations: {len(context.recent_conversations)}")
-        print(f"  Upcoming events: {len(context.upcoming_events)}")
+        print(f"  Diary entries: {len(context.diary_entries)}")
         print()
 
-        # Test 8: Test context prompt formatting
-        print("[Test 8] Testing context-to-prompt conversion...")
+        # Test 6: Test context prompt formatting
+        print("[Test 6] Testing context-to-prompt conversion...")
         prompt_context = context.to_prompt_context()
         print("Context formatted for LLM prompt:")
         print("-" * 60)
@@ -118,22 +95,18 @@ async def test_memory_system():
         print("-" * 60)
         print()
 
-        # Test 9: Scheduled messages
-        print("[Test 9] Testing scheduled messages...")
-        scheduled_time = datetime.utcnow() + timedelta(hours=1)
-        await memory_manager.add_scheduled_message(
+        # Test 7: Token usage tracking
+        print("[Test 7] Testing token usage tracking...")
+        await memory_manager.record_token_usage(
             user_id=user_id,
-            scheduled_time=scheduled_time,
-            message_type="follow_up",
-            context="Check on Python learning progress",
+            model="gpt-4o",
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            call_type="conversation",
         )
-        print(f"✓ Scheduled message for {scheduled_time.isoformat()}")
-        print()
-
-        # Test 10: Get pending scheduled messages
-        print("[Test 10] Retrieving pending scheduled messages...")
-        pending = await memory_manager.get_pending_scheduled_messages()
-        print(f"  Found {len(pending)} pending messages")
+        usage_today = await memory_manager.get_user_token_usage_today(user_id)
+        print(f"✓ Recorded 150 tokens. Today's total: {usage_today}")
         print()
 
         print("=" * 60)
@@ -142,9 +115,8 @@ async def test_memory_system():
         print()
         print("Memory system is working correctly with:")
         print(f"  - PostgreSQL (async): ✓")
-        print(f"  - Pydantic schemas: ✓")
-        print(f"  - Structured logging: ✓")
-        print(f"  - Error handling: ✓")
+        print(f"  - Diary-based memories: ✓")
+        print(f"  - Token budget checking: ✓")
         print()
 
     except Exception as e:
