@@ -20,41 +20,19 @@ from prompts.surface import SURFACE_PROMPT
 
 
 async def get_users_with_data() -> List[tuple]:
-    """Get all users who have summaries or memories."""
+    """Get all users who have conversation memories."""
     async with db.get_session() as session:
         result = await session.execute(
             select(User.telegram_id, User.name)
             .join(DiaryEntry, User.id == DiaryEntry.user_id)
-            .where(
-                or_(
-                    DiaryEntry.entry_type == 'compact_summary',
-                    DiaryEntry.entry_type == 'conversation_memory'
-                )
-            )
+            .where(DiaryEntry.entry_type == 'conversation_memory')
             .distinct()
         )
         return result.all()
 
 
-async def get_user_summaries(user_id: int, limit: int = 5) -> List[DiaryEntry]:
-    """Get recent compact summaries for a user."""
-    async with db.get_session() as session:
-        result = await session.execute(
-            select(DiaryEntry)
-            .where(
-                and_(
-                    DiaryEntry.user_id == user_id,
-                    DiaryEntry.entry_type == 'compact_summary'
-                )
-            )
-            .order_by(DiaryEntry.timestamp.desc())
-            .limit(limit)
-        )
-        return list(result.scalars().all())
-
-
-async def get_user_memories(user_id: int, limit: int = 5) -> List[DiaryEntry]:
-    """Get recent conversation memories for a user."""
+async def get_all_user_memories(user_id: int) -> List[DiaryEntry]:
+    """Get all conversation memories for a user, ordered by most recent first."""
     async with db.get_session() as session:
         result = await session.execute(
             select(DiaryEntry)
@@ -65,30 +43,8 @@ async def get_user_memories(user_id: int, limit: int = 5) -> List[DiaryEntry]:
                 )
             )
             .order_by(DiaryEntry.timestamp.desc())
-            .limit(limit)
         )
         return list(result.scalars().all())
-
-
-def format_summaries(summaries: List[DiaryEntry]) -> str:
-    """Format summaries for the prompt."""
-    if not summaries:
-        return ""
-    
-    lines = ["CONVERSATION SUMMARIES:"]
-    for i, summary in enumerate(summaries, 1):
-        time_info = ""
-        if summary.exchange_start is not None and summary.exchange_end is not None:
-            start = summary.exchange_start.strftime("%Y-%m-%d %H:%M")
-            end = summary.exchange_end.strftime("%H:%M")
-            time_info = f" ({start} → {end})"
-        
-        title = cast(str, summary.title)
-        content = cast(str, summary.content)
-        lines.append(f"\n{i}. {title}{time_info}")
-        lines.append(content)
-    
-    return "\n".join(lines)
 
 
 def format_memories(memories: List[DiaryEntry]) -> str:
@@ -111,15 +67,15 @@ async def main():
     """Main test function."""
     
     print("=" * 80)
-    print("SURFACE PROMPT TEST")
+    print("SURFACE PROMPT TEST - MEMORY ANALYSIS")
     print("=" * 80)
     
     # Step 1: Get all users with data
-    print("\n📊 Fetching users with summaries or memories...")
+    print("\n📊 Fetching users with conversation memories...")
     users = await get_users_with_data()
     
     if not users:
-        print("❌ No users with data found!")
+        print("❌ No users with memory data found!")
         return
     
     print(f"✅ Found {len(users)} user(s):")
@@ -146,61 +102,78 @@ async def main():
         )
         user = user_result.scalar_one()
     
-    # Step 4: Get available data
+    # Step 4: Get all available memories
     user_id = cast(int, user.id)
-    summaries = await get_user_summaries(user_id, limit=10)
-    memories = await get_user_memories(user_id, limit=10)
+    all_memories = await get_all_user_memories(user_id)
     
-    print(f"\n📚 Available data for {chosen_name}:")
-    print(f"   - {len(summaries)} compact summaries")
-    print(f"   - {len(memories)} conversation memories")
+    print(f"\n📚 Available memories for {chosen_name}: {len(all_memories)}")
     
-    if not summaries and not memories:
-        print("\n❌ No data available for this user!")
+    if not all_memories:
+        print("\n❌ No memory data available for this user!")
         return
     
-    # Step 5: Choose data combination
+    # Step 5: Display all memories with selection interface
     print("\n" + "=" * 80)
-    print("CHOOSE DATA TO INCLUDE")
+    print("SELECT MEMORIES TO ANALYZE")
     print("=" * 80)
-    print("\nOptions:")
-    print("1. Only summaries (most recent 5)")
-    print("2. Only memories (most recent 5)")
-    print("3. Both summaries and memories (5 each)")
-    print("4. Custom: Choose specific counts")
+    print("\nAll available memories (most recent first):")
+    print()
     
-    option = input("\nChoose option (1-4): ").strip()
+    for i, memory in enumerate(all_memories, 1):
+        timestamp = memory.timestamp.strftime("%Y-%m-%d %H:%M")
+        title = cast(str, memory.title)
+        print(f"{i:3d}. [{timestamp}] {title}")
     
-    selected_summaries = []
+    print("\n" + "-" * 80)
+    print("Selection options:")
+    print("  - Enter numbers separated by commas (e.g., 1,3,5)")
+    print("  - Enter a range with dash (e.g., 1-5)")
+    print("  - Combine both (e.g., 1-3,7,9-11)")
+    print("  - Enter 'all' to select all memories")
+    print("  - Enter 'recent N' to select N most recent (e.g., 'recent 10')")
+    
+    selection = input("\nYour selection: ").strip().lower()
+    
     selected_memories = []
     
-    if option == "1":
-        selected_summaries = summaries[:5]
-    elif option == "2":
-        selected_memories = memories[:5]
-    elif option == "3":
-        selected_summaries = summaries[:5]
-        selected_memories = memories[:5]
-    elif option == "4":
-        if summaries:
-            try:
-                num_summaries = int(input(f"Number of summaries (0-{len(summaries)}): ").strip())
-                selected_summaries = summaries[:num_summaries]
-            except ValueError:
-                print("Invalid number, using 0")
-        
-        if memories:
-            try:
-                num_memories = int(input(f"Number of memories (0-{len(memories)}): ").strip())
-                selected_memories = memories[:num_memories]
-            except ValueError:
-                print("Invalid number, using 0")
+    if selection == 'all':
+        selected_memories = all_memories
+    elif selection.startswith('recent '):
+        try:
+            n = int(selection.split()[1])
+            selected_memories = all_memories[:n]
+        except (ValueError, IndexError):
+            print("❌ Invalid 'recent N' format!")
+            return
     else:
-        print("❌ Invalid option!")
-        return
+        # Parse comma-separated selections and ranges
+        try:
+            indices = set()
+            parts = selection.split(',')
+            for part in parts:
+                part = part.strip()
+                if '-' in part:
+                    # Range
+                    start, end = part.split('-')
+                    start_idx = int(start.strip())
+                    end_idx = int(end.strip())
+                    indices.update(range(start_idx, end_idx + 1))
+                else:
+                    # Single number
+                    indices.add(int(part))
+            
+            # Convert to 0-based and get memories
+            for idx in sorted(indices):
+                if 1 <= idx <= len(all_memories):
+                    selected_memories.append(all_memories[idx - 1])
+                else:
+                    print(f"⚠️  Warning: Index {idx} out of range, skipping")
+        except ValueError:
+            print("❌ Invalid selection format!")
+            return
     
-    if not selected_summaries and not selected_memories:
-        print("\n❌ No data selected!")
+    if not selected_memories:
+        print("\n❌ No memories selected!")
         return
     
     # Step 6: Format the data
@@ -208,24 +181,20 @@ async def main():
     print("PREPARING PROMPT")
     print("=" * 80)
     
-    parts = []
-    if selected_summaries:
-        parts.append(format_summaries(selected_summaries))
-    if selected_memories:
-        parts.append(format_memories(selected_memories))
+    memories_text = format_memories(selected_memories)
     
-    summaries_and_memories = "\n\n".join(parts)
-    
-    print(f"\n📝 Using:")
-    print(f"   - {len(selected_summaries)} summaries")
-    print(f"   - {len(selected_memories)} memories")
-    print(f"   - Total characters: {len(summaries_and_memories)}")
+    print(f"\n📝 Using {len(selected_memories)} memories:")
+    for i, memory in enumerate(selected_memories, 1):
+        timestamp = memory.timestamp.strftime("%Y-%m-%d %H:%M")
+        title = cast(str, memory.title)
+        print(f"   {i}. [{timestamp}] {title}")
+    print(f"\nTotal characters: {len(memories_text)}")
     
     # Step 7: Show the formatted data
     print("\n" + "=" * 80)
     print("FORMATTED DATA")
     print("=" * 80)
-    print(summaries_and_memories)
+    print(memories_text)
     
     # Step 8: Choose model
     print("\n" + "=" * 80)
@@ -252,17 +221,23 @@ async def main():
         model = settings.MODEL_CONVERSATION
         model_name = "Claude Sonnet"
     
-    # Step 9: Generate surface insight
+    # Step 9: Generate analysis
     print("\n" + "=" * 80)
-    print("GENERATING SURFACE INSIGHT")
+    print("ANALYZING USER INTERESTS")
     print("=" * 80)
-    print(f"\n🤔 Asking Aki to sit with this data using {model_name}...")
+    print(f"\n🤔 Analyzing what the user wants to talk about using {model_name}...")
     
     llm = LLMClient()
     
     prompt = SURFACE_PROMPT.format(
-        summaries_and_memories=summaries_and_memories
+        summaries_and_memories=memories_text
     )
+    
+    print("\n" + "=" * 80)
+    print("RAW PROMPT SENT TO LLM")
+    print("=" * 80)
+    print(prompt)
+    print("\n" + "=" * 80)
     
     result = await llm.chat(
         model=model,
@@ -271,9 +246,14 @@ async def main():
         max_tokens=1000
     )
     
-    # Step 10: Display result
+    # Step 10: Display raw and parsed result
     print("\n" + "=" * 80)
-    print("SURFACE INSIGHT")
+    print("RAW LLM RESPONSE")
+    print("=" * 80)
+    print(f"\n{result}\n")
+    
+    print("=" * 80)
+    print("ANALYSIS RESULT (SAME AS RAW)")
     print("=" * 80)
     print(f"\n{result}\n")
     
@@ -283,9 +263,8 @@ async def main():
     print("=" * 80)
     print(f"User: {chosen_name}")
     print(f"Model: {model_name} ({model})")
-    print(f"Summaries used: {len(selected_summaries)}")
-    print(f"Memories used: {len(selected_memories)}")
-    print(f"Input length: {len(summaries_and_memories)} characters")
+    print(f"Memories analyzed: {len(selected_memories)}")
+    print(f"Input length: {len(memories_text)} characters")
     print(f"Output length: {len(result)} characters")
 
 
