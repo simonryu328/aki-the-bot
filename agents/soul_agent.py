@@ -187,7 +187,7 @@ class SoulAgent:
             response=response,
             messages=messages,
             thinking=thinking,
-            emoji=emoji if should_react else None,
+            emoji=emoji,  # Always include emoji for stickers (reactions are filtered in telegram_handler)
             usage=llm_response,
         )
 

@@ -458,31 +458,41 @@ class TelegramBot:
             logger.info(f"Emoji generated: '{emoji}' (type: {type(emoji).__name__}, repr: {repr(emoji)})")
             logger.info(f"Available sticker emojis: {list(self.stickers.keys())[:10]}...")  # Show first 10
             
+            # Try exact match first
+            sticker_options = None
+            matched_emoji = None
+            
             if emoji in self.stickers:
                 sticker_options = self.stickers[emoji]
-                logger.info(f"Found {len(sticker_options)} sticker options for emoji '{emoji}'")
+                matched_emoji = emoji
+                logger.info(f"Found exact match for emoji '{emoji}'")
+            else:
+                # Try without variation selector
+                emoji_stripped = emoji.rstrip('\ufe0f')  # Remove variation selector
+                if emoji_stripped in self.stickers:
+                    sticker_options = self.stickers[emoji_stripped]
+                    matched_emoji = emoji_stripped
+                    logger.info(f"Found match without variation selector: '{emoji_stripped}'")
+                else:
+                    logger.warning(f"No sticker mapping found for emoji '{emoji}' (tried with and without variation selector)")
+            
+            # Send sticker if we found a match
+            if sticker_options and matched_emoji:
+                logger.info(f"Found {len(sticker_options)} sticker options for emoji '{matched_emoji}'")
                 
                 if sticker_options:
                     # Randomly pick one sticker for this emoji
                     chosen_sticker = random.choice(sticker_options)
                     file_id = chosen_sticker["file_id"]
-                    logger.info(f"Attempting to send sticker {file_id} for emoji '{emoji}' to chat {chat_id}")
+                    logger.info(f"Attempting to send sticker {file_id} for emoji '{matched_emoji}' to chat {chat_id}")
                     
                     try:
                         await self._send_with_typing(chat_id, sticker=file_id)
-                        logger.info(f"Successfully sent sticker {file_id} ({emoji}) to user {metadata['telegram_id']}")
+                        logger.info(f"Successfully sent sticker {file_id} ({matched_emoji}) to user {metadata['telegram_id']}")
                     except Exception as e:
                         logger.error(f"Failed to send sticker {file_id}: {e}", exc_info=True)
                 else:
-                    logger.warning(f"Sticker options list is empty for emoji '{emoji}'")
-            else:
-                logger.warning(f"Emoji '{emoji}' not found in stickers dictionary. Checking for variations...")
-                # Check if it's a variation selector issue
-                emoji_stripped = emoji.rstrip('\ufe0f')  # Remove variation selector
-                if emoji_stripped in self.stickers:
-                    logger.info(f"Found emoji without variation selector: '{emoji_stripped}'")
-                else:
-                    logger.warning(f"No sticker mapping found for emoji '{emoji}' (even without variation selector)")
+                    logger.warning(f"Sticker options list is empty for emoji '{matched_emoji}'")
         else:
             logger.debug("No emoji generated for this message")
 
