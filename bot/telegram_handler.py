@@ -5,7 +5,10 @@ Also runs the proactive messaging scheduler.
 """
 
 import asyncio
+import json
 import logging
+import random
+from pathlib import Path
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 from collections import deque
@@ -130,6 +133,33 @@ class TelegramBot:
             max_messages=settings.USER_RATE_LIMIT_MESSAGES,
             window_seconds=settings.USER_RATE_LIMIT_WINDOW_SECONDS,
         )
+        
+        # Load stickers registry
+        self.stickers = self._load_stickers()
+        
+        # Telegram reaction emojis (for checking if emoji should be a reaction)
+        self.telegram_reactions = {
+            '👍', '👎', '❤️', '🔥', '🥰', '👏', '😁', '🤔', '🤯', '😱',
+            '😢', '🎉', '🤩', '🤮', '💩', '🙏', '👌', '🕊', '🤡', '🥱',
+            '🥴', '😍', '🐳', '❤️‍🔥', '🌚', '🌭', '💯', '🤣', '⚡️', '🍌',
+            '🏆', '💔', '🤨', '😐', '🍓', '🍾', '💋', '🖕', '😈', '😴',
+            '😭', '🤓', '👻', '👨‍💻', '👀', '🎃', '🙈', '😇', '😨', '🤝',
+            '✍️', '🤗', '🫡', '🎅', '🎄', '☃️', '💅', '🤪', '🗿', '🆒',
+            '💘', '🙉', '🦄', '😘', '💊', '🙊', '😎', '👾', '🤷‍♂️', '🤷',
+            '🤷‍♀️', '😡'
+        }
+    
+    def _load_stickers(self) -> Dict[str, List[Dict[str, str]]]:
+        """Load stickers from stickers.json."""
+        stickers_file = Path(__file__).parent.parent / "config" / "stickers.json"
+        try:
+            with open(stickers_file, 'r', encoding='utf-8') as f:
+                stickers = json.load(f)
+            logger.info(f"Loaded {len(stickers)} emoji groups with stickers")
+            return stickers
+        except Exception as e:
+            logger.warning(f"Failed to load stickers.json: {e}")
+            return {}
 
     async def _send_long_message(self, chat_id: int, text: str, chunk_size: int = 4000) -> None:
         """Send a long message split across multiple Telegram messages."""
@@ -401,13 +431,28 @@ class TelegramBot:
                 username=metadata["username"],
             )
 
-            # Send reaction if emoji was generated
+            # Send reaction if emoji was generated and it's a valid Telegram reaction
             if emoji and "last_message" in metadata:
-                try:
-                    await metadata["last_message"].set_reaction(emoji)
-                    logger.info(f"Sent reaction {emoji} to user {metadata['telegram_id']}")
-                except Exception as e:
-                    logger.warning(f"Failed to send reaction: {e}")
+                # Send reaction if it's in the Telegram reactions set
+                if emoji in self.telegram_reactions:
+                    try:
+                        await metadata["last_message"].set_reaction(emoji)
+                        logger.info(f"Sent reaction {emoji} to user {metadata['telegram_id']}")
+                    except Exception as e:
+                        logger.warning(f"Failed to send reaction: {e}")
+                
+                # Send sticker if emoji has stickers available
+                if emoji in self.stickers:
+                    sticker_options = self.stickers[emoji]
+                    if sticker_options:
+                        # Randomly pick one sticker for this emoji
+                        chosen_sticker = random.choice(sticker_options)
+                        file_id = chosen_sticker["file_id"]
+                        try:
+                            await self._send_with_typing(chat_id, sticker=file_id)
+                            logger.info(f"Sent sticker {file_id} ({emoji}) to user {metadata['telegram_id']}")
+                        except Exception as e:
+                            logger.warning(f"Failed to send sticker: {e}")
                     
         except Exception as e:
             logger.error(f"Error processing message: {e}")

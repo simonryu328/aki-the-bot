@@ -1,1 +1,746 @@
-{}
+{
+  "☝️": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRzWmPdJB7vIxFC6nyIVCN1HTYiHJwAAJUBQACP5XMCgo_ZjAsZGwVOgQ",
+      "pack": "MrCaterpillar"
+    }
+  ],
+  "☺️": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR52mPdRjViizt4wtTfkHsEVTI1CFrAAIMAQACMNSdETGZSOGtgpzfOgQ",
+      "pack": "FroggoInLove"
+    }
+  ],
+  "✈️": [
+    {
+      "file_id": "CAACAgIAAxkBAAIS_2mPgBrkkrF8sPdMWA4CW7mTuQsvAAJfAgACVp29CiAu2Ue_kaooOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "✋": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRgGmPbIiXvu6HpJhplA-D9T275DhoAAJHAwACbbBCA1JVK_k1xYCCOgQ",
+      "pack": "BoysClub",
+      "note": "holding up time out sign - like \"wait hold up\""
+    }
+  ],
+  "❤️": [
+    {
+      "file_id": "CAACAgEAAxkBAAIR92mPea1Uu7aLwxDdgA-2ZBvB4BI-AALJBwAC43gEAAGESQ6JsVOaWzoE",
+      "pack": "AnimatedEmojies"
+    }
+  ],
+  "🌚": [
+    {
+      "file_id": "CAACAgIAAxkBAAISlWmPfBBME0dkyVZosF_a4WhadN6VAAIuDwACzbxJSX0I3K6hOcaTOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "🌝": [
+    {
+      "file_id": "CAACAgIAAxkBAAISfWmPfAtyi1zknUfE2AimlNDpEwteAAKrEgACGOJASeltNUEW4IxOOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "🌟": [
+    {
+      "file_id": "CAACAgEAAxkBAAIRw2mPdCnbEnXqQ1FYSuWcg8KRQO5fAAL1AwACjargRdbslKodbVLyOgQ",
+      "pack": "glorp2_by_fStikBot"
+    }
+  ],
+  "🍟": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRuWmPc9SkNlu5WcUciQTkULQT5WPxAAIZEgACpeVpSVflWMFjXWsoOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "🍻": [
+    {
+      "file_id": "CAACAgIAAxkBAAISa2mPe0XHdYUxa9sfPDEkNjjqOVlsAAL7FAAC1C-ISI3jV1r-uGDQOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "🎁": [
+    {
+      "file_id": "CAACAgIAAxkBAAISV2mPe0Adp55iBq5YErSp0BI3U2CTAAKlEwACeLmISF5IdmzmX_G6OgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "🏊‍♂️": [
+    {
+      "file_id": "CAACAgIAAxkBAAISZ2mPe0RT8vlab5nHhZiKycRDLT74AAJ8EwACb7tgSUbj7XeBB614OgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "👊": [
+    {
+      "file_id": "CAACAgIAAxkBAAISX2mPe0I6uhgj_p_oemxLbGU7BgttAAL5FQACO2toSZWh2i1Jxd7POgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "👋": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRkWmPb9EC8BYGxUTQ1w4sO8qwNVkYAAJVAgACVp29CqxLLIJPoxXfOgQ",
+      "pack": "gldfsh",
+      "note": "hi"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIRk2mPcBcFKZIC3KwTYXjcnmfYd7PqAAJnAgACVp29CgfnbKzvzsg_OgQ",
+      "pack": "gldfsh",
+      "note": "bye"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIR6WmPdSC_Tu0uecpKoAjQyiog_YY7AAL-AAMw1J0RHGvdwMJwVlQ6BA",
+      "pack": "FroggoInLove"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISO2mPezcbrhRHCPRbqa2WnhC3lv33AAL9FQACFrmwSEg_PGP4DchMOgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIStWmPfI3XhAXOrL9vbayk0kTGAwABPgACRQMAArVx2gaTiBAcidwNGzoE",
+      "pack": "DinDino"
+    }
+  ],
+  "👌": [
+    {
+      "file_id": "CAACAgIAAxkBAAISyWmPfJWMKfaDLaIQZMtCtTtrmVq9AAJPAwACtXHaBmrU4ih-hxpkOgQ",
+      "pack": "DinDino"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS-2mPgBjyORQuhwinYxVNggGU3NYrAAJcAgACVp29Cv2OGoUKy_eFOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "👍": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRe2mPa9gip7tL_KQ_HVVJAW33hkZEAAKPAQACK15TC1JZlsxRJSLCOgQ",
+      "pack": "RedShibaInu",
+      "note": "affirmingly gives ok sign and thumbs up with both his hands"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIR22mPdOHxYohQsdD24HpI71g2WxTWAAIoAQACUomRIxpSPL-bbi9uOgQ",
+      "pack": "Orangoutang"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISN2mPezaBTPnJwxEvnylnQ4mZCyyMAAJHEQAC4liRSBG0pIeWyPwnOgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISsWmPfIwOZ2JPI3SPn5QKOsoPu54AA0QDAAK1cdoGDLc7E7SGQzA6BA",
+      "pack": "DinDino"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS4WmPgA4Q12ZAFkNu9xonQBdrDHupAAJTAgACVp29Cr3FikQpx3tDOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "👏": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRqWmPcodDxWxU3yUNRcFNghfkSR9LAAJNBQACP5XMCqD6HERQ1NaFOgQ",
+      "pack": "MrCaterpillar",
+      "note": "clapping, nicely done"
+    }
+  ],
+  "👨‍💻": [
+    {
+      "file_id": "CAACAgIAAxkBAAISC2mPet3tmRp1Rc0p6RqeJlKr997cAAI4CwACTuSZSzKxR9LZT4zQOgQ",
+      "pack": "Crocosaurus"
+    }
+  ],
+  "👨‍💼": [
+    {
+      "file_id": "CAACAgIAAxkBAAISUmmPez4Lj4FLLBEj0rbwsxioVe6uAAISFAACjw9gSAb1tYe0FF6mOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "👷‍♂️": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRo2mPcgoddyxhOIvjlQSiARMPUGEDAAJOFQACa6cBSTPij59YOQYOOgQ",
+      "pack": "HaoPup",
+      "note": "Grinding - it's monday, start of a week"
+    }
+  ],
+  "💐": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRtWmPc1cf28oUn0tZjvXfjD0lsQTHAAJVBQACP5XMCpP9TQUc4ucpOgQ",
+      "pack": "MrCaterpillar",
+      "note": "flowers for you"
+    }
+  ],
+  "💔": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR5WmPdRHpYLGfamCekvBMsQ4Ckxw8AAIGAQACMNSdEezYE8KsNm-ZOgQ",
+      "pack": "FroggoInLove"
+    }
+  ],
+  "💪": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRfWmPbDH9BEIhav4FOv4mP_2EoETIAAKHAQACK15TC3gn1k2Gf2lgOgQ",
+      "pack": "RedShibaInu",
+      "note": "flexing muscle and winking"
+    }
+  ],
+  "💸": [
+    {
+      "file_id": "CAACAgIAAxkBAAISz2mPfJdUKYewx5CxIOYr7Xv5Y14FAAJVAwACtXHaBhMil-PsiQkHOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "🖕": [
+    {
+      "file_id": "CAACAgIAAxkBAAISXWmPe0HnrTxGUmTM8-Is8gXr9o2-AAK7DwACSFVoSV9nw7KxCTmBOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "😀": [
+    {
+      "file_id": "CAACAgIAAxkBAAISjWmPfA4co3j3m1L0DYWGO51he_KoAAJsFQACFDVAScipgAiYkQXrOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIRz2mPdJ_ULUdSCIbqqqpyBCpnYOrKAAIsFgACKyqgS80bbASIU2lGOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "😂": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRm2mPcQHNXt-EakKVvnGH3Jh1G9ODAALrEQACfzBBSQQ6pDCRyeI9OgQ",
+      "pack": "StealthMoon",
+      "note": "lmao laughing and crying"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIRnWmPcX9sI_UBl1zwP8u0FAtdiKrmAAIlEgACdAuJSPEnE4GiMaoBOgQ",
+      "pack": "HaoPup",
+      "note": "cute puppy laughing and rolloing on the floor"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIR12mPdNrZhkCpBmBRtjB9IBTg5PgCAAImAQACUomRI3VoLZaREiseOgQ",
+      "pack": "Orangoutang"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISrWmPfIri_WRNoHRf9cVhgkdGZkvsAAJMAwACtXHaBq-6ZXOBPBxsOgQ",
+      "pack": "DinDino"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS3WmPgAwdIUVRK-7R6Wrqzcn3mOrUAAJRAgACVp29CunJ__WLRYnkOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "😃": [
+    {
+      "file_id": "CAACAgIAAxkBAAISg2mPfAxQYFtE9RlPIO4HZjxWp5mGAAJOFAACjNxASXJZQf_K-AluOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISvWmPfJHS7QNRyJd7uNDX2UwPqjtPAAJHAwACtXHaBjV7c9kAAYsdpDoE",
+      "pack": "DinDino"
+    }
+  ],
+  "😈": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRlWmPcG2O8b9oxn5UNUJ7qMqKMCR7AAJLAAMkcWIaCbKG2mlQnhg6BA",
+      "pack": "LovelyPeachy",
+      "note": "cute evil laugh"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIR1WmPdMvooly_tJdqyoFRqSfuAUtCAAL2AANWnb0K99tOIUA-pYo6BA",
+      "pack": "UtyaDuck"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISYWmPe0LF7Bx0-olzeuAow753JJorAAK1EwAC2ZppSVIvbi0Q_to5OgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISeWmPfAqlfd7Dt2EBMTWfnAaa-A1DAAIEFgAC2CZBSbv0rUWdj0BjOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISm2mPfBKla_Rdf344Ga6zY05ynJILAAIfEgACXey4StZK0-iDC94vOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS0WmPfJhNur9PXk5dQeFBwxX6Kvp4AAJWAwACtXHaBjr6z5C3CbgEOgQ",
+      "pack": "DinDino"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS-WmPgBdk5pOWAAEdWhbCAAEfIIQL9o8AAl0CAAJWnb0KejUoINa8kbs6BA",
+      "pack": "gldfsh"
+    }
+  ],
+  "😉": [
+    {
+      "file_id": "CAACAgIAAxkBAAISVWmPez9ruw9MRQQIMKpsHnTk4u4ZAAKyDwACZcqJSDd2qXoP9kYWOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "😊": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRwWmPdByulRKaLqFugGKAXb3W3LT5AAIlAAOQ_ZoVOJ3k34nH8QI6BA",
+      "pack": "TheCoffeeCup"
+    }
+  ],
+  "😋": [
+    {
+      "file_id": "CAACAgIAAxkBAAISq2mPfIKCzFFiDHyWI8qz3wXj_GQWAAJOAwACtXHaBn6YfircDXBDOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😍": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR42mPdQhyh6vnrY82W6o4pm3vqAH4AAMBAAIw1J0RZSUY7kzUj9c6BA",
+      "pack": "FroggoInLove"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISw2mPfJOSXd2R9h8MOBGk7GJ-ehy7AAJLAwACtXHaBm7eS1WIf7NwOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😎": [
+    {
+      "file_id": "CAACAgIAAxkBAAITAWmPgBo0S5wh3EP_jWdVA7iJC6wRAAJlAgACVp29CsHJZAFKzdvGOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "😏": [
+    {
+      "file_id": "CAACAgIAAxkBAAISn2mPfBMR9hs-mUOOmI0XzkgHXXbiAAJQEgACElc5SxeOCvQNiPCQOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISr2mPfIqFCTzxoNLtv3gb523C6MoQAAJDAwACtXHaBli9Fr-Dd7_HOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😐": [
+    {
+      "file_id": "CAACAgIAAxkBAAISl2mPfBFSddaNSgIFVI-YyKdKwptoAAIfFQACVJK4Sil9s5q-SDEdOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISwWmPfJLe5G9KCaAO1rTGucDT6fYxAAJJAwACtXHaBqdSZHY0vUqzOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😑": [
+    {
+      "file_id": "CAACAgIAAxkBAAISy2mPfJbFG4ap08shaNBKOvAZKeIyAAJTAwACtXHaBu0f4vmVJ2PkOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😒": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR72mPdUN5tFzhDVr5xMYY_ASsrtvDAAL9FAACqNVgSc-zXH9h5eEjOgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISk2mPfBCf9cmCNdr2BlHKQvw0WvMLAAILEQACVNVBSXdTJ3KGjPBLOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "😓": [
+    {
+      "file_id": "CAACAgIAAxkBAAISj2mPfA_FSibBJA5rqe-kjBoDgZapAAJfFgAC6fhBSby61N4hd8BPOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "😔": [
+    {
+      "file_id": "CAACAgIAAxkBAAIS9WmPgBZkIKKdmcL-6QvtUH_XJ7-bAAJWAgACVp29Cu2qsbqqpuCKOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "😕": [
+    {
+      "file_id": "CAACAgIAAxkBAAISo2mPfBRPqR3mIvihXdfIQrFSPIYwAAL-EgACrbKhS4A40WhwsJhyOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "😘": [
+    {
+      "file_id": "CAACAgIAAxkBAAISNWmPezXyO1jeWv6f1a8v_cHoaExhAAJ1EgACCC65SDJK5kTiMFl2OgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS22mPgALcCU4zCmH8VsYFv_b90NSWAAJeAgACVp29Cv4tArVWoecTOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "😜": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRu2mPc9oURIRMFWee5AHanwepPSVUAAKoEwACp4doSTjmFqrPl7CLOgQ",
+      "pack": "HaoPup",
+      "note": "yayyyy"
+    }
+  ],
+  "😞": [
+    {
+      "file_id": "CAACAgIAAxkBAAISP2mPezjnGBIwoDKoEC9g5GySsyXwAAKREQACT2T5SLNoDrEyGuebOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "😟": [
+    {
+      "file_id": "CAACAgIAAxkBAAISt2mPfI7VkE1I48mJe4weuUyIIokpAAJRAwACtXHaBq3q274d44fbOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😡": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR4WmPdPzJmr-wAt0Z9qhboJsrguckAAJHAQACUomRIwMGBizR9_B1OgQ",
+      "pack": "Orangoutang"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISbWmPe0Z80Pvu7QLZVsuOJReBzowvAAL8EAACtxWISNWvkVY1_8auOgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISe2mPfAr76cD_ZAtCzbZ-_RcOJ2VWAAJZEgACcqNBSXHgkbuCRf5ROgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS62mPgBIEwOPI6hVu3ceJdgpyHeBZAAJbAgACVp29CgAB3yMzQxabnjoE",
+      "pack": "gldfsh"
+    }
+  ],
+  "😢": [
+    {
+      "file_id": "CAACAgIAAxkBAAISf2mPfAvum9OnyIYt6iCZwh_2-jwsAAKaFAAC_NZASQ7Brl2IKWk2OgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "😧": [
+    {
+      "file_id": "CAACAgIAAxkBAAITBWmPgBtMCYRGr-krEWevee0LOuUsAAJrAgACVp29Cl-eMXVyrxbBOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "😨": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR3WmPdPDxm8KNvi773PNt8yDkxCadAAI5AQACUomRIyD7qq9Asq8LOgQ",
+      "pack": "Orangoutang"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISdWmPfAndw-A7c21or2VbDQklB1uQAAJRGAACivzZSoqCc1lenbVsOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS42mPgA9dpDwSmueWh2MQvs7oSwzIAAJUAgACVp29Chz8JapG88_TOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "😩": [
+    {
+      "file_id": "CAACAgIAAxkBAAIS72mPgBTqzuYf65g_i-QfueZvz0dnAAJqAgACVp29CuwxAujjB2orOgQ",
+      "pack": "gldfsh"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS_WmPgBk91t7UfwW8pHV1PnCzot4AA1oCAAJWnb0KW8XBQlrh2bo6BA",
+      "pack": "gldfsh"
+    }
+  ],
+  "😫": [
+    {
+      "file_id": "CAACAgIAAxkBAAISmWmPfBHVR3LxqU1iUxr4Xvy-Z9NJAAIhEgACD6a5Sjpc7eYTud8WOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "😭": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRoWmPcepK0t1Fq1sBVxJ_SaiJudRQAAIEAQACMNSdEbZamZtVs5-4OgQ",
+      "pack": "FroggoInLove",
+      "note": "sad frog crying"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISDWmPevr5FEMYWuVEGl4oswNNe-ioAAI_BQACP5XMCnXI0UeNQ15mOgQ",
+      "pack": "MrCaterpillar"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISgWmPfAz0tf-zJ9iTAikfuZlsePbHAAKGGQAC8AcRS-6fgw_t0S2AOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS02mPfJmnjrrbQMNqJJbidRQaBPg6AAJXAwACtXHaBrZ7t_uAheuSOgQ",
+      "pack": "DinDino"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS52mPgBAZunoC-Ry0b3VEP_fhdzWkAAJkAgACVp29CnyLQQ3hCOHMOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "😱": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRs2mPczslef0ZZuT7PV1qBc3Wu0mbAAJTBQACP5XMCnzn1NKvplLsOgQ",
+      "pack": "MrCaterpillar",
+      "note": "shock, everything is on fire"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIR8WmPdUvmKI7bZ-Oc0Ml5gLcZI4cKAAKOFQACFgaISMFMdwSh80YnOgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISs2mPfI2_BixhMhaPblkujkjX9ZApAAJQAwACtXHaBsOq9o3QxaLKOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😳": [
+    {
+      "file_id": "CAACAgIAAxkBAAISh2mPfA04alZQrgABqaXBhjPrvZx3uQACixIAAjiyQUkIJ8Osb3zGGzoE",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISi2mPfA6QA_U9jxDR1uY9GTB5vqd3AAJmEQACtp5ASTl2lsXpVrzrOgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "😴": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRvWmPc-9ka3rNSP4LLjMgT36EYr5fAAIPEgACJZWJSNbU2Uzk-rIDOgQ",
+      "pack": "HaoPup",
+      "note": "sleepy"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIR7WmPdTImR5mTgRlv8AtlMnN1lyvsAAL4AAMw1J0RUbmHAkiLgqk6BA",
+      "pack": "FroggoInLove"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISv2mPfJLBYD2M30exKM8HS3gi_UcqAAJIAwACtXHaBuqogu6FWdh2OgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "😵‍💫": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRn2mPcbvbia6_ad6zJuWDlhMGhRifAAJ7FAACAhJhSFOhqdjxnmZoOgQ",
+      "pack": "HaoPup",
+      "note": "dizzy"
+    }
+  ],
+  "🙂": [
+    {
+      "file_id": "CAACAgIAAxkBAAISp2mPfBTRpQQM6dGjpW3IL4jhYDkXAAJxFQACZduhSxEonbPUhYGzOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISuWmPfI9AoHF8qiKcR2kO9vm2ajFAAAJKAwACtXHaBsJ-BvqbSB7EOgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "🙄": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRmWmPcM60h45xRAX-WqXDxcAHpRXJAAJjEAAC9pZBSY2h_pegyxtqOgQ",
+      "pack": "StealthMoon",
+      "note": "tired of this - when is it going to end?"
+    }
+  ],
+  "🙅‍♂️": [
+    {
+      "file_id": "CAACAgIAAxkBAAISRWmPezoh6eihs7L_nJDgShwAAS3wIwACZhIAAprCiUh2oAmLLuoOIzoE",
+      "pack": "HaoPup"
+    }
+  ],
+  "🙌": [
+    {
+      "file_id": "CAACAgIAAxkBAAISd2mPfAkjVu5an9ksxFBwvGZnZcJfAAKxEgAC_ezhSgbRXohYXkr_OgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "🙏": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRt2mPc3B3ccSywIS6THDlaok2ZfypAAKMEAAC7lZpSd0zzwyvj36ROgQ",
+      "pack": "HaoPup",
+      "note": "thank youuu"
+    }
+  ],
+  "🚀": [
+    {
+      "file_id": "CAACAgUAAxkBAAIRl2mPcLyIV8BmYUfKiDeQwq-qJqEvAAKjAgACiDBBV9DdSrAafGihOgQ",
+      "pack": "Danchoicoin",
+      "note": "rocket to the moooon"
+    }
+  ],
+  "🚶‍♂️": [
+    {
+      "file_id": "CAACAgIAAxkBAAITA2mPgBs0PEFbGGSKvAh0ubTmDc1XAAJuAgACVp29CtdRhUqtqScGOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "🤑": [
+    {
+      "file_id": "CAACAgIAAxkBAAISW2mPe0Gn76z5v-3jWcwKDKwVAAGolwACTBMAAu_5YUmyslQcWU5YcToE",
+      "pack": "HaoPup"
+    }
+  ],
+  "🤓": [
+    {
+      "file_id": "CAACAgIAAxkBAAIS92mPgBcQhpZYZZMO39IeksZ5QsT0AAJsAgACVp29CioZXpzE0N6fOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "🤔": [
+    {
+      "file_id": "CAACAgIAAxkBAAIReWmPauJbgyn6lsyOkoCp0-cXT67aAAJGAwACtXHaBvKiUeNWEzCMOgQ",
+      "pack": "DinDino"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISPWmPezjoUQLSe668wXzE6v7kCWS0AALFEwACMIBhSeDTLsP_r6jIOgQ",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISnWmPfBLLxG0GZ49VmKVk7N7jnQJSAALiEwACUUkwS-VMOGjVx0lKOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS7WmPgBOrFCm7_H-wZh3FMHiOQMbgAAJmAgACVp29CkNjNL-6OKqEOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "🤗": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRaWmPaT5Xfx_3xevHSJ0sI2WvNThMAAINAQACVp29Ckb9Qx0FRNeXOgQ",
+      "pack": "UtyaDuck"
+    }
+  ],
+  "🤡": [
+    {
+      "file_id": "CAACAgIAAxkBAAISB2mPemdCM7eAUpsdEG9Fp-WZVHbvAAKvAANSiZEj8TbJmGU6nvM6BA",
+      "pack": "DolphinDolph"
+    }
+  ],
+  "🤢": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRr2mPcwYuVurpKTbJCUXEsZUs23u7AAKwAANSiZEjPAfKV3Ke52w6BA",
+      "pack": "DolphinDolph",
+      "note": "im gonna get sick"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIST2mPez0ebtKplXSUp0a-Gdb3yEKGAAIyFwACGAZhSRj6QESP-IzfOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "🤣": [
+    {
+      "file_id": "CAACAgIAAxkBAAIShWmPfA0XvVhAE4v6ao2lYnDNELMzAAL2FAACdWNBSVn5OSPyEj4-OgQ",
+      "pack": "StealthMoon"
+    }
+  ],
+  "🤦‍♂️": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRsWmPcxZNcomaam4VJ9B3RYicBkgLAAKqAANSiZEj8RDDAx2QPO86BA",
+      "pack": "DolphinDolph",
+      "note": "facepalming, eh whatever"
+    }
+  ],
+  "🤩": [
+    {
+      "file_id": "CAACAgIAAxkBAAISWWmPe0CrTigeHBuwNR4AASbhl7BoyQACzRUAAh-YYEkfFBjFMutY8ToE",
+      "pack": "HaoPup"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISc2mPfAgz2Dv_9pYQbwnLXAigO1FBAAJTFQACl6NASUkdCbRrtLunOgQ",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAITCWmPgB0HnTIR2OFzx8DnaGc5FBHyAAJpAgACVp29Cta5X0h7RGRvOgQ",
+      "pack": "gldfsh"
+    }
+  ],
+  "🤫": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR0WmPdK8qrsgXmBSiQ6LjMVGtV9pxAAJJAgACVp29CiqXDJ0IUyEOOgQ",
+      "pack": "UtyaDuck"
+    }
+  ],
+  "🤬": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRq2mPctGAczAgsyKIyuHf6TXFPmIuAAJHBQACP5XMCl8JTO_pLAtHOgQ",
+      "pack": "MrCaterpillar",
+      "note": "nope nope nope nope"
+    }
+  ],
+  "🤯": [
+    {
+      "file_id": "CAACAgIAAxkBAAISBWmPek3rloxtAmyJnwmKyFPwXPagAAILAQACVp29Ck6x56YI--1JOgQ",
+      "pack": "UtyaDuck"
+    }
+  ],
+  "🤷": [
+    {
+      "file_id": "CAACAgIAAxkBAAIS82mPgBXd72wwPXv01NtEFXnxBnSzAAJYAgACVp29Css-QFadXwAB8zoE",
+      "pack": "gldfsh"
+    }
+  ],
+  "🥰": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR62mPdSjr-a4Ig-zYgFSFMSzzJTSwAAL6AAMw1J0RBrGvwoj2nd06BA",
+      "pack": "FroggoInLove"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIScGmPfAjuezlu-ndK_p9LmhtIK7fGAAJFFQACK0e5SiPijgABH55xDToE",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISoWmPfBMAAW0ynDGgaBNsmL93KyR32AACyxIAAlhdoEuuRXr_ihbMEToE",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISqWmPfBUAAfLp2WhbMKrGwihQuk2b7gACZxMAAtASoEupxrUphqLKXToE",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAIS6WmPgBHUpWZIEbSawI5fzc5k6naMAAJiAgACVp29Ct9Q2A-8AAEurDoE",
+      "pack": "gldfsh"
+    }
+  ],
+  "🥱": [
+    {
+      "file_id": "CAACAgIAAxkBAAITB2mPgByMSf7u41lfnbvzL3PC0L73AAJoAgACVp29Cl96F8w-AAEUczoE",
+      "pack": "gldfsh"
+    }
+  ],
+  "🥲": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR9WmPdVYqihHVw0R9hjbOD9KzMQzDAAIBEAACO1yJSK4NE1l6Tf0wOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "🥳": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRjWmPbyFk_0Co6gaTK3oQPdYLyjUAA0oCAAJWnb0KyWrGaGAYevA6BA",
+      "pack": "UtyaDuck",
+      "note": "Number 1, popping champagne"
+    }
+  ],
+  "🥴": [
+    {
+      "file_id": "CAACAgIAAxkBAAISzWmPfJfCR5dr13GfblUC1JUFKTl0AAJUAwACtXHaBkKqUvDfaej1OgQ",
+      "pack": "DinDino"
+    }
+  ],
+  "🥵": [
+    {
+      "file_id": "CAACAgIAAxkBAAISZWmPe0M6t4eZc9H4OeAW8WMCwf46AAJxEwACFIGwSJgydYisyuH8OgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "🥶": [
+    {
+      "file_id": "CAACAgIAAxkBAAIR82mPdVBeCj2xZNc6i_WeCXSPllWJAAJPEgACkX9oSay1U4911KckOgQ",
+      "pack": "HaoPup"
+    }
+  ],
+  "🥺": [
+    {
+      "file_id": "CAACAgIAAxkBAAIRp2mPcmsvfwXYyx2f1aIq5T9-nQWzAAJABQACP5XMClXOiLe3IrlzOgQ",
+      "pack": "MrCaterpillar",
+      "note": "pleading face \"puppy dog\""
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISiWmPfA3WS6XH_lIB0CyrU7sV6-lJAAKNEwAC6lJASY0L0T1D2QABejoE",
+      "pack": "StealthMoon"
+    },
+    {
+      "file_id": "CAACAgIAAxkBAAISxWmPfJQ3bhTY02Nnwy-T6WEVFjYJAAJNAwACtXHaBuhKR55mIVfgOgQ",
+      "pack": "DinDino"
+    }
+  ]
+}
