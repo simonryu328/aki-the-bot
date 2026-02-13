@@ -440,19 +440,6 @@ class TelegramBot:
                         logger.info(f"Sent reaction {emoji} to user {metadata['telegram_id']}")
                     except Exception as e:
                         logger.warning(f"Failed to send reaction: {e}")
-            
-            # Send sticker if emoji was generated and has stickers available
-            if emoji and emoji in self.stickers:
-                sticker_options = self.stickers[emoji]
-                if sticker_options:
-                    # Randomly pick one sticker for this emoji
-                    chosen_sticker = random.choice(sticker_options)
-                    file_id = chosen_sticker["file_id"]
-                    try:
-                        await self._send_with_typing(chat_id, sticker=file_id)
-                        logger.info(f"Sent sticker {file_id} ({emoji}) to user {metadata['telegram_id']}")
-                    except Exception as e:
-                        logger.warning(f"Failed to send sticker: {e}")
                     
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -460,9 +447,24 @@ class TelegramBot:
                 "I'm having a bit of trouble right now. "
                 "Could you try again in a moment?"
             ]
+            emoji = None  # Clear emoji on error
 
+        # Send text messages first
         for msg in messages:
             await self._send_with_typing(chat_id, msg)
+        
+        # Send sticker after text messages if emoji was generated and has stickers available
+        if emoji and emoji in self.stickers:
+            sticker_options = self.stickers[emoji]
+            if sticker_options:
+                # Randomly pick one sticker for this emoji
+                chosen_sticker = random.choice(sticker_options)
+                file_id = chosen_sticker["file_id"]
+                try:
+                    await self._send_with_typing(chat_id, sticker=file_id)
+                    logger.info(f"Sent sticker {file_id} ({emoji}) to user {metadata['telegram_id']}")
+                except Exception as e:
+                    logger.warning(f"Failed to send sticker: {e}")
 
     async def handle_photo_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
