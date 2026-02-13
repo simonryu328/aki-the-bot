@@ -134,6 +134,12 @@ class TelegramBot:
             window_seconds=settings.USER_RATE_LIMIT_WINDOW_SECONDS,
         )
         
+        # Reaction counter: track messages until next reaction per user
+        self._reaction_counter: Dict[int, int] = {}
+        
+        # Sticker counter: track messages until next sticker per user
+        self._sticker_counter: Dict[int, int] = {}
+        
         # Load stickers registry
         self.stickers = self._load_stickers()
         
@@ -160,6 +166,88 @@ class TelegramBot:
         except Exception as e:
             logger.warning(f"Failed to load stickers.json: {e}")
             return {}
+    
+    def _should_send_reaction(self, user_id: int) -> bool:
+        """Determine if we should send a reaction for this message.
+        
+        Uses a counter that decrements each message. When counter reaches 0,
+        trigger reaction and reset to a random value between MIN and MAX.
+        
+        Args:
+            user_id: Telegram user ID
+            
+        Returns:
+            True if reaction should be sent, False otherwise
+        """
+        import random
+        
+        # Initialize counter if not exists
+        if user_id not in self._reaction_counter:
+            # Set initial target (random between min and max)
+            target = random.randint(
+                settings.REACTION_MIN_MESSAGES,
+                settings.REACTION_MAX_MESSAGES
+            )
+            self._reaction_counter[user_id] = target
+            logger.debug(f"Initialized reaction counter for user {user_id}: {target} messages")
+        
+        # Decrement counter
+        self._reaction_counter[user_id] -= 1
+        logger.debug(f"Reaction counter for user {user_id}: {self._reaction_counter[user_id]}")
+        
+        # Check if we should trigger
+        if self._reaction_counter[user_id] <= 0:
+            # Reset with new random target
+            target = random.randint(
+                settings.REACTION_MIN_MESSAGES,
+                settings.REACTION_MAX_MESSAGES
+            )
+            self._reaction_counter[user_id] = target
+            logger.info(f"Reaction triggered for user {user_id}, reset counter to {target}")
+            return True
+        
+        return False
+    
+    def _should_send_sticker(self, user_id: int) -> bool:
+        """Determine if we should send a sticker for this message.
+        
+        Uses a counter that decrements each message. When counter reaches 0,
+        trigger sticker and reset to a random value between MIN and MAX.
+        
+        Args:
+            user_id: Telegram user ID
+            
+        Returns:
+            True if sticker should be sent, False otherwise
+        """
+        import random
+        
+        # Initialize counter if not exists
+        if user_id not in self._sticker_counter:
+            # Set initial target (random between min and max)
+            target = random.randint(
+                settings.STICKER_MIN_MESSAGES,
+                settings.STICKER_MAX_MESSAGES
+            )
+            self._sticker_counter[user_id] = target
+            logger.debug(f"Initialized sticker counter for user {user_id}: {target} messages")
+        
+        # Decrement counter
+        self._sticker_counter[user_id] -= 1
+        logger.debug(f"Sticker counter for user {user_id}: {self._sticker_counter[user_id]}")
+        
+        # Check if we should trigger
+        if self._sticker_counter[user_id] <= 0:
+            # Reset with new random target
+            target = random.randint(
+                settings.STICKER_MIN_MESSAGES,
+                settings.STICKER_MAX_MESSAGES
+            )
+            self._sticker_counter[user_id] = target
+            logger.info(f"Sticker triggered for user {user_id}, reset counter to {target}")
+            return True
+        
+        return False
 
     async def _send_long_message(self, chat_id: int, text: str, chunk_size: int = 4000) -> None:
         """Send a long message split across multiple Telegram messages."""
@@ -433,13 +521,19 @@ class TelegramBot:
 
             # Send reaction if emoji was generated and it's a valid Telegram reaction
             if emoji and "last_message" in metadata:
-                # Send reaction if it's in the Telegram reactions set
-                if emoji in self.telegram_reactions:
-                    try:
-                        await metadata["last_message"].set_reaction(emoji)
-                        logger.info(f"Sent reaction {emoji} to user {metadata['telegram_id']}")
-                    except Exception as e:
-                        logger.warning(f"Failed to send reaction: {e}")
+                # Check if we should send a reaction this time (counter-based)
+                if self._should_send_reaction(telegram_id):
+                    # Send reaction if it's in the Telegram reactions set
+                    if emoji in self.telegram_reactions:
+                        try:
+                            await metadata["last_message"].set_reaction(emoji)
+                            logger.info(f"Sent reaction {emoji} to user {metadata['telegram_id']}")
+                        except Exception as e:
+                            logger.warning(f"Failed to send reaction: {e}")
+                    else:
+                        logger.debug(f"Emoji '{emoji}' not in Telegram reactions set, skipping reaction")
+                else:
+                    logger.debug(f"Reaction counter not triggered for user {telegram_id}, skipping reaction")
                     
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -452,43 +546,48 @@ class TelegramBot:
         # Send sticker BEFORE text messages if emoji was generated and has stickers available
         if emoji:
             logger.info(f"Emoji generated: '{emoji}' (type: {type(emoji).__name__}, repr: {repr(emoji)})")
-            logger.info(f"Available sticker emojis: {list(self.stickers.keys())[:10]}...")  # Show first 10
             
-            # Try exact match first
-            sticker_options = None
-            matched_emoji = None
-            
-            if emoji in self.stickers:
-                sticker_options = self.stickers[emoji]
-                matched_emoji = emoji
-                logger.info(f"Found exact match for emoji '{emoji}'")
-            else:
-                # Try without variation selector
-                emoji_stripped = emoji.rstrip('\ufe0f')  # Remove variation selector
-                if emoji_stripped in self.stickers:
-                    sticker_options = self.stickers[emoji_stripped]
-                    matched_emoji = emoji_stripped
-                    logger.info(f"Found match without variation selector: '{emoji_stripped}'")
-                else:
-                    logger.warning(f"No sticker mapping found for emoji '{emoji}' (tried with and without variation selector)")
-            
-            # Send sticker if we found a match
-            if sticker_options and matched_emoji:
-                logger.info(f"Found {len(sticker_options)} sticker options for emoji '{matched_emoji}'")
+            # Check if we should send a sticker this time (counter-based)
+            if self._should_send_sticker(telegram_id):
+                logger.info(f"Available sticker emojis: {list(self.stickers.keys())[:10]}...")  # Show first 10
                 
-                if sticker_options:
-                    # Randomly pick one sticker for this emoji
-                    chosen_sticker = random.choice(sticker_options)
-                    file_id = chosen_sticker["file_id"]
-                    logger.info(f"Attempting to send sticker {file_id} for emoji '{matched_emoji}' to chat {chat_id}")
-                    
-                    try:
-                        await self._send_with_typing(chat_id, sticker=file_id)
-                        logger.info(f"Successfully sent sticker {file_id} ({matched_emoji}) to user {metadata['telegram_id']}")
-                    except Exception as e:
-                        logger.error(f"Failed to send sticker {file_id}: {e}", exc_info=True)
+                # Try exact match first
+                sticker_options = None
+                matched_emoji = None
+                
+                if emoji in self.stickers:
+                    sticker_options = self.stickers[emoji]
+                    matched_emoji = emoji
+                    logger.info(f"Found exact match for emoji '{emoji}'")
                 else:
-                    logger.warning(f"Sticker options list is empty for emoji '{matched_emoji}'")
+                    # Try without variation selector
+                    emoji_stripped = emoji.rstrip('\ufe0f')  # Remove variation selector
+                    if emoji_stripped in self.stickers:
+                        sticker_options = self.stickers[emoji_stripped]
+                        matched_emoji = emoji_stripped
+                        logger.info(f"Found match without variation selector: '{emoji_stripped}'")
+                    else:
+                        logger.warning(f"No sticker mapping found for emoji '{emoji}' (tried with and without variation selector)")
+                
+                # Send sticker if we found a match
+                if sticker_options and matched_emoji:
+                    logger.info(f"Found {len(sticker_options)} sticker options for emoji '{matched_emoji}'")
+                    
+                    if sticker_options:
+                        # Randomly pick one sticker for this emoji
+                        chosen_sticker = random.choice(sticker_options)
+                        file_id = chosen_sticker["file_id"]
+                        logger.info(f"Attempting to send sticker {file_id} for emoji '{matched_emoji}' to chat {chat_id}")
+                        
+                        try:
+                            await self._send_with_typing(chat_id, sticker=file_id)
+                            logger.info(f"Successfully sent sticker {file_id} ({matched_emoji}) to user {metadata['telegram_id']}")
+                        except Exception as e:
+                            logger.error(f"Failed to send sticker {file_id}: {e}", exc_info=True)
+                    else:
+                        logger.warning(f"Sticker options list is empty for emoji '{matched_emoji}'")
+            else:
+                logger.debug(f"Sticker counter not triggered for user {telegram_id}, skipping sticker")
         
         # Send text messages after sticker
         for msg in messages:

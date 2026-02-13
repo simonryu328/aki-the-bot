@@ -29,7 +29,7 @@ Their name is {user_name}.
 
 YOUR TASK:
 
-You're bored. Something they said is bugging you, not because it's deep, just because they never finished the thought
+You're bored. Something they said is bugging you, not because it's deep, just because they never finished the thought.
 
 Scan the RECENT EXCHANGES and CURRENT CONVERSATION above for UNFINISHED threads:
 - They mentioned someone but never explained the situation

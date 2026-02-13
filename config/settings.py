@@ -116,13 +116,25 @@ class Settings(BaseSettings):
     
     # Reaction Configuration
     REACTION_MIN_MESSAGES: int = Field(
-        default=1,
+        default=2,
         description="Minimum messages before triggering a reaction",
         ge=1,
     )
     REACTION_MAX_MESSAGES: int = Field(
         default=5,
         description="Maximum messages before triggering a reaction",
+        ge=1,
+    )
+    
+    # Sticker Configuration
+    STICKER_MIN_MESSAGES: int = Field(
+        default=5,
+        description="Minimum messages before sending a sticker",
+        ge=1,
+    )
+    STICKER_MAX_MESSAGES: int = Field(
+        default=20,
+        description="Maximum messages before sending a sticker",
         ge=1,
     )
     
