@@ -68,6 +68,7 @@ class SoulAgent:
     _last_observation_prompt: Dict[int, str] = {}
     _last_compact_prompt: Dict[int, str] = {}
     _last_profile_context: Dict[int, str] = {}
+    _last_raw_response: Dict[int, str] = {}  # Store raw LLM response before parsing
     _message_count: Dict[int, int] = {}
     _reaction_counter: Dict[int, int] = {}  # Track messages until next reaction
     
@@ -161,6 +162,9 @@ class SoulAgent:
             max_tokens=1000,
         )
         raw_response = llm_response.content
+        
+        # Store raw response for debug
+        SoulAgent._last_raw_response[user_id] = raw_response
         
         # Log raw response
         log_func = logger.info if settings.LOG_RAW_LLM else logger.debug
@@ -806,6 +810,11 @@ class SoulAgent:
     def get_last_system_prompt(cls, user_id: int) -> Optional[str]:
         """Get the last companion system prompt for a user (for debugging)."""
         return cls._last_system_prompt.get(user_id)
+
+    @classmethod
+    def get_last_raw_response(cls, user_id: int) -> Optional[str]:
+        """Get the last raw LLM response for a user (for debugging)."""
+        return cls._last_raw_response.get(user_id)
 
 
 # Singleton instance

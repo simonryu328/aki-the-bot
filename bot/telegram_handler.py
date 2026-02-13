@@ -611,6 +611,20 @@ class TelegramBot:
             logger.error(f"Error in prompt command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
+    async def raw_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Shows the last raw LLM response before parsing."""
+        user = update.effective_user
+        telegram_id = user.id
+        try:
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+            raw_response = SoulAgent.get_last_raw_response(user_id)
+            response = f"🔍 Last raw response:\n\n{raw_response}" if raw_response else "No raw response captured yet."
+            await self._send_long_message(update.effective_chat.id, response)
+        except Exception as e:
+            logger.error(f"Error in raw command: {e}")
+            await update.message.reply_text(f"Error: {e}")
+
     async def reachout_settings_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Shows current reach-out configuration for the user."""
         user = update.effective_user
@@ -963,6 +977,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("prompt", self.prompt_command)
+        )
+        self.application.add_handler(
+            CommandHandler("raw", self.raw_command)
         )
         self.application.add_handler(
             CommandHandler("reachout_settings", self.reachout_settings_command)
