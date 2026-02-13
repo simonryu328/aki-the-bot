@@ -16,6 +16,7 @@ from prompts.proactive import PROACTIVE_MESSAGE_PROMPT
 from prompts.compact import COMPACT_PROMPT
 from prompts.reach_out import REACH_OUT_PROMPT
 from prompts.memory import MEMORY_PROMPT
+from prompts.surface import SURFACE_PROMPT
 
 __all__ = [
     "SYSTEM_FRAME",
@@ -26,4 +27,5 @@ __all__ = [
     "COMPACT_PROMPT",
     "REACH_OUT_PROMPT",
     "MEMORY_PROMPT",
+    "SURFACE_PROMPT",
 ]
