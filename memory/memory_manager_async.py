@@ -17,12 +17,10 @@ from memory.database_async import db
 from core import get_logger, MemoryException, UserNotFoundError
 from schemas import (
     UserSchema,
-    UserCreateSchema,
-    ProfileFactSchema,
-    ConversationSchema,
-    TimelineEventSchema,
     DiaryEntrySchema,
-    ScheduledMessageSchema,
+    DiaryEntryCreateSchema,
+    ConversationSchema,
+    TokenUsageSchema,
     UserContextSchema,
 )
 
@@ -50,8 +48,6 @@ class AsyncMemoryManager:
         
         # In-memory caches (maxsize 100 users, various TTLs)
         self._user_cache = TTLCache(maxsize=100, ttl=300)     # 5 min
-        self._profile_cache = TTLCache(maxsize=100, ttl=300)  # 5 min
-        self._events_cache = TTLCache(maxsize=100, ttl=1800) # 30 min
         
         logger.info("Memory manager initialized with TTL caching")
 
@@ -92,43 +88,38 @@ class AsyncMemoryManager:
 
     async def get_user_context(self, user_id: int) -> UserContextSchema:
         """
-        Get complete user context for AI interaction.
-        Optimized with parallel fetches and caching.
+        Fetch full context for an interaction.
+        Parallelizes fetching of different data types.
         """
         try:
-            # 1. Get user (cached)
-            user = await self.get_user_by_id(user_id)
-            if not user:
-                logger.warning("User not found", user_id=user_id)
-                raise UserNotFoundError(user_id)
-
-            # 2. Fetch other context data in parallel
+            # Multi-fetch using gather for performance
+            # Only user_info, conversations, and diary_entries are remaining
             import asyncio
-            
-            # Fetch tasks
-            profile_task = self.get_user_profile(user_id)
-            events_task = self.get_upcoming_events(user_id, days=7)
-            conv_task = self.db.get_recent_conversations(user_id, limit=20) # History is still fresh
-            
-            profile, events, conversations = await asyncio.gather(
-                profile_task,
-                events_task,
-                conv_task
+            user_info, conversations, diary_entries = await asyncio.gather(
+                self.db.get_user_by_id(user_id),
+                self.db.get_recent_conversations(user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT),
+                self.db.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT),
             )
 
+            if not user_info:
+                raise UserNotFoundError(user_id)
+
+            # Organize diary entries (mostly compact summaries and visual memories)
+            # Profile facts are now gone, we rely on memories/summaries
+
             context = UserContextSchema(
-                user_info=user,
-                profile=profile,
+                user_info=user_info,
+                profile={}, # Keeping empty for schema compatibility if needed, but will likely delete schema field later
                 recent_conversations=conversations,
-                upcoming_events=events,
+                upcoming_events=[], # Keeping empty for schema compatibility
+                diary_entries=diary_entries,
             )
 
             logger.debug(
                 "Retrieved user context",
                 user_id=user_id,
                 conversation_count=len(conversations),
-                event_count=len(events),
-                cached_profile=user_id in self._profile_cache,
+                diary_entry_count=len(diary_entries),
             )
             return context
 
@@ -168,124 +159,7 @@ class AsyncMemoryManager:
             logger.error("Failed to add conversation", user_id=user_id, error=str(e))
             raise MemoryException(f"Failed to add conversation: {e}")
 
-    # ==================== Profile Management ====================
-
-    async def add_profile_fact(
-        self,
-        user_id: int,
-        category: str,
-        key: str,
-        value: str,
-        confidence: float = 1.0,
-    ) -> ProfileFactSchema:
-        """
-        Add or update a profile fact.
-        """
-        try:
-            fact = await self.db.add_profile_fact(user_id, category, key, value, confidence)
-            
-            # Invalidate cache
-            if user_id in self._profile_cache:
-                del self._profile_cache[user_id]
-                
-            logger.info("Added profile fact (cache invalidated)", user_id=user_id, category=category, key=key)
-            return fact
-        except Exception as e:
-            logger.error("Failed to add profile fact", user_id=user_id, error=str(e))
-            raise MemoryException(f"Failed to add profile fact: {e}")
-
-    async def get_user_profile(self, user_id: int) -> Dict[str, Dict[str, str]]:
-        """
-        Get all profile facts for a user with caching.
-        """
-        if user_id in self._profile_cache:
-            return self._profile_cache[user_id]
-            
-        profile = await self.db.get_user_profile(user_id)
-        self._profile_cache[user_id] = profile
-        return profile
-
-    async def get_recent_observations(
-        self, user_id: int, days: int = 7
-    ) -> List[ProfileFactSchema]:
-        """
-        Get recent observations for a user with timestamps.
-
-        Args:
-            user_id: User ID
-            days: Number of days to look back (default 7)
-
-        Returns:
-            List of ProfileFactSchema with observed_at timestamps
-        """
-        return await self.db.get_recent_observations(user_id, days)
-
-    async def get_observations_with_dates(
-        self, user_id: int, limit: int = 100
-    ) -> List[str]:
-        """
-        Get observations formatted with dates for diary/summary generation.
-
-        Args:
-            user_id: User ID
-            limit: Maximum observations to return
-
-        Returns:
-            List of strings like "[2026-02-05] emotions: He's been struggling..."
-        """
-        observations = await self.db.get_all_observations(user_id, limit)
-        tz = pytz.timezone(settings.TIMEZONE)
-        formatted = []
-        for obs in observations:
-            utc_time = obs.observed_at.replace(tzinfo=pytz.utc)
-            local_time = utc_time.astimezone(tz)
-            date_str = local_time.strftime("%Y-%m-%d")
-            formatted.append(f"[{date_str}] {obs.category}: {obs.value}")
-        return formatted
-
-    # ==================== Timeline Events ====================
-
-    async def add_timeline_event(
-        self,
-        user_id: int,
-        event_type: str,
-        title: str,
-        description: Optional[str],
-        datetime_obj: datetime,
-    ) -> TimelineEventSchema:
-        """
-        Add a timeline event with cache invalidation.
-        """
-        try:
-            event = await self.db.add_timeline_event(
-                user_id, event_type, title, description, datetime_obj
-            )
-            
-            # Invalidate cache
-            if user_id in self._events_cache:
-                del self._events_cache[user_id]
-                
-            logger.info("Added timeline event (cache invalidated)", user_id=user_id, title=title)
-            return event
-        except Exception as e:
-            logger.error("Failed to add timeline event", user_id=user_id, error=str(e))
-            raise MemoryException(f"Failed to add timeline event: {e}")
-
-    async def get_upcoming_events(
-        self, user_id: int, days: int = 7
-    ) -> List[TimelineEventSchema]:
-        """
-        Get upcoming events for a user with caching.
-        Note: days is currently hardcoded to 7 in SoulAgent, matching TTL logic.
-        """
-        if user_id in self._events_cache:
-            return self._events_cache[user_id]
-            
-        events = await self.db.get_upcoming_events(user_id, days)
-        self._events_cache[user_id] = events
-        return events
-
-    # ==================== Diary Entries ====================
+    # ==================== Diary Entry Management ====================
 
     async def add_diary_entry(
         self,
@@ -343,87 +217,6 @@ class AsyncMemoryManager:
         """
         return await self.db.get_diary_entries(user_id, limit)
 
-    # ==================== Scheduled Messages ====================
-
-    async def add_scheduled_message(
-        self,
-        user_id: int,
-        scheduled_time: datetime,
-        message_type: str,
-        context: Optional[str] = None,
-        message: Optional[str] = None,
-    ) -> ScheduledMessageSchema:
-        """
-        Add a scheduled message to the intent queue.
-
-        Args:
-            user_id: User ID
-            scheduled_time: When to send the message
-            message_type: Type of message (e.g., "follow_up", "goal_check", "event_reminder")
-            context: Context for generating the message
-            message: Pre-generated message (optional)
-
-        Returns:
-            ScheduledMessageSchema with stored message
-
-        Raises:
-            MemoryException: If storage fails
-        """
-        try:
-            scheduled_msg = await self.db.add_scheduled_message(
-                user_id, scheduled_time, message_type, context, message
-            )
-            logger.info("Scheduled message", user_id=user_id, scheduled_time=scheduled_time.isoformat())
-            return scheduled_msg
-
-        except Exception as e:
-            logger.error("Failed to add scheduled message", user_id=user_id, error=str(e))
-            raise MemoryException(f"Failed to add scheduled message: {e}")
-
-    async def get_pending_scheduled_messages(self) -> List[ScheduledMessageSchema]:
-        """
-        Get all pending scheduled messages that are due.
-
-        Returns:
-            List of ScheduledMessageSchema
-        """
-        return await self.db.get_pending_scheduled_messages()
-
-    async def get_user_scheduled_messages(
-        self, user_id: int, include_executed: bool = False
-    ) -> List[ScheduledMessageSchema]:
-        """
-        Get all scheduled messages for a user (including future ones).
-
-        Args:
-            user_id: User ID
-            include_executed: Whether to include already executed messages
-
-        Returns:
-            List of ScheduledMessageSchema
-        """
-        return await self.db.get_user_scheduled_messages(user_id, include_executed)
-
-    async def clear_scheduled_messages(self, user_id: int) -> int:
-        """
-        Delete all pending scheduled messages for a user.
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            Number of messages deleted
-        """
-        return await self.db.clear_scheduled_messages(user_id)
-
-    async def mark_message_executed(self, message_id: int) -> None:
-        """
-        Mark a scheduled message as executed.
-
-        Args:
-            message_id: Message ID to mark as executed
-        """
-        await self.db.mark_message_executed(message_id)
     # ==================== Reach-Out Management ====================
 
     async def get_all_users(self) -> List[UserSchema]:

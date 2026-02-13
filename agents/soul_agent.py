@@ -29,12 +29,11 @@ from memory.memory_manager_async import memory_manager
 from schemas import ConversationSchema, UserContextSchema, UserSchema
 from core import get_logger
 from prompts import (
-    OBSERVATION_PROMPT,
+    REACTION_PROMPT,
     REFLECTION_PROMPT,
     COMPACT_PROMPT,
     MEMORY_PROMPT,
 )
-from prompts.condensation import CONDENSATION_PROMPT
 from prompts.system_frame import SYSTEM_FRAME
 from prompts.personas import COMPANION_PERSONA
 
@@ -102,29 +101,16 @@ class SoulAgent:
         Args:
             user_id: User ID
             message: What they said
-            context: Their profile and context (includes pre-fetched profile)
-            conversation_history: Recent conversation (pre-fetched, up to 20 messages)
-            user: Pre-fetched user object (optional, will fetch if not provided)
+            context: Their profile and context
+            conversation_history: Recent conversation
+            user: Pre-fetched user object
 
         Returns:
-            SoulResponse with response, thinking, and any observations
+            SoulResponse with response, thinking
         """
-        # Build recent exchanges and observations in parallel
-        conv_context_task = self._build_conversation_context(user_id, conversation_history, user)
-        obs_task = memory_manager.get_observations_with_dates(user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT)
+        # Fetch conversation context
+        recent_exchanges_text, history_text = await self._build_conversation_context(user_id, conversation_history, user)
         
-        (recent_exchanges_text, history_text), observations_with_dates = await asyncio.gather(
-            conv_context_task,
-            obs_task
-        )
-        
-        observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
-        self._observations_cache[user_id] = observations_text
-
-        # Use cached profile string (implemented as part of _build_profile_context update if needed, 
-        # but here we inline the check for visibility as requested in Phase 4.2)
-        profile_text = self._build_profile_context(context)
-
         # Build time context
         now = datetime.now(pytz.timezone(settings.TIMEZONE))
         current_time = now.strftime("%A, %B %d at %I:%M %p")
@@ -141,23 +127,21 @@ class SoulAgent:
         # Assemble system prompt from frame + persona
         from prompts.system_frame import SYSTEM_STATIC, SYSTEM_DYNAMIC
         
-        # 1. Static part (Persona + Format) - Ideal for caching
+        # 1. Static part (Persona + Format)
         static_text = SYSTEM_STATIC.format(persona=self.persona)
         
-        # 2. Dynamic part (Time, Observations, History)
+        # 2. Dynamic part (Time, History)
         dynamic_text = SYSTEM_DYNAMIC.format(
-            observations=observations_text,
             current_time=current_time,
             time_context=time_context,
             recent_exchanges=recent_exchanges_text,
             conversation_history=history_text,
         )
         
-        # Update debug context (join for display)
+        # Update debug context
         SoulAgent._last_system_prompt[user_id] = static_text + dynamic_text
 
         # Create list-based system prompt for caching support
-        # We put the cache_control at the end of the static block
         system_prompt_blocks = [
             {
                 "type": "text",
@@ -179,71 +163,32 @@ class SoulAgent:
         )
         raw_response = llm_response.content
         
-        # Log raw response before parsing for debugging
+        # Log raw response
         log_func = logger.info if settings.LOG_RAW_LLM else logger.debug
         log_func(
-            "Raw response before parsing",
+            "Raw response",
             user_id=user_id,
-            raw_length=len(raw_response),
-            raw_response=raw_response,
             tokens_used=llm_response.total_tokens,
         )
 
         # Parse thinking, response, messages, and emoji
         thinking, response, messages, emoji = self._parse_response(raw_response)
         
-        # Log parsed result
-        logger.info(
-            "Parsed response",
-            user_id=user_id,
-            thinking_length=len(thinking) if thinking else 0,
-            response_length=len(response),
-            message_count=len(messages),
-            has_emoji=bool(emoji),
-        )
-
         # Store thinking for debug
         SoulAgent._last_thinking[user_id] = thinking or "(no thinking captured)"
 
         # Determine if we should trigger reaction this time
         should_react = self._should_trigger_reaction(user_id)
 
-        logger.debug(
-            "Companion response generated",
-            user_id=user_id,
-            has_thinking=bool(thinking),
-            response_length=len(response),
-            message_count=len(messages),
-            emoji=emoji,
-            should_react=should_react,
-        )
-
         result = SoulResponse(
             response=response,
             messages=messages,
             thinking=thinking,
-            emoji=emoji if should_react else None,  # Only include emoji if we should react
-            usage=llm_response,  # Pass token usage through
+            emoji=emoji if should_react else None,
+            usage=llm_response,
         )
 
-        # Background: Check if anything significant should be remembered
-        # Only run every N exchanges to avoid excessive LLM calls
-        # DISABLED: Observation agent trigger
-        # SoulAgent._message_count[user_id] = SoulAgent._message_count.get(user_id, 0) + 1
-        # if SoulAgent._message_count[user_id] >= settings.OBSERVATION_INTERVAL:
-        #     SoulAgent._message_count[user_id] = 0
-        #     asyncio.create_task(
-        #         self._maybe_store_observations(
-        #             user_id=user_id,
-        #             profile_context=profile_context,
-        #             user_message=message,
-        #             assistant_response=response,
-        #             thinking=thinking or "",
-        #         )
-        #     )
-
-        # Background: Create compact summary of exchanges (database-based trigger)
-        # Pass the already-fetched conversation history to avoid re-querying
+        # Background: Create compact summary logic
         asyncio.create_task(
             self._maybe_create_compact_summary(
                 user_id=user_id,
@@ -253,50 +198,6 @@ class SoulAgent:
 
         return result
 
-    def _build_profile_context(self, context: UserContextSchema) -> str:
-        """Build profile context from static facts and condensed narratives with caching."""
-        user_id = context.user_info.id
-        
-        # Return cached string if available
-        if user_id in self._profile_string_cache:
-            return self._profile_string_cache[user_id]
-            
-        parts = []
-
-        # Name
-        if context.user_info.name:
-            parts.append(f"Their name is {context.user_info.name}.")
-
-        if not context.profile:
-            return "(You're just getting to know them. This is early in the story.)"
-
-        # Static biographical facts
-        if "static" in context.profile:
-            for value in context.profile["static"].values():
-                parts.append(f"- {value}")
-
-        # Check for condensed narratives
-        if "condensed" in context.profile:
-            parts.append("")
-            parts.append("YOUR UNDERSTANDING OF THEM:")
-            for category, narrative in context.profile["condensed"].items():
-                parts.append(f"[{category}] {narrative}")
-        else:
-            # Fall back to raw observations (pre-condensation)
-            for category, facts in context.profile.items():
-                if category in ("system", "static", "condensed"):
-                    continue
-                if facts:
-                    for value in facts.values():
-                        parts.append(f"- {value}")
-
-        if not parts:
-            result = "(You're just getting to know them. This is early in the story.)"
-        else:
-            result = "\n".join(parts)
-            
-        self._profile_string_cache[user_id] = result
-        return result
     async def _build_conversation_context(
         self,
         user_id: int,
@@ -603,155 +504,6 @@ class SoulAgent:
 
         return target.replace(tzinfo=None)
 
-    async def _maybe_store_observations(
-        self,
-        user_id: int,
-        profile_context: str,
-        user_message: str,
-        assistant_response: str,
-        thinking: str,
-    ) -> None:
-        """Check if anything significant should be stored or followed up on."""
-        logger.info("Running observation agent", user_id=user_id, user_message=user_message[:50])
-        try:
-            # Get current time for the observation prompt
-            tz = pytz.timezone(settings.TIMEZONE)
-            now = datetime.now(tz)
-            current_time = now.strftime("%Y-%m-%d %H:%M (%A)")
-
-            # Get pending follow-ups so LLM knows what's already scheduled
-            pending = await self.memory.get_user_scheduled_messages(user_id)
-            if pending:
-                pending_lines = []
-                for msg in pending:
-                    scheduled = msg.scheduled_time.strftime("%Y-%m-%d %H:%M")
-                    pending_lines.append(f"- {scheduled}: {msg.context}")
-                pending_followups = "\n".join(pending_lines)
-            else:
-                pending_followups = "(none)"
-
-            # Get recent conversation for context
-            recent_convos = await self.memory.db.get_recent_conversations(
-                user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
-            )
-            if recent_convos:
-                convo_lines = []
-                for conv in recent_convos:
-                    role = "Them" if conv.role == "user" else "You"
-                    if conv.timestamp:
-                        utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
-                        local_time = utc_time.astimezone(tz)
-                        ts = local_time.strftime("%Y-%m-%d %H:%M")
-                    else:
-                        ts = ""
-                    convo_lines.append(f"[{ts}] {role}: {conv.message}")
-                recent_conversation = "\n".join(convo_lines)
-            else:
-                recent_conversation = "(No prior conversation)"
-
-            prompt = OBSERVATION_PROMPT.format(
-                current_time=current_time,
-                profile_context=profile_context,
-                pending_followups=pending_followups,
-                recent_conversation=recent_conversation,
-                user_message=user_message,
-                assistant_response=assistant_response,
-                thinking=thinking,
-            )
-            SoulAgent._last_observation_prompt[user_id] = prompt
-
-            result = await llm_client.chat(
-                model=settings.MODEL_OBSERVATION,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=500,
-            )
-
-            # Log the raw observation result for debugging at DEBUG level
-            logger.debug(
-                "Observation agent raw result", 
-                user_id=user_id, 
-                result=result[:200]
-            )
-
-            if "NOTHING_SIGNIFICANT" in result:
-                logger.info("No significant observations from this exchange", user_id=user_id)
-                return
-
-            # Parse observations and follow-ups
-            for line in result.strip().split("\n"):
-                line = line.strip()
-
-                if line.startswith("OBSERVATION:"):
-                    try:
-                        content = line.replace("OBSERVATION:", "").strip()
-                        parts = content.split("|", 1)
-                        if len(parts) == 2:
-                            category = parts[0].strip()
-                            observation = parts[1].strip()
-
-                            # Use hash as key to avoid truncation issues
-                            obs_hash = hashlib.md5(observation.encode()).hexdigest()[:8]
-                            await self.memory.add_profile_fact(
-                                user_id=user_id,
-                                category=category,
-                                key=obs_hash,
-                                value=observation,
-                                confidence=0.8,
-                            )
-                            logger.info(
-                                "Stored observation",
-                                user_id=user_id,
-                                category=category,
-                                observation=observation[:50],
-                            )
-                    except Exception as e:
-                        logger.warning("Failed to parse observation line", line=line, error=str(e))
-
-                elif line.startswith("FOLLOW_UP:"):
-                    try:
-                        content = line.replace("FOLLOW_UP:", "").strip()
-                        parts = content.split("|")
-                        if len(parts) >= 3:
-                            when = parts[0].strip()
-                            topic = parts[1].strip()
-                            context = parts[2].strip()
-
-                            scheduled_time = self._parse_when_to_datetime(when)
-
-                            # Store as scheduled message with raw observation format
-                            raw_line = f"FOLLOW_UP: {when} | {topic} | {context}"
-                            await self.memory.add_scheduled_message(
-                                user_id=user_id,
-                                scheduled_time=scheduled_time,
-                                message_type="follow_up",
-                                context=f"{topic}: {context}",
-                                message=raw_line,  # Store raw observation output
-                            )
-                            logger.info(
-                                "Scheduled follow-up",
-                                user_id=user_id,
-                                topic=topic,
-                                scheduled_time=scheduled_time.isoformat(),
-                            )
-                    except Exception as e:
-                        logger.warning("Failed to parse follow-up line", line=line, error=str(e))
-
-            # Trigger condensation if enough raw observations and not yet condensed
-            try:
-                obs_count = await self.memory.db.get_observation_count(user_id)
-                if obs_count >= settings.CONDENSATION_THRESHOLD:
-                    profile = await self.memory.get_user_profile(user_id)
-                    if "condensed" not in profile:
-                        user = await self.memory.get_user_by_id(user_id)
-                        user_name = user.name if user and user.name else "them"
-                        logger.info("Triggering auto-condensation", user_id=user_id, obs_count=obs_count)
-                        await self.compact_observations(user_id, user_name)
-            except Exception as e:
-                logger.error("Failed to check/run condensation", user_id=user_id, error=str(e))
-
-        except Exception as e:
-            logger.error("Failed to process observations", user_id=user_id, error=str(e))
     async def _maybe_create_compact_summary(
         self,
         user_id: int,
@@ -1045,155 +797,6 @@ class SoulAgent:
             logger.error("Failed to create compact summary", user_id=user_id, error=str(e))
 
 
-    async def generate_reflection(
-        self,
-        user_id: int,
-        user_name: str,
-        recent_observations: List[str],
-        recent_conversations: str = "",
-    ) -> Optional[str]:
-        """
-        Generate a reflection message for the user.
-
-        Args:
-            user_id: User ID
-            user_name: User's name
-            recent_observations: List of recent observations with timestamps
-            recent_conversations: Formatted recent conversation history
-
-        Returns:
-            The reflection message, or None if generation fails
-        """
-        try:
-            # Format observations
-            observations_text = "\n".join(f"- {obs}" for obs in recent_observations)
-            if not observations_text:
-                observations_text = "(Nothing specific noted yet)"
-
-            prompt = REFLECTION_PROMPT.format(
-                name=user_name,
-                recent_conversations=recent_conversations,
-                recent_observations=observations_text,
-            )
-
-            reflection = await llm_client.chat(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You're texting a friend. Keep it short and real. No therapy-speak."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.8,
-                max_tokens=300,  # Keep it short
-            )
-
-            # Strip quotes if LLM wrapped the response in them
-            reflection = reflection.strip().strip('"').strip("'")
-            logger.info("Generated reflection", user_id=user_id, length=len(reflection))
-            return reflection
-
-        except Exception as e:
-            logger.error("Failed to generate reflection", user_id=user_id, error=str(e))
-            return None
-
-    async def compact_observations(self, user_id: int, user_name: str) -> dict:
-        """Condense raw observations into persona-driven narratives per category.
-
-        Args:
-            user_id: User ID
-            user_name: User's name for the condensation prompt
-
-        Returns:
-            Dict of {category: condensed_narrative}
-        """
-        try:
-            # Fetch all observations
-            all_obs = await self.memory.db.get_all_observations(user_id, limit=1000)
-            if not all_obs:
-                return {}
-
-            # Group by category
-            grouped = defaultdict(list)
-            for obs in all_obs:
-                grouped[obs.category].append(obs)
-
-            # Extract static facts for context
-            static_lines = []
-            if "static" in grouped:
-                for obs in grouped["static"]:
-                    if ":" in obs.value:
-                        key, value = obs.value.split(":", 1)
-                        static_lines.append(f"{key.strip().capitalize()}: {value.strip()}")
-                    else:
-                        static_lines.append(obs.value)
-
-            static_context = "\n".join(static_lines) if static_lines else "(Still learning about them)"
-
-            # Persona voice for condensation
-            persona_name = "their companion"
-            persona_description = (
-                "Someone who is genuinely here, genuinely curious, genuinely present. "
-                "You write like a caring friend keeping a journal — natural, warm, observant."
-            )
-
-            # Condense each dynamic category
-            tz = pytz.timezone(settings.TIMEZONE)
-            condensed = {}
-            categories_to_condense = [
-                c for c in grouped.keys()
-                if c not in ("static", "condensed", "system")
-            ]
-
-            for category in categories_to_condense:
-                observations = grouped[category]
-
-                # Format observations with timestamps
-                timestamped = []
-                for obs in observations:
-                    utc_time = obs.observed_at.replace(tzinfo=pytz.utc)
-                    local_time = utc_time.astimezone(tz)
-                    date_str = local_time.strftime("%Y-%m-%d")
-                    timestamped.append(f"[{date_str}] {obs.value}")
-
-                prompt = CONDENSATION_PROMPT.format(
-                    persona_name=persona_name,
-                    persona_description=persona_description,
-                    user_name=user_name,
-                    static_context=static_context,
-                    category=category,
-                    timestamped_observations="\n".join(timestamped),
-                )
-
-                result = await llm_client.chat(
-                    model=settings.MODEL_SUMMARY,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.5,
-                    max_tokens=300,
-                )
-
-                condensed[category] = result.strip()
-
-                # Store as condensed profile fact (overwrites previous)
-                await self.memory.add_profile_fact(
-                    user_id=user_id,
-                    category="condensed",
-                    key=category,
-                    value=result.strip(),
-                    confidence=1.0,
-                )
-
-                logger.info(
-                    "Condensed observations",
-                    user_id=user_id,
-                    category=category,
-                    raw_count=len(observations),
-                    condensed_length=len(result.strip()),
-                )
-
-            return condensed
-
-        except Exception as e:
-            logger.error("Failed to compact observations", user_id=user_id, error=str(e))
-            return {}
 
     @classmethod
     def get_last_thinking(cls, user_id: int) -> Optional[str]:
@@ -1204,16 +807,6 @@ class SoulAgent:
     def get_last_system_prompt(cls, user_id: int) -> Optional[str]:
         """Get the last companion system prompt for a user (for debugging)."""
         return cls._last_system_prompt.get(user_id)
-
-    @classmethod
-    def get_last_observation_prompt(cls, user_id: int) -> Optional[str]:
-        """Get the last observation prompt for a user (for debugging)."""
-        return cls._last_observation_prompt.get(user_id)
-
-    @classmethod
-    def get_last_profile_context(cls, user_id: int) -> Optional[str]:
-        """Get the last profile context for a user (for debugging)."""
-        return cls._last_profile_context.get(user_id)
 
 
 # Singleton instance

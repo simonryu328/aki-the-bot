@@ -64,10 +64,6 @@ class Settings(BaseSettings):
         default="gpt-4o",
         description="Model for main conversation responses",
     )
-    MODEL_OBSERVATION: str = Field(
-        default="gpt-4o",
-        description="Model for observation/memory extraction",
-    )
     MODEL_PROACTIVE: str = Field(
         default="gpt-4o",
         description="Model for proactive/scheduled messages",
@@ -158,15 +154,6 @@ class Settings(BaseSettings):
         le=10,
     )
     
-    # ==================== Observation and Compact Configuration ====================
-    # These settings control when the AI creates summaries and observations
-    
-    OBSERVATION_INTERVAL: int = Field(
-        default=10,
-        description="Number of exchanges before triggering observation agent (currently disabled). "
-                    "Observations extract facts about the user from conversations.",
-        ge=1,
-    )
     
     COMPACT_INTERVAL: int = Field(
         default=10,
@@ -188,12 +175,6 @@ class Settings(BaseSettings):
         ge=1,
     )
     
-    CONDENSATION_THRESHOLD: int = Field(
-        default=50,
-        description="Number of raw observations before triggering auto-condensation. "
-                    "Condensation converts raw observations into narrative form (legacy feature).",
-        ge=1,
-    )
     
     # ==================== Database Fetch Limits ====================
     # These settings control how many records to fetch from the database
@@ -207,14 +188,6 @@ class Settings(BaseSettings):
         le=50,
     )
     
-    OBSERVATION_DISPLAY_LIMIT: int = Field(
-        default=20,
-        description="Number of observations to display in context. "
-                    "Used in: soul_agent._build_profile_context() when showing raw observations. "
-                    "Note: Observations are currently disabled in favor of compact summaries.",
-        ge=10,
-        le=100,
-    )
     
     # Message Splitting Configuration
     AUTO_SPLIT_THRESHOLD: int = Field(

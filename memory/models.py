@@ -40,11 +40,8 @@ class User(Base):
     # Onboarding state (null = completed, 'awaiting_name' = waiting for name choice)
     onboarding_state = Column(String(50), nullable=True)
     
-    # User preferences and location
+    # User preferences
     timezone = Column(String(100), default="America/Toronto", nullable=False)  # IANA timezone
-    location_latitude = Column(Float, nullable=True)  # User's location latitude
-    location_longitude = Column(Float, nullable=True)  # User's location longitude
-    location_name = Column(String(255), nullable=True)  # Human-readable location name
     
     # Reach-out configuration (per user)
     reach_out_enabled = Column(Boolean, default=True, nullable=False)
@@ -53,59 +50,11 @@ class User(Base):
     last_reach_out_at = Column(DateTime, nullable=True)
 
     # Relationships
-    profile_facts = relationship("ProfileFact", back_populates="user", cascade="all, delete-orphan")
-    timeline_events = relationship("TimelineEvent", back_populates="user", cascade="all, delete-orphan")
     diary_entries = relationship("DiaryEntry", back_populates="user", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
-    scheduled_messages = relationship("ScheduledMessage", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, name='{self.name}')>"
-
-
-class ProfileFact(Base):
-    """Profile facts - stores observations about the user."""
-
-    __tablename__ = "profile_facts"
-    __table_args__ = (
-        Index("idx_profile_facts_user_category", "user_id", "category"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    category = Column(String(100), nullable=False, index=True)  # e.g., "emotions", "patterns", "relationships"
-    key = Column(String(255), nullable=False)  # hash of content for dedup
-    value = Column(Text, nullable=False)  # the observation itself
-    confidence = Column(Float, default=1.0)  # 0.0 to 1.0
-    observed_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)  # when this was first observed
-    updated_at = Column(DateTime, default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow(), nullable=False)
-
-    # Relationships
-    user = relationship("User", back_populates="profile_facts")
-
-    def __repr__(self):
-        return f"<ProfileFact(user_id={self.user_id}, category='{self.category}', key='{self.key}')>"
-
-
-class TimelineEvent(Base):
-    """Timeline events - upcoming or recurring events in the user's life."""
-
-    __tablename__ = "timeline_events"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    event_type = Column(String(100), nullable=False)  # e.g., "meeting", "appointment", "deadline", "recurring"
-    title = Column(String(500), nullable=False)
-    description = Column(Text, nullable=True)
-    datetime = Column(DateTime, nullable=False, index=True)
-    reminded = Column(Boolean, default=False)  # Has the user been reminded about this?
-    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
-
-    # Relationships
-    user = relationship("User", back_populates="timeline_events")
-
-    def __repr__(self):
-        return f"<TimelineEvent(user_id={self.user_id}, title='{self.title}', datetime={self.datetime})>"
 
 
 class DiaryEntry(Base):
@@ -151,27 +100,6 @@ class Conversation(Base):
 
     def __repr__(self):
         return f"<Conversation(user_id={self.user_id}, role='{self.role}', timestamp={self.timestamp})>"
-
-
-class ScheduledMessage(Base):
-    """Scheduled messages - the intent queue for proactive messaging."""
-
-    __tablename__ = "scheduled_messages"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    scheduled_time = Column(DateTime, nullable=False, index=True)
-    message_type = Column(String(100), nullable=False)  # e.g., "follow_up", "goal_check", "event_reminder"
-    context = Column(Text, nullable=True)  # JSON or text context for generating the message
-    message = Column(Text, nullable=True)  # Pre-generated message (optional)
-    executed = Column(Boolean, default=False, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
-
-    # Relationships
-    user = relationship("User", back_populates="scheduled_messages")
-
-    def __repr__(self):
-        return f"<ScheduledMessage(user_id={self.user_id}, scheduled_time={self.scheduled_time}, executed={self.executed})>"
 
 
 class TokenUsage(Base):

@@ -6,7 +6,7 @@ Also runs the proactive messaging scheduler.
 
 import asyncio
 import logging
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 from collections import deque
 import pytz
@@ -25,7 +25,7 @@ from agents import orchestrator
 from agents.soul_agent import SoulAgent
 from memory.memory_manager_async import memory_manager
 from utils.llm_client import llm_client
-from prompts import PROACTIVE_MESSAGE_PROMPT, REACH_OUT_PROMPT
+from prompts import REACH_OUT_PROMPT
 
 # Configure logging
 logging.basicConfig(
@@ -462,27 +462,12 @@ class TelegramBot:
 
             # Clear all user data
             async with memory_manager.db.get_session() as session:
-                from memory.models import (
-                    Conversation, ProfileFact, ScheduledMessage,
-                    TimelineEvent, DiaryEntry
-                )
+                from memory.models import Conversation, DiaryEntry
                 from sqlalchemy import delete
 
                 # Delete conversations
                 await session.execute(
                     delete(Conversation).where(Conversation.user_id == user_id)
-                )
-                # Delete profile facts (includes onboarding_complete)
-                await session.execute(
-                    delete(ProfileFact).where(ProfileFact.user_id == user_id)
-                )
-                # Delete scheduled messages
-                await session.execute(
-                    delete(ScheduledMessage).where(ScheduledMessage.user_id == user_id)
-                )
-                # Delete timeline events
-                await session.execute(
-                    delete(TimelineEvent).where(TimelineEvent.user_id == user_id)
                 )
                 # Delete diary entries
                 await session.execute(
@@ -500,426 +485,64 @@ class TelegramBot:
             await update.message.reply_text("Failed to reset. Please try again.")
 
     async def debug_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /debug command.
-        Shows current user state for debugging.
-        """
+        """Handle the /debug command. Shows current user state."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
-
-            # Get profile
-            profile = await memory_manager.get_user_profile(user_id)
-
-            # Get conversation count
-            conversations = await memory_manager.db.get_recent_conversations(user_id, limit=1000)
-            conv_count = len(conversations)
-
-            # Check onboarding status
-            system = profile.get("system", {})
-            onboarded = system.get("onboarding_complete", "false")
-
-            # Count profile facts
-            fact_count = sum(len(facts) for cat, facts in profile.items() if cat != "system")
-
+            conv_count = await memory_manager.db.get_conversation_count(user_id)
+            diary_count = await memory_manager.db.get_diary_count(user_id)
+            
             response = (
                 f"🔧 Debug Info\n\n"
                 f"User ID: {user_id}\n"
                 f"Telegram ID: {telegram_id}\n"
-                f"Onboarded: {onboarded}\n"
                 f"Conversations: {conv_count}\n"
-                f"Profile facts: {fact_count}\n\n"
-                f"Use /observations to see what I've learned about you.\n"
-                f"Use /scheduled to see pending follow-ups."
+                f"Diary entries: {diary_count}\n"
             )
-
-            # Telegram has 4096 char limit
-            if len(response) > 4000:
-                response = response[:4000] + "\n\n... (truncated)"
-
             await update.message.reply_text(response)
-
         except Exception as e:
             logger.error(f"Error in debug command: {e}")
             await update.message.reply_text(f"Debug error: {e}")
 
     async def thinking_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /thinking command.
-        Shows the companion's last internal reflection for debugging.
-        """
+        """Shows the companion's last internal reflection for debugging."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
-
             thinking = SoulAgent.get_last_thinking(user_id)
-
-            if thinking:
-                response = f"🧠 Last internal reflection:\n\n{thinking}"
-            else:
-                response = "No thinking captured yet. Send a message first."
-
+            response = f"🧠 Last internal reflection:\n\n{thinking}" if thinking else "No thinking captured yet."
             await update.message.reply_text(response)
-
         except Exception as e:
             logger.error(f"Error in thinking command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
     async def prompt_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /prompt command.
-        Shows the last companion system prompt sent to the LLM.
-        """
+        """Shows the last companion system prompt sent to the LLM."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
-
             prompt = SoulAgent.get_last_system_prompt(user_id)
-
-            if prompt:
-                response = f"📋 Last companion prompt:\n\n{prompt}"
-            else:
-                response = "No prompt captured yet. Send a message first."
-
+            response = f"📋 Last companion prompt:\n\n{prompt}" if prompt else "No prompt captured yet."
             await self._send_long_message(update.effective_chat.id, response)
-
         except Exception as e:
             logger.error(f"Error in prompt command: {e}")
             await update.message.reply_text(f"Error: {e}")
 
-    async def observationprompt_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /observationprompt command.
-        Shows the last observation prompt sent to the LLM.
-        """
-        user = update.effective_user
-        telegram_id = user.id
-
-        try:
-            db_user = await memory_manager.get_or_create_user(telegram_id)
-            user_id = db_user.id
-
-            prompt = SoulAgent.get_last_observation_prompt(user_id)
-
-            if prompt:
-                response = f"📋 Last observation prompt:\n\n{prompt}"
-            else:
-                response = "No observation prompt captured yet. Send a message first."
-
-            await self._send_long_message(update.effective_chat.id, response)
-
-        except Exception as e:
-            logger.error(f"Error in observationprompt command: {e}")
-            await update.message.reply_text(f"Error: {e}")
-
-    async def profile_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /profile command.
-        Shows the profile context string as the LLM sees it.
-        """
-        user = update.effective_user
-        telegram_id = user.id
-
-        try:
-            db_user = await memory_manager.get_or_create_user(telegram_id)
-            user_id = db_user.id
-
-            profile = SoulAgent.get_last_profile_context(user_id)
-
-            if profile:
-                response = f"👤 Profile context (what the LLM sees):\n\n{profile}"
-            else:
-                response = "No profile context captured yet. Send a message first."
-
-            await self._send_long_message(update.effective_chat.id, response)
-
-        except Exception as e:
-            logger.error(f"Error in profile command: {e}")
-            await update.message.reply_text(f"Error: {e}")
-
-    async def observations_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /observations command.
-        Shows recent profile observations with timestamps.
-        """
-        user = update.effective_user
-        telegram_id = user.id
-
-        try:
-            db_user = await memory_manager.get_or_create_user(telegram_id)
-            user_id = db_user.id
-
-            # Get observations with dates
-            observations = await memory_manager.get_observations_with_dates(user_id, limit=50)
-
-            if not observations:
-                await update.message.reply_text("No observations stored yet.")
-                return
-
-            # Group by category for display
-            by_category = {}
-            for obs in observations:
-                # Format: "[2026-02-05] emotions: He's been struggling..."
-                parts = obs.split("] ", 1)
-                if len(parts) == 2:
-                    date_str = parts[0][1:]  # Remove leading [
-                    rest = parts[1]
-                    cat_parts = rest.split(": ", 1)
-                    if len(cat_parts) == 2:
-                        category = cat_parts[0]
-                        value = cat_parts[1]
-                        if category not in by_category:
-                            by_category[category] = []
-                        by_category[category].append(f"[{date_str}] {value}")
-
-            lines = ["🧠 Observations (with timestamps):\n"]
-            for category, items in by_category.items():
-                if category == "system":
-                    continue
-                lines.append(f"\n**{category}**:")
-                for item in items[-10:]:  # Last 10 per category
-                    display_val = item[:200] + "..." if len(item) > 200 else item
-                    lines.append(f"  • {display_val}")
-
-            response = "\n".join(lines)
-            if len(response) > 4000:
-                response = response[:4000] + "\n\n... (truncated)"
-
-            await update.message.reply_text(response)
-
-        except Exception as e:
-            logger.error(f"Error in observations command: {e}")
-            await update.message.reply_text(f"Error: {e}")
-
-    async def scheduled_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /scheduled command.
-        Shows all scheduled messages (including future ones) for debugging.
-        """
-        user = update.effective_user
-        telegram_id = user.id
-
-        try:
-            db_user = await memory_manager.get_or_create_user(telegram_id)
-            user_id = db_user.id
-
-            # Get ALL scheduled messages for this user (not just due ones)
-            user_scheduled = await memory_manager.get_user_scheduled_messages(user_id)
-
-            if not user_scheduled:
-                await update.message.reply_text("No scheduled messages for you.")
-                return
-
-            tz = pytz.timezone(settings.TIMEZONE)
-            now = datetime.now(tz)
-
-            lines = ["📅 Scheduled messages:\n"]
-            for msg in user_scheduled:
-                # Make scheduled_time timezone-aware if it isn't
-                scheduled = msg.scheduled_time
-                if scheduled.tzinfo is None:
-                    scheduled = tz.localize(scheduled)
-
-                time_str = scheduled.strftime("%b %d, %I:%M %p")
-                # Show if it's due or upcoming
-                if scheduled <= now:
-                    status = "⏰ DUE"
-                else:
-                    status = "⏳"
-
-                # Show context and raw observation output if available
-                context_str = msg.context or msg.message_type
-                lines.append(f"{status} {time_str}: {context_str}")
-
-                # Show raw observation output for debugging
-                if msg.message:
-                    lines.append(f"   └─ Raw: {msg.message}")
-
-            await update.message.reply_text("\n".join(lines))
-
-        except Exception as e:
-            logger.error(f"Error in scheduled command: {e}")
-            await update.message.reply_text(f"Error: {e}")
-
-    async def clearscheduled_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /clearscheduled command.
-        Clears all pending scheduled messages for the user (debugging).
-        """
-        user = update.effective_user
-        telegram_id = user.id
-
-        try:
-            db_user = await memory_manager.get_or_create_user(telegram_id)
-            user_id = db_user.id
-
-            count = await memory_manager.clear_scheduled_messages(user_id)
-            await update.message.reply_text(f"🗑️ Cleared {count} scheduled message(s).")
-
-        except Exception as e:
-            logger.error(f"Error in clearscheduled command: {e}")
-            await update.message.reply_text(f"Error: {e}")
-
-    async def reflect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /reflect command.
-        Generates a fresh thoughtful message based on recent conversations and observations.
-        """
-        user = update.effective_user
-        telegram_id = user.id
-
-        try:
-            db_user = await memory_manager.get_or_create_user(telegram_id)
-            user_id = db_user.id
-            user_name = db_user.name or user.first_name or "friend"
-
-            # Show thinking indicator
-            await update.message.reply_text("💭")
-
-            # Get recent conversations
-            recent_convos = await memory_manager.db.get_recent_conversations(user_id, limit=30)
-
-            # Format conversations with timestamps (convert UTC to local)
-            tz = pytz.timezone(settings.TIMEZONE)
-            convo_lines = []
-            for conv in recent_convos:
-                role = user_name if conv.role == "user" else "Aki"
-                if conv.timestamp:
-                    utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
-                    local_time = utc_time.astimezone(tz)
-                    ts = local_time.strftime("%H:%M")
-                else:
-                    ts = ""
-                convo_lines.append(f"[{ts}] {role}: {conv.message}")
-            conversations_text = "\n".join(convo_lines) if convo_lines else "(No recent conversations)"
-
-            # Get recent observations
-            observations = await memory_manager.get_observations_with_dates(user_id, limit=50)
-
-            if not observations and not convo_lines:
-                await update.message.reply_text(
-                    "we haven't talked enough yet for me to have something to say here. let's chat more first"
-                )
-                return
-
-            # Generate fresh reflection
-            from agents.soul_agent import soul_agent
-            reflection_content = await soul_agent.generate_reflection(
-                user_id=user_id,
-                user_name=user_name,
-                recent_observations=observations[-15:],  # Last 15 observations
-                recent_conversations=conversations_text,
-            )
-
-            if reflection_content:
-                await update.message.reply_text(reflection_content)
-            else:
-                await update.message.reply_text(
-                    "hmm, couldn't quite gather my thoughts. try again?"
-                )
-
-        except Exception as e:
-            logger.error(f"Error in reflect command: {e}")
-            await update.message.reply_text(f"Error: {e}")
-    async def compact_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /compact command.
-        Manually triggers compact summarization and shows the full raw output.
-        """
-        user = update.effective_user
-        telegram_id = user.id
-
-        try:
-            db_user = await memory_manager.get_or_create_user(telegram_id)
-            user_id = db_user.id
-
-            # Show thinking indicator
-            await update.message.reply_text("📝 Creating compact summary...")
-
-            # Get user context
-            user_context = await memory_manager.get_user_context(user_id)
-            
-            # Build profile context (same as respond() does)
-            from agents.soul_agent import soul_agent
-            profile_context = soul_agent._build_profile_context(user_context)
-
-            # Get recent conversations to check if there's anything to summarize
-            recent_convos = await memory_manager.db.get_recent_conversations(user_id, limit=20)
-            
-            if not recent_convos:
-                await update.message.reply_text("No recent conversations to summarize.")
-                return
-
-            # Run compact summarization
-            await soul_agent._create_compact_summary(
-                user_id=user_id,
-                profile_context=profile_context,
-            )
-
-            # Get the compact prompt that was used
-            compact_prompt = soul_agent._last_compact_prompt.get(user_id, "")
-
-            # Get the most recent diary entry (should be the compact summary)
-            diary_entries = await memory_manager.get_diary_entries(user_id, limit=5)
-            
-            compact_summary = None
-            for entry in diary_entries:
-                if entry.entry_type == "compact_summary":
-                    compact_summary = entry
-                    break
-
-            if compact_summary:
-                # Send the full raw output (non-truncated)
-                response_parts = [
-                    "✅ Compact Summary Generated\n",
-                    "=" * 40,
-                    "\nRAW OUTPUT:",
-                    compact_summary.content,
-                    "\n" + "=" * 40,
-                    f"\nCreated: {compact_summary.timestamp.strftime('%Y-%m-%d %H:%M')}",
-                    f"Stored as diary entry ID: {compact_summary.id}",
-                ]
-                
-                response = "\n".join(response_parts)
-                
-                # Send using long message handler (splits if needed)
-                await self._send_long_message(update.effective_chat.id, response)
-                
-                # Optionally show the prompt used (for debugging)
-                if compact_prompt:
-                    prompt_preview = f"\n📋 Prompt used (first 500 chars):\n{compact_prompt[:500]}..."
-                    await update.message.reply_text(prompt_preview)
-            else:
-                await update.message.reply_text("⚠️ Compact summary was created but not found in diary entries.")
-
-        except Exception as e:
-            logger.error(f"Error in compact command: {e}")
-            await update.message.reply_text(f"Error: {e}")
-
     async def reachout_settings_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /reachout_settings command.
-        Shows current reach-out configuration for the user.
-        """
+        """Shows current reach-out configuration for the user."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
             db_user = await memory_manager.get_or_create_user(telegram_id)
-
             enabled = "✅ Enabled" if db_user.reach_out_enabled else "❌ Disabled"
             min_hours = db_user.reach_out_min_silence_hours or settings.DEFAULT_REACH_OUT_MIN_SILENCE_HOURS
             max_days = db_user.reach_out_max_silence_days or settings.DEFAULT_REACH_OUT_MAX_SILENCE_DAYS
-
             response = (
                 f"🔔 Reach-Out Settings\n\n"
                 f"Status: {enabled}\n"
@@ -928,139 +551,64 @@ class TelegramBot:
                 f"Commands:\n"
                 f"/reachout_enable - Enable reach-outs\n"
                 f"/reachout_disable - Disable reach-outs\n"
-                f"/reachout_min <hours> - Set minimum silence hours\n"
-                f"/reachout_max <days> - Set maximum silence days\n\n"
-                f"Example: /reachout_min 12"
+                f"/reachout_min <hours> - Set min silence hours\n"
+                f"/reachout_max <days> - Set max silence days"
             )
-
             await update.message.reply_text(response)
-
         except Exception as e:
-            logger.error(f"Error in reachout_settings command: {e}")
-            await update.message.reply_text(f"Error: {e}")
+            logger.error(f"Error in reachout_settings: {e}")
 
     async def reachout_enable_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /reachout_enable command.
-        Enables reach-out messages for the user.
-        """
+        """Enables reach-out messages."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
             db_user = await memory_manager.get_or_create_user(telegram_id)
-            await memory_manager.update_user_reach_out_config(
-                user_id=db_user.id,
-                enabled=True,
-            )
-
-            await update.message.reply_text(
-                "✅ Reach-outs enabled! I'll check in if you're quiet for a while."
-            )
-
+            await memory_manager.update_user_reach_out_config(db_user.id, enabled=True)
+            await update.message.reply_text("✅ Reach-outs enabled!")
         except Exception as e:
-            logger.error(f"Error in reachout_enable command: {e}")
-            await update.message.reply_text(f"Error: {e}")
+            logger.error(f"Error enabling reach-out: {e}")
 
     async def reachout_disable_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /reachout_disable command.
-        Disables reach-out messages for the user.
-        """
+        """Disables reach-out messages."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
             db_user = await memory_manager.get_or_create_user(telegram_id)
-            await memory_manager.update_user_reach_out_config(
-                user_id=db_user.id,
-                enabled=False,
-            )
-
-            await update.message.reply_text(
-                "❌ Reach-outs disabled. I won't initiate contact based on inactivity."
-            )
-
+            await memory_manager.update_user_reach_out_config(db_user.id, enabled=False)
+            await update.message.reply_text("❌ Reach-outs disabled.")
         except Exception as e:
-            logger.error(f"Error in reachout_disable command: {e}")
-            await update.message.reply_text(f"Error: {e}")
+            logger.error(f"Error disabling reach-out: {e}")
 
     async def reachout_min_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /reachout_min command.
-        Sets minimum silence hours before reach-out.
-        """
+        """Sets minimum silence hours."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
-            # Parse hours from command args
             if not context.args or len(context.args) != 1:
-                await update.message.reply_text(
-                    "Usage: /reachout_min <hours>\nExample: /reachout_min 12"
-                )
+                await update.message.reply_text("Usage: /reachout_min <hours>")
                 return
-
-            try:
-                hours = int(context.args[0])
-                if hours < 1:
-                    await update.message.reply_text("Hours must be at least 1.")
-                    return
-            except ValueError:
-                await update.message.reply_text("Please provide a valid number of hours.")
-                return
-
+            hours = int(context.args[0])
             db_user = await memory_manager.get_or_create_user(telegram_id)
-            await memory_manager.update_user_reach_out_config(
-                user_id=db_user.id,
-                min_silence_hours=hours,
-            )
-
-            await update.message.reply_text(
-                f"✅ Minimum silence set to {hours} hours."
-            )
-
+            await memory_manager.update_user_reach_out_config(db_user.id, min_silence_hours=hours)
+            await update.message.reply_text(f"✅ Min silence set to {hours}h.")
         except Exception as e:
-            logger.error(f"Error in reachout_min command: {e}")
-            await update.message.reply_text(f"Error: {e}")
+            logger.error(f"Error in reachout_min: {e}")
 
     async def reachout_max_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Handle the /reachout_max command.
-        Sets maximum silence days for reach-outs.
-        """
+        """Sets maximum silence days."""
         user = update.effective_user
         telegram_id = user.id
-
         try:
-            # Parse days from command args
             if not context.args or len(context.args) != 1:
-                await update.message.reply_text(
-                    "Usage: /reachout_max <days>\nExample: /reachout_max 3"
-                )
+                await update.message.reply_text("Usage: /reachout_max <days>")
                 return
-
-            try:
-                days = int(context.args[0])
-                if days < 1:
-                    await update.message.reply_text("Days must be at least 1.")
-                    return
-            except ValueError:
-                await update.message.reply_text("Please provide a valid number of days.")
-                return
-
+            days = int(context.args[0])
             db_user = await memory_manager.get_or_create_user(telegram_id)
-            await memory_manager.update_user_reach_out_config(
-                user_id=db_user.id,
-                max_silence_days=days,
-            )
-
-            await update.message.reply_text(
-                f"✅ Maximum silence set to {days} days."
-            )
-
+            await memory_manager.update_user_reach_out_config(db_user.id, max_silence_days=days)
+            await update.message.reply_text(f"✅ Max silence set to {days}d.")
         except Exception as e:
-            logger.error(f"Error in reachout_max command: {e}")
+            logger.error(f"Error in reachout_max: {e}")
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
         Send a message to a user.
@@ -1076,89 +624,11 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Failed to send message to {telegram_id}: {e}")
 
-    async def _generate_proactive_message(
-        self,
-        user_id: int,
-        context: str,
-    ) -> str:
-        """
-        Generate a natural proactive message using the companion's voice.
-
-        Args:
-            user_id: Internal user ID
-            context: What we're checking in about
-
-        Returns:
-            The generated message
-        """
-        try:
-            # Get user context
-            user_context = await memory_manager.get_user_context(user_id)
-
-            # Build profile context
-            profile_parts = []
-            if user_context.user_info.name:
-                profile_parts.append(f"Their name is {user_context.user_info.name}.")
-            if user_context.profile:
-                for category, facts in user_context.profile.items():
-                    if category == "system":
-                        continue
-                    for value in facts.values():
-                        profile_parts.append(f"- {value}")
-            profile_context = "\n".join(profile_parts) if profile_parts else "(You're still getting to know them)"
-
-            # Get recent conversation for tone matching
-            tz = pytz.timezone(settings.TIMEZONE)
-            conversations = await memory_manager.db.get_recent_conversations(user_id, limit=10)
-            if conversations:
-                history_lines = []
-                # Get user name for labeling
-                user_name = user_context.user_info.name or "them"
-                for conv in conversations[-5:]:
-                    role = user_name if conv.role == "user" else "Aki"
-                    if conv.timestamp:
-                        utc_time = conv.timestamp.replace(tzinfo=pytz.utc)
-                        local_time = utc_time.astimezone(tz)
-                        ts = local_time.strftime("%H:%M")
-                    else:
-                        ts = ""
-                    history_lines.append(f"[{ts}] {role}: {conv.message}")
-                recent_history = "\n".join(history_lines)
-            else:
-                recent_history = "(No recent conversation)"
-
-            # Generate the message
-            prompt = PROACTIVE_MESSAGE_PROMPT.format(
-                profile_context=profile_context,
-                context=context,
-                recent_history=recent_history,
-            )
-
-            message = await llm_client.chat(
-                model=settings.MODEL_PROACTIVE,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=100,
-            )
-
-            message = message.strip()
-
-            # LLM decided this check-in isn't appropriate right now
-            if message.upper() == "SKIP":
-                logger.info(f"Skipping proactive message - LLM determined not appropriate")
-                return None
-
-            return message
-
-        except Exception as e:
-            logger.error(f"Failed to generate proactive message: {e}")
-            return None
-
     async def _generate_reach_out_message(
         self,
         user_id: int,
         hours_since_last_message: int,
-    ) -> Optional[str]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Generate a natural reach-out message based on user inactivity.
 
@@ -1381,81 +851,6 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error in inactive user checker: {e}")
 
-    async def _process_scheduled_messages(self, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Check for and process any pending scheduled messages.
-        This runs periodically via JobQueue.
-        """
-        try:
-            pending = await memory_manager.get_pending_scheduled_messages()
-
-            if not pending:
-                return
-
-            logger.info(f"Processing {len(pending)} pending scheduled messages")
-
-            tz = pytz.timezone(settings.TIMEZONE)
-            now = datetime.now(tz)
-            stale_threshold = timedelta(hours=1)  # Skip messages more than 1 hour old
-            sent_to_users = set()  # Rate limit: max 1 message per user per cycle
-
-            for scheduled_msg in pending:
-                try:
-                    # Check if message is stale (more than 1 hour past scheduled time)
-                    scheduled_time = scheduled_msg.scheduled_time
-                    if scheduled_time.tzinfo is None:
-                        scheduled_time = tz.localize(scheduled_time)
-
-                    if now - scheduled_time > stale_threshold:
-                        logger.info(f"Skipping stale message {scheduled_msg.id} (scheduled for {scheduled_time})")
-                        await memory_manager.mark_message_executed(scheduled_msg.id)
-                        continue
-
-                    # Rate limit: only send one message per user per cycle
-                    if scheduled_msg.user_id in sent_to_users:
-                        logger.debug(f"Rate limiting: already sent to user {scheduled_msg.user_id} this cycle")
-                        continue  # Don't mark as executed - try again next cycle
-
-                    # Get user's telegram_id
-                    user = await memory_manager.get_user_by_id(scheduled_msg.user_id)
-                    if not user:
-                        logger.warning(f"User {scheduled_msg.user_id} not found, skipping")
-                        await memory_manager.mark_message_executed(scheduled_msg.id)
-                        continue
-
-                    # Generate the message
-                    message_text = await self._generate_proactive_message(
-                        user_id=scheduled_msg.user_id,
-                        context=scheduled_msg.context or "general check-in",
-                    )
-
-                    if message_text:
-                        # Send the message
-                        await self.send_message(user.telegram_id, message_text)
-                        sent_to_users.add(scheduled_msg.user_id)
-
-                        # Store in conversation history
-                        await memory_manager.add_conversation(
-                            user_id=scheduled_msg.user_id,
-                            role="assistant",
-                            message=message_text,
-                        )
-
-                        logger.info(
-                            f"Sent scheduled message to user {scheduled_msg.user_id}: {message_text[:50]}..."
-                        )
-
-                    # Mark as executed
-                    await memory_manager.mark_message_executed(scheduled_msg.id)
-
-                except Exception as e:
-                    logger.error(f"Failed to process scheduled message {scheduled_msg.id}: {e}")
-                    # Still mark as executed to avoid infinite retry
-                    await memory_manager.mark_message_executed(scheduled_msg.id)
-
-        except Exception as e:
-            logger.error(f"Error in scheduled message processor: {e}")
-
     async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Handle errors caused by updates.
@@ -1472,6 +867,7 @@ class TelegramBot:
 
     def setup_handlers(self) -> None:
         """Set up message and command handlers."""
+        assert self.application is not None, "Application not initialized"
         # Error handler - must be added first to catch all errors
         self.application.add_error_handler(self.error_handler)
         
@@ -1490,27 +886,6 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("prompt", self.prompt_command)
-        )
-        self.application.add_handler(
-            CommandHandler("observationprompt", self.observationprompt_command)
-        )
-        self.application.add_handler(
-            CommandHandler("profile", self.profile_command)
-        )
-        self.application.add_handler(
-            CommandHandler("observations", self.observations_command)
-        )
-        self.application.add_handler(
-            CommandHandler("scheduled", self.scheduled_command)
-        )
-        self.application.add_handler(
-            CommandHandler("clearscheduled", self.clearscheduled_command)
-        )
-        self.application.add_handler(
-            CommandHandler("reflect", self.reflect_command)
-        )
-        self.application.add_handler(
-            CommandHandler("compact", self.compact_command)
         )
         self.application.add_handler(
             CommandHandler("reachout_settings", self.reachout_settings_command)
@@ -1551,21 +926,11 @@ class TelegramBot:
         # Set up handlers
         self.setup_handlers()
 
-        # Set up the proactive messaging scheduler
-        # Check for pending scheduled messages every 5 minutes
-        job_queue = self.application.job_queue
-        job_queue.run_repeating(
-            self._process_scheduled_messages,
-            interval=300,  # 5 minutes
-            first=60,  # Start after 1 minute
-            name="scheduled_message_processor",
-        )
-        logger.info("Proactive messaging scheduler configured (every 5 minutes)")
-
         # Set up the reach-out checker
         # Check for inactive users based on configured interval
         reach_out_interval = settings.REACH_OUT_CHECK_INTERVAL_MINUTES * 60  # Convert to seconds
-        job_queue.run_repeating(
+        assert self.application.job_queue is not None
+        self.application.job_queue.run_repeating(
             self._check_inactive_users,
             interval=reach_out_interval,
             first=120,  # Start after 2 minutes
