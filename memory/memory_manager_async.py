@@ -26,6 +26,8 @@ from schemas import (
     UserContextSchema,
 )
 
+from cachetools import TTLCache
+
 logger = get_logger(__name__)
 
 
@@ -37,14 +39,21 @@ class AsyncMemoryManager:
     - Type-safe operations with Pydantic schemas
     - Comprehensive error handling and logging
     - Async/await for high performance
+    - In-memory TTL caching for hot data
 
     Manages structured data (PostgreSQL via async SQLAlchemy).
     """
 
     def __init__(self):
-        """Initialize memory manager with database."""
+        """Initialize memory manager with database and caches."""
         self.db = db
-        logger.info("Memory manager initialized")
+        
+        # In-memory caches (maxsize 100 users, various TTLs)
+        self._user_cache = TTLCache(maxsize=100, ttl=300)     # 5 min
+        self._profile_cache = TTLCache(maxsize=100, ttl=300)  # 5 min
+        self._events_cache = TTLCache(maxsize=100, ttl=1800) # 30 min
+        
+        logger.info("Memory manager initialized with TTL caching")
 
     # ==================== User Management ====================
 
@@ -53,20 +62,14 @@ class AsyncMemoryManager:
     ) -> UserSchema:
         """
         Get or create user, returns UserSchema.
-
-        Args:
-            telegram_id: Telegram user ID
-            name: User's display name
-            username: User's Telegram username
-
-        Returns:
-            UserSchema with user data
-
-        Raises:
-            MemoryException: If operation fails
         """
         try:
             user = await self.db.get_or_create_user(telegram_id, name, username)
+            
+            # Evict from cache to ensure fresh data if it was just created/updated
+            if user.id in self._user_cache:
+                del self._user_cache[user.id]
+                
             logger.debug("User retrieved/created", user_id=user.id, telegram_id=telegram_id)
             return user
         except Exception as e:
@@ -75,43 +78,43 @@ class AsyncMemoryManager:
 
     async def get_user_by_id(self, user_id: int) -> Optional[UserSchema]:
         """
-        Get user by internal ID.
-
-        Args:
-            user_id: Internal user ID
-
-        Returns:
-            UserSchema if found, None otherwise
+        Get user by internal ID with caching.
         """
-        return await self.db.get_user_by_id(user_id)
+        if user_id in self._user_cache:
+            return self._user_cache[user_id]
+            
+        user = await self.db.get_user_by_id(user_id)
+        if user:
+            self._user_cache[user_id] = user
+        return user
 
     # ==================== Context Retrieval ====================
 
     async def get_user_context(self, user_id: int) -> UserContextSchema:
         """
         Get complete user context for AI interaction.
-        This is the main method used by conversational agents.
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            UserContextSchema with all relevant context
-
-        Raises:
-            UserNotFoundError: If user doesn't exist
-            MemoryException: If context retrieval fails
+        Optimized with parallel fetches and caching.
         """
         try:
-            user = await self.db.get_user_by_id(user_id)
+            # 1. Get user (cached)
+            user = await self.get_user_by_id(user_id)
             if not user:
                 logger.warning("User not found", user_id=user_id)
                 raise UserNotFoundError(user_id)
 
-            # Fetch all context data in parallel
-            profile = await self.db.get_user_profile(user_id)
-            conversations = await self.db.get_recent_conversations(user_id, limit=10)
-            events = await self.db.get_upcoming_events(user_id, days=7)
+            # 2. Fetch other context data in parallel
+            import asyncio
+            
+            # Fetch tasks
+            profile_task = self.get_user_profile(user_id)
+            events_task = self.get_upcoming_events(user_id, days=7)
+            conv_task = self.db.get_recent_conversations(user_id, limit=20) # History is still fresh
+            
+            profile, events, conversations = await asyncio.gather(
+                profile_task,
+                events_task,
+                conv_task
+            )
 
             context = UserContextSchema(
                 user_info=user,
@@ -125,6 +128,7 @@ class AsyncMemoryManager:
                 user_id=user_id,
                 conversation_count=len(conversations),
                 event_count=len(events),
+                cached_profile=user_id in self._profile_cache,
             )
             return context
 
@@ -176,40 +180,30 @@ class AsyncMemoryManager:
     ) -> ProfileFactSchema:
         """
         Add or update a profile fact.
-
-        Args:
-            user_id: User ID
-            category: Fact category (e.g., "basic_info", "preferences", "relationships")
-            key: Fact key (e.g., "job", "location", "favorite_food")
-            value: Fact value
-            confidence: Confidence score (0.0 to 1.0)
-
-        Returns:
-            ProfileFactSchema with stored fact
-
-        Raises:
-            MemoryException: If storage fails
         """
         try:
             fact = await self.db.add_profile_fact(user_id, category, key, value, confidence)
-            logger.info("Added profile fact", user_id=user_id, category=category, key=key)
+            
+            # Invalidate cache
+            if user_id in self._profile_cache:
+                del self._profile_cache[user_id]
+                
+            logger.info("Added profile fact (cache invalidated)", user_id=user_id, category=category, key=key)
             return fact
-
         except Exception as e:
             logger.error("Failed to add profile fact", user_id=user_id, error=str(e))
             raise MemoryException(f"Failed to add profile fact: {e}")
 
     async def get_user_profile(self, user_id: int) -> Dict[str, Dict[str, str]]:
         """
-        Get all profile facts for a user, organized by category.
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            Dict of {category: {key: value}}
+        Get all profile facts for a user with caching.
         """
-        return await self.db.get_user_profile(user_id)
+        if user_id in self._profile_cache:
+            return self._profile_cache[user_id]
+            
+        profile = await self.db.get_user_profile(user_id)
+        self._profile_cache[user_id] = profile
+        return profile
 
     async def get_recent_observations(
         self, user_id: int, days: int = 7
@@ -260,28 +254,19 @@ class AsyncMemoryManager:
         datetime_obj: datetime,
     ) -> TimelineEventSchema:
         """
-        Add a timeline event.
-
-        Args:
-            user_id: User ID
-            event_type: Type of event (e.g., "meeting", "appointment", "deadline")
-            title: Event title
-            description: Event description
-            datetime_obj: Event datetime
-
-        Returns:
-            TimelineEventSchema with stored event
-
-        Raises:
-            MemoryException: If storage fails
+        Add a timeline event with cache invalidation.
         """
         try:
             event = await self.db.add_timeline_event(
                 user_id, event_type, title, description, datetime_obj
             )
-            logger.info("Added timeline event", user_id=user_id, title=title)
+            
+            # Invalidate cache
+            if user_id in self._events_cache:
+                del self._events_cache[user_id]
+                
+            logger.info("Added timeline event (cache invalidated)", user_id=user_id, title=title)
             return event
-
         except Exception as e:
             logger.error("Failed to add timeline event", user_id=user_id, error=str(e))
             raise MemoryException(f"Failed to add timeline event: {e}")
@@ -290,16 +275,15 @@ class AsyncMemoryManager:
         self, user_id: int, days: int = 7
     ) -> List[TimelineEventSchema]:
         """
-        Get upcoming events for a user.
-
-        Args:
-            user_id: User ID
-            days: Number of days to look ahead
-
-        Returns:
-            List of TimelineEventSchema
+        Get upcoming events for a user with caching.
+        Note: days is currently hardcoded to 7 in SoulAgent, matching TTL logic.
         """
-        return await self.db.get_upcoming_events(user_id, days)
+        if user_id in self._events_cache:
+            return self._events_cache[user_id]
+            
+        events = await self.db.get_upcoming_events(user_id, days)
+        self._events_cache[user_id] = events
+        return events
 
     # ==================== Diary Entries ====================
 

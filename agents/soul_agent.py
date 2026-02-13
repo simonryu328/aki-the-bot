@@ -71,6 +71,10 @@ class SoulAgent:
     _last_profile_context: Dict[int, str] = {}
     _message_count: Dict[int, int] = {}
     _reaction_counter: Dict[int, int] = {}  # Track messages until next reaction
+    
+    # In-memory formatted string caches (user_id -> string)
+    _observations_cache: Dict[int, str] = {}
+    _profile_string_cache: Dict[int, str] = {}
 
     def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
@@ -110,11 +114,26 @@ class SoulAgent:
             user_id, conversation_history, user
         )
 
-        # Build observations context from pre-fetched profile in context
-        observations_with_dates = await memory_manager.get_observations_with_dates(
-            user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT
-        )
-        observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
+        # Build observations and profile context (cached)
+        # Invalidate if memory_manager cache has been cleared
+        is_profile_fresh = user_id in memory_manager._profile_cache
+        if not is_profile_fresh:
+            # If memory manager evicted the user, we should also clear our formatting cache
+            self._observations_cache.pop(user_id, None)
+            self._profile_string_cache.pop(user_id, None)
+
+        if user_id in self._observations_cache:
+            observations_text = self._observations_cache[user_id]
+        else:
+            observations_with_dates = await memory_manager.get_observations_with_dates(
+                user_id, limit=settings.OBSERVATION_DISPLAY_LIMIT
+            )
+            observations_text = "\n".join(f"- {obs}" for obs in observations_with_dates) if observations_with_dates else "(Still getting to know them)"
+            self._observations_cache[user_id] = observations_text
+
+        # Use cached profile string (implemented as part of _build_profile_context update if needed, 
+        # but here we inline the check for visibility as requested in Phase 4.2)
+        profile_text = self._build_profile_context(context)
 
         # Build time context
         now = datetime.now(pytz.timezone(settings.TIMEZONE))
@@ -245,7 +264,13 @@ class SoulAgent:
         return result
 
     def _build_profile_context(self, context: UserContextSchema) -> str:
-        """Build profile context from static facts and condensed narratives."""
+        """Build profile context from static facts and condensed narratives with caching."""
+        user_id = context.user_info.id
+        
+        # Return cached string if available
+        if user_id in self._profile_string_cache:
+            return self._profile_string_cache[user_id]
+            
         parts = []
 
         # Name
@@ -276,9 +301,12 @@ class SoulAgent:
                         parts.append(f"- {value}")
 
         if not parts:
-            return "(You're just getting to know them. This is early in the story.)"
-
-        return "\n".join(parts)
+            result = "(You're just getting to know them. This is early in the story.)"
+        else:
+            result = "\n".join(parts)
+            
+        self._profile_string_cache[user_id] = result
+        return result
     async def _build_conversation_context(
         self,
         user_id: int,
