@@ -454,17 +454,37 @@ class TelegramBot:
             await self._send_with_typing(chat_id, msg)
         
         # Send sticker after text messages if emoji was generated and has stickers available
-        if emoji and emoji in self.stickers:
-            sticker_options = self.stickers[emoji]
-            if sticker_options:
-                # Randomly pick one sticker for this emoji
-                chosen_sticker = random.choice(sticker_options)
-                file_id = chosen_sticker["file_id"]
-                try:
-                    await self._send_with_typing(chat_id, sticker=file_id)
-                    logger.info(f"Sent sticker {file_id} ({emoji}) to user {metadata['telegram_id']}")
-                except Exception as e:
-                    logger.warning(f"Failed to send sticker: {e}")
+        if emoji:
+            logger.info(f"Emoji generated: '{emoji}' (type: {type(emoji).__name__}, repr: {repr(emoji)})")
+            logger.info(f"Available sticker emojis: {list(self.stickers.keys())[:10]}...")  # Show first 10
+            
+            if emoji in self.stickers:
+                sticker_options = self.stickers[emoji]
+                logger.info(f"Found {len(sticker_options)} sticker options for emoji '{emoji}'")
+                
+                if sticker_options:
+                    # Randomly pick one sticker for this emoji
+                    chosen_sticker = random.choice(sticker_options)
+                    file_id = chosen_sticker["file_id"]
+                    logger.info(f"Attempting to send sticker {file_id} for emoji '{emoji}' to chat {chat_id}")
+                    
+                    try:
+                        await self._send_with_typing(chat_id, sticker=file_id)
+                        logger.info(f"Successfully sent sticker {file_id} ({emoji}) to user {metadata['telegram_id']}")
+                    except Exception as e:
+                        logger.error(f"Failed to send sticker {file_id}: {e}", exc_info=True)
+                else:
+                    logger.warning(f"Sticker options list is empty for emoji '{emoji}'")
+            else:
+                logger.warning(f"Emoji '{emoji}' not found in stickers dictionary. Checking for variations...")
+                # Check if it's a variation selector issue
+                emoji_stripped = emoji.rstrip('\ufe0f')  # Remove variation selector
+                if emoji_stripped in self.stickers:
+                    logger.info(f"Found emoji without variation selector: '{emoji_stripped}'")
+                else:
+                    logger.warning(f"No sticker mapping found for emoji '{emoji}' (even without variation selector)")
+        else:
+            logger.debug("No emoji generated for this message")
 
     async def handle_photo_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
