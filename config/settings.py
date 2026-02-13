@@ -259,7 +259,7 @@ class Settings(BaseSettings):
     )
 
     USER_DAILY_TOKEN_BUDGET: int = Field(
-        default=50000,
+        default=0,
         description="Maximum tokens a user can consume per day. "
                     "Prevents runaway costs. Set to 0 to disable.",
         ge=0,

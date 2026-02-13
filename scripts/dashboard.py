@@ -22,10 +22,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import importlib
 import memory.models
+import config.settings
 importlib.reload(memory.models)
+importlib.reload(config.settings)
 
 from memory.models import Base, User, ProfileFact, Conversation, ScheduledMessage, TimelineEvent, DiaryEntry, TokenUsage
-
 from config.settings import settings
 
 TZ = pytz.timezone(settings.TIMEZONE)
