@@ -449,11 +449,7 @@ class TelegramBot:
             ]
             emoji = None  # Clear emoji on error
 
-        # Send text messages first
-        for msg in messages:
-            await self._send_with_typing(chat_id, msg)
-        
-        # Send sticker after text messages if emoji was generated and has stickers available
+        # Send sticker BEFORE text messages if emoji was generated and has stickers available
         if emoji:
             logger.info(f"Emoji generated: '{emoji}' (type: {type(emoji).__name__}, repr: {repr(emoji)})")
             logger.info(f"Available sticker emojis: {list(self.stickers.keys())[:10]}...")  # Show first 10
@@ -493,6 +489,10 @@ class TelegramBot:
                         logger.error(f"Failed to send sticker {file_id}: {e}", exc_info=True)
                 else:
                     logger.warning(f"Sticker options list is empty for emoji '{matched_emoji}'")
+        
+        # Send text messages after sticker
+        for msg in messages:
+            await self._send_with_typing(chat_id, msg)
         else:
             logger.debug("No emoji generated for this message")
 
