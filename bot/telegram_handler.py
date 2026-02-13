@@ -136,16 +136,25 @@ class TelegramBot:
         for i in range(0, len(text), chunk_size):
             await self.application.bot.send_message(chat_id=chat_id, text=text[i:i + chunk_size])
 
-    async def _send_with_typing(self, chat_id: int, text: str) -> None:
+    async def _send_with_typing(self, chat_id: int, text: Optional[str] = None, sticker: Optional[str] = None) -> None:
         """
         Send a message with a typing indicator beforehand.
-        Typing duration scales with message length for realism.
-        Keeps typing indicator active throughout the entire delay.
-        Handles Telegram API timeouts gracefully.
+        Alternately, send a sticker without typing delay if specified.
         """
-        import asyncio
         from telegram.error import TimedOut, NetworkError
         import httpx
+
+        # If it's a sticker, send it directly (stickers don't usually have typing delays)
+        if sticker:
+            try:
+                await self.application.bot.send_sticker(chat_id=chat_id, sticker=sticker)
+                logger.info(f"Sent sticker {sticker} to {chat_id}")
+            except Exception as e:
+                logger.error(f"Failed to send sticker: {e}")
+            
+            # If there's also text, continue to send it with typing
+            if not text:
+                return
 
         # Typing duration: 0.5s base + scales with length, capped at 30s
         typing_duration = min(0.4 + len(text) * 0.01, 30.0)
@@ -391,7 +400,7 @@ class TelegramBot:
                 name=metadata["name"],
                 username=metadata["username"],
             )
-            
+
             # Send reaction if emoji was generated
             if emoji and "last_message" in metadata:
                 try:
@@ -444,6 +453,29 @@ class TelegramBot:
             response += f"\n\nYour caption: '{caption}'"
 
         await update.message.reply_text(response)
+
+    async def handle_sticker_message(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """
+        Handle incoming sticker messages from users.
+        Logs the sticker file_id for discovery.
+        """
+        sticker = update.message.sticker
+        file_id = sticker.file_id
+        emoji = sticker.emoji
+        set_name = sticker.set_name
+        
+        logger.info(f"Sticker Discovery: file_id='{file_id}', emoji='{emoji}', set_name='{set_name}'")
+        
+        response = (
+            f"I see that sticker! 📝\n\n"
+            f"**File ID:** `{file_id}`\n"
+            f"**Emoji:** {emoji or 'None'}\n"
+            f"**Pack:** `{set_name or 'None'}`\n\n"
+            f"If you want me to use this, tell me what 'vibe' it has!"
+        )
+        await update.message.reply_text(response, parse_mode='Markdown')
 
     async def reset_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -909,6 +941,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             MessageHandler(filters.PHOTO, self.handle_photo_message)
+        )
+        self.application.add_handler(
+            MessageHandler(filters.Sticker.ALL, self.handle_sticker_message)
         )
 
         logger.info("Telegram bot handlers configured")
