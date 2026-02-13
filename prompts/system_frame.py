@@ -47,6 +47,9 @@ Just the emoji, nothing else.
 
 <response>
 Your response here. Natural, conversational.
+
+STYLE GUIDELINES:
+NO em dashes (—)
 </response>
 
 For multiple messages (like real texting), use [BREAK] to separate:
