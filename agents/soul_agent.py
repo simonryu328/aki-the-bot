@@ -321,66 +321,95 @@ class SoulAgent:
         """Parse thinking, response, messages, and emoji from raw LLM output.
         
         Supports multiple formats:
-        1. [BREAK] markers: "text[BREAK]more text[BREAK]even more"
-        2. XML: <response><message>text</message><message>text</message></response>
-        3. Fallback: Plain text or ||| separator
-        4. Auto-split: Long responses split intelligently
-        5. Emoji extraction from <emoji> tag
+        1. XML strict: <?xml version="1.0"?><message>...</message>
+        2. Legacy XML tags: <thinking>, <emoji>, <response>
+        3. [BREAK] markers: "text[BREAK]more text[BREAK]even more"
+        4. Fallback: Plain text or ||| separator
+        5. Auto-split: Long responses split intelligently
         """
         thinking = None
         emoji = None
         response = raw
 
-        # Extract thinking
-        thinking_match = re.search(r'<thinking>(.*?)</thinking>', raw, re.DOTALL)
-        if thinking_match:
-            thinking = thinking_match.group(1).strip()
-            # Remove thinking from response
-            response = re.sub(r'<thinking>.*?</thinking>', '', raw, flags=re.DOTALL).strip()
-
-        # Extract emoji
-        emoji_match = re.search(r'<emoji>(.*?)</emoji>', response, re.DOTALL)
-        if emoji_match:
-            emoji = emoji_match.group(1).strip()
-            # Remove emoji tag from response
-            response = re.sub(r'<emoji>.*?</emoji>', '', response, flags=re.DOTALL).strip()
-
-        # Try to extract structured <response> tag first
-        response_match = re.search(r'<response>(.*?)</response>', response, re.DOTALL)
-        if response_match:
-            response_content = response_match.group(1).strip()
+        # Try XML strict format first (new format)
+        xml_match = re.search(r'<\?xml version="1\.0"\?>\s*<message>(.*?)</message>', raw, re.DOTALL)
+        if xml_match:
+            message_content = xml_match.group(1)
             
-            # Check for [BREAK] markers within <response>
-            if '[BREAK]' in response_content:
-                messages = [msg.strip() for msg in response_content.split('[BREAK]') if msg.strip()]
-            # Check for <message> tags
-            elif '<message>' in response_content:
-                message_matches = re.findall(r'<message>(.*?)</message>', response_content, re.DOTALL)
-                messages = [msg.strip() for msg in message_matches if msg.strip()]
-            else:
-                # Single message in <response> tag
-                messages = [response_content]
-        # Handle unclosed <response> tag (LLM didn't close it properly)
-        elif response.startswith('<response>'):
-            # Extract everything after <response> tag
-            response_content = response[len('<response>'):].strip()
+            # Extract thinking from XML
+            thinking_match = re.search(r'<thinking>(.*?)</thinking>', message_content, re.DOTALL)
+            if thinking_match:
+                thinking = thinking_match.group(1).strip()
             
-            # Check for [BREAK] markers
-            if '[BREAK]' in response_content:
-                messages = [msg.strip() for msg in response_content.split('[BREAK]') if msg.strip()]
+            # Extract emoji from XML
+            emoji_match = re.search(r'<emoji>(.*?)</emoji>', message_content, re.DOTALL)
+            if emoji_match:
+                emoji = emoji_match.group(1).strip()
+            
+            # Extract response from XML
+            response_match = re.search(r'<response>(.*?)</response>', message_content, re.DOTALL)
+            if response_match:
+                response_content = response_match.group(1).strip()
+                
+                # Check for [BREAK] markers
+                if '[BREAK]' in response_content:
+                    messages = [msg.strip() for msg in response_content.split('[BREAK]') if msg.strip()]
+                else:
+                    messages = [response_content]
             else:
-                messages = [response_content]
+                messages = [""]
         else:
-            # No <response> tag - check for [BREAK] markers in raw response
-            if '[BREAK]' in response:
-                messages = [msg.strip() for msg in response.split('[BREAK]') if msg.strip()]
-            # Fallback: check for ||| separator
-            elif '|||' in response:
-                messages = [msg.strip() for msg in response.split('|||') if msg.strip()]
+            # Fall back to legacy format parsing
+            # Extract thinking
+            thinking_match = re.search(r'<thinking>(.*?)</thinking>', raw, re.DOTALL)
+            if thinking_match:
+                thinking = thinking_match.group(1).strip()
+                # Remove thinking from response
+                response = re.sub(r'<thinking>.*?</thinking>', '', raw, flags=re.DOTALL).strip()
+
+            # Extract emoji
+            emoji_match = re.search(r'<emoji>(.*?)</emoji>', response, re.DOTALL)
+            if emoji_match:
+                emoji = emoji_match.group(1).strip()
+                # Remove emoji tag from response
+                response = re.sub(r'<emoji>.*?</emoji>', '', response, flags=re.DOTALL).strip()
+
+            # Try to extract structured <response> tag first
+            response_match = re.search(r'<response>(.*?)</response>', response, re.DOTALL)
+            if response_match:
+                response_content = response_match.group(1).strip()
+                
+                # Check for [BREAK] markers within <response>
+                if '[BREAK]' in response_content:
+                    messages = [msg.strip() for msg in response_content.split('[BREAK]') if msg.strip()]
+                # Check for <message> tags
+                elif '<message>' in response_content:
+                    message_matches = re.findall(r'<message>(.*?)</message>', response_content, re.DOTALL)
+                    messages = [msg.strip() for msg in message_matches if msg.strip()]
+                else:
+                    # Single message in <response> tag
+                    messages = [response_content]
+            # Handle unclosed <response> tag (LLM didn't close it properly)
+            elif response.startswith('<response>'):
+                # Extract everything after <response> tag
+                response_content = response[len('<response>'):].strip()
+                
+                # Check for [BREAK] markers
+                if '[BREAK]' in response_content:
+                    messages = [msg.strip() for msg in response_content.split('[BREAK]') if msg.strip()]
+                else:
+                    messages = [response_content]
             else:
-                # Remove any stray tags and use as-is
-                clean_response = re.sub(r'</?(?:response|message)>', '', response).strip()
-                messages = [clean_response] if clean_response else [response.strip()]
+                # No <response> tag - check for [BREAK] markers in raw response
+                if '[BREAK]' in response:
+                    messages = [msg.strip() for msg in response.split('[BREAK]') if msg.strip()]
+                # Fallback: check for ||| separator
+                elif '|||' in response:
+                    messages = [msg.strip() for msg in response.split('|||') if msg.strip()]
+                else:
+                    # Remove any stray tags and use as-is
+                    clean_response = re.sub(r'</?(?:response|message)>', '', response).strip()
+                    messages = [clean_response] if clean_response else [response.strip()]
         
         # Auto-split long single messages (fallback for when LLM doesn't use markers)
         if len(messages) == 1 and len(messages[0]) > settings.AUTO_SPLIT_THRESHOLD:
