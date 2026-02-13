@@ -71,27 +71,16 @@ class AgentOrchestrator:
             message=message,
         )
 
-        # 3. Gather context - parallelize independent DB fetches
-        import asyncio
-        
         # history must be fetched AFTER add_conversation to pick up the user's just-sent message
-        history_task = self.memory.db.get_recent_conversations(user_id, limit=20)
-        profile_task = self.memory.db.get_user_profile(user_id)
-        events_task = self.memory.db.get_upcoming_events(user_id, days=7)
-        
-        history, profile, events = await asyncio.gather(
-            history_task,
-            profile_task,
-            events_task
-        )
+        history = await self.memory.db.get_recent_conversations(user_id, limit=20)
         
         # Build context from already-fetched data
+        # 4. Build context from already-fetched data
         from schemas import UserContextSchema
         context = UserContextSchema(
             user_info=user,
-            profile=profile,
             recent_conversations=history[:10],  # Context uses first 10
-            upcoming_events=events,
+            diary_entries=[], # Will be populated if needed, or SoulAgent handles it
         )
 
         # 4. Check daily token budget

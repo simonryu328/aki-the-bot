@@ -7,7 +7,7 @@ Usage:
     uv run python scripts/view_user.py <user_id> --conversations 50
     uv run python scripts/view_user.py --list
 
-Shows: user info, profile, observations, conversations (with thinking), scheduled messages.
+Shows: user info, diary entries (memories), and conversations (with thinking).
 """
 
 import argparse
@@ -28,7 +28,7 @@ import pytz
 from sqlalchemy import select, desc, func
 
 from memory.database_async import AsyncDatabase
-from memory.models import User, ProfileFact, Conversation, ScheduledMessage, TimelineEvent
+from memory.models import User, Conversation, DiaryEntry
 from config.settings import settings
 
 TZ = pytz.timezone(settings.TIMEZONE)
@@ -63,9 +63,6 @@ async def list_users():
     """List all users with basic info."""
     db = AsyncDatabase()
 
-    async with db.engine.begin() as conn:
-        pass  # just to initialize
-
     async with db.get_session() as session:
         result = await session.execute(
             select(User).order_by(User.id)
@@ -97,7 +94,7 @@ async def list_users():
         print()
 
 
-async def view_user(user_id: int, conv_limit: int = 20, obs_days: int = 30):
+async def view_user(user_id: int, conv_limit: int = 20):
     """Show comprehensive user data."""
     db = AsyncDatabase()
 
@@ -117,99 +114,43 @@ async def view_user(user_id: int, conv_limit: int = 20, obs_days: int = 30):
         print(f"  Username:     @{user.username}" if user.username else "  Username:     -")
         print(f"  Created:      {fmt(user.created_at)}")
         print(f"  Last Active:  {fmt(user.last_interaction)}")
+        print(f"  Reach-Out:    {'Enabled' if user.reach_out_enabled else 'Disabled'}")
+        if user.last_reach_out_at:
+            print(f"  Last Reach-O: {fmt(user.last_reach_out_at)}")
 
-        # ---- Profile Facts ----
-        facts_result = await session.execute(
-            select(ProfileFact)
-            .where(ProfileFact.user_id == user_id)
-            .order_by(ProfileFact.category, ProfileFact.observed_at.desc())
+        # ---- Diary Entries (Memories & Compacts) ----
+        diary_result = await session.execute(
+            select(DiaryEntry)
+            .where(DiaryEntry.user_id == user_id)
+            .order_by(DiaryEntry.timestamp.desc())
+            .limit(30)
         )
-        facts = facts_result.scalars().all()
+        entries = diary_result.scalars().all()
 
-        # Separate condensed from raw facts
+        # Group by type
         grouped = defaultdict(list)
-        for f in facts:
-            grouped[f.category].append(f)
+        for e in entries:
+            grouped[e.entry_type].append(e)
 
-        # ---- Condensed Narratives ----
-        if "condensed" in grouped:
-            section("CONDENSED NARRATIVES")
-            for f in grouped["condensed"]:
-                print(f"\n  [{f.key}]")
-                print(f"    {f.value}")
-                print(f"    (condensed: {fmt(f.updated_at)})")
+        if grouped["conversation_memory"]:
+            section("CONVERSATION MEMORIES")
+            for e in grouped["conversation_memory"][:10]:
+                print(f"\n  [{fmt(e.timestamp)}] {e.title}")
+                print(f"    {e.content}")
 
-        # ---- Static Facts ----
-        if "static" in grouped:
-            section("STATIC FACTS")
-            for f in grouped["static"]:
-                print(f"  - {f.value}")
+        if grouped["compact_summary"]:
+            section("COMPACT SUMMARIES")
+            for e in grouped["compact_summary"][:5]:
+                print(f"\n  [{fmt(e.timestamp)}] {e.title}")
+                print(f"    {e.content[:200]}..." if len(e.content) > 200 else f"    {e.content}")
 
-        # ---- Raw Observations ----
-        raw_categories = [c for c in sorted(grouped.keys()) if c not in ("condensed", "static", "system")]
-        raw_count = sum(len(grouped[c]) for c in raw_categories)
-        section(f"RAW OBSERVATIONS ({raw_count} across {len(raw_categories)} categories)")
-        if raw_categories:
-            for category in raw_categories:
-                print(f"\n  [{category}] ({len(grouped[category])} observations)")
-                for f in grouped[category][:3]:  # Show first 3 per category
-                    print(f"    - {f.value[:120]}...")
-                if len(grouped[category]) > 3:
-                    print(f"    ... and {len(grouped[category]) - 3} more")
-        else:
-            print("  (no raw observations)")
-
-        # ---- Recent Observations Timeline ----
-        cutoff = datetime.now(pytz.utc).replace(tzinfo=None) - timedelta(days=obs_days)
-        obs_result = await session.execute(
-            select(ProfileFact)
-            .where(ProfileFact.user_id == user_id, ProfileFact.observed_at >= cutoff)
-            .order_by(ProfileFact.observed_at.desc())
-        )
-        observations = obs_result.scalars().all()
-
-        section(f"OBSERVATIONS (last {obs_days} days)")
-        if observations:
-            for obs in observations:
-                print(f"  [{fmt(obs.observed_at)}] {obs.category}: {obs.value}")
-        else:
-            print("  (no recent observations)")
-
-        # ---- Pending Scheduled Messages ----
-        sched_result = await session.execute(
-            select(ScheduledMessage)
-            .where(ScheduledMessage.user_id == user_id, ScheduledMessage.executed == False)
-            .order_by(ScheduledMessage.scheduled_time)
-        )
-        scheduled = sched_result.scalars().all()
-
-        section(f"PENDING SCHEDULED MESSAGES ({len(scheduled)})")
-        if scheduled:
-            for msg in scheduled:
-                print(f"  [{fmt(msg.scheduled_time)}] {msg.message_type}")
-                if msg.context:
-                    print(f"    Context: {msg.context}")
-        else:
-            print("  (none)")
-
-        # ---- Timeline Events ----
-        events_result = await session.execute(
-            select(TimelineEvent)
-            .where(TimelineEvent.user_id == user_id)
-            .order_by(TimelineEvent.datetime.desc())
-            .limit(10)
-        )
-        events = events_result.scalars().all()
-
-        section(f"TIMELINE EVENTS ({len(events)})")
-        if events:
-            for event in events:
-                reminded = " [reminded]" if event.reminded else ""
-                print(f"  [{fmt(event.datetime)}] {event.event_type}: {event.title}{reminded}")
-                if event.description:
-                    print(f"    {event.description}")
-        else:
-            print("  (none)")
+        significant = [e for e in entries if e.entry_type not in ("conversation_memory", "compact_summary")]
+        if significant:
+            section("SIGNIFICANT EVENTS")
+            for e in significant[:10]:
+                print(f"  - [{fmt(e.timestamp)}] {e.entry_type.upper()}: {e.title}")
+                if e.content:
+                    print(f"    {e.content}")
 
         # ---- Conversations ----
         conv_result = await session.execute(
@@ -253,14 +194,13 @@ def main():
     parser.add_argument("user_id", type=int, nargs="?", help="User ID to view")
     parser.add_argument("--list", "-L", action="store_true", help="List all users")
     parser.add_argument("--conversations", "-c", type=int, default=20, help="Number of conversations (default: 20)")
-    parser.add_argument("--observations", "-o", type=int, default=30, help="Days of observations (default: 30)")
 
     args = parser.parse_args()
 
     if args.list:
         asyncio.run(list_users())
     elif args.user_id is not None:
-        asyncio.run(view_user(args.user_id, args.conversations, args.observations))
+        asyncio.run(view_user(args.user_id, args.conversations))
     else:
         parser.print_help()
 

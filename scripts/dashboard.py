@@ -26,7 +26,7 @@ import config.settings
 importlib.reload(memory.models)
 importlib.reload(config.settings)
 
-from memory.models import Base, User, ProfileFact, Conversation, ScheduledMessage, TimelineEvent, DiaryEntry, TokenUsage
+from memory.models import Base, User, Conversation, DiaryEntry, TokenUsage
 from config.settings import settings
 
 TZ = pytz.timezone(settings.TIMEZONE)
@@ -86,30 +86,6 @@ def load_users():
 
 
 @st.cache_data(ttl=30)
-def load_profile(user_id: int):
-    session = get_session()
-    try:
-        facts = session.execute(
-            select(ProfileFact)
-            .where(ProfileFact.user_id == user_id)
-            .order_by(ProfileFact.category, ProfileFact.observed_at.desc())
-        ).scalars().all()
-
-        grouped = defaultdict(list)
-        for f in facts:
-            grouped[f.category].append({
-                "key": f.key,
-                "value": f.value,
-                "observed_at": f.observed_at,
-                "updated_at": f.updated_at,
-                "confidence": f.confidence,
-            })
-        return dict(grouped)
-    finally:
-        session.close()
-
-
-@st.cache_data(ttl=30)
 def load_conversations(user_id: int, limit: int = 50):
     session = get_session()
     try:
@@ -133,31 +109,6 @@ def load_conversations(user_id: int, limit: int = 50):
                 "timestamp": c.timestamp,
             })
         return messages, total
-    finally:
-        session.close()
-
-
-@st.cache_data(ttl=30)
-def load_scheduled(user_id: int):
-    session = get_session()
-    try:
-        scheduled = session.execute(
-            select(ScheduledMessage)
-            .where(ScheduledMessage.user_id == user_id, ScheduledMessage.executed == False)
-            .order_by(ScheduledMessage.scheduled_time)
-        ).scalars().all()
-
-        events = session.execute(
-            select(TimelineEvent)
-            .where(TimelineEvent.user_id == user_id)
-            .order_by(TimelineEvent.datetime.desc())
-            .limit(20)
-        ).scalars().all()
-
-        return (
-            [{"time": s.scheduled_time, "type": s.message_type, "context": s.context} for s in scheduled],
-            [{"time": e.datetime, "type": e.event_type, "title": e.title, "desc": e.description, "reminded": e.reminded} for e in events],
-        )
     finally:
         session.close()
 
@@ -342,8 +293,8 @@ if st.sidebar.button("Refresh Data", key="refresh_button"):
 
 # ---- Tabs ----
 
-tab_overview, tab_conversations, tab_observations, tab_scheduled, tab_diary, tab_usage, tab_database, tab_settings = st.tabs(
-    ["Overview", "Conversations", "Observations", "Scheduled", "Diary", "Usage", "Database", "Settings"]
+tab_overview, tab_conversations, tab_diary, tab_usage, tab_database, tab_settings = st.tabs(
+    ["Overview", "Conversations", "Diary", "Usage", "Database", "Settings"]
 )
 
 # ---- Tab: Overview ----
@@ -352,34 +303,23 @@ with tab_overview:
     @st.fragment
     def overview_fragment(user_id):
         user = next(u for u in users if u["id"] == user_id)
-        user_profile = load_profile(user_id)
         
         st.header(f"{user['name']}")
 
-        # Condensed narratives
-        if "condensed" in user_profile:
-            st.subheader("Condensed Narratives")
-            for item in user_profile["condensed"]:
-                with st.expander(f"**{item['key']}**", expanded=True):
-                    st.write(item["value"])
-                    st.caption(f"Condensed: {fmt(item['updated_at'])}")
-        else:
-            st.info("No condensed narratives yet. Run `uv run python scripts/run_condensation.py` to generate.")
-
-        # Static facts
-        if "static" in user_profile:
-            st.subheader("Static Facts")
-            for item in user_profile["static"]:
-                st.markdown(f"- {item['value']}")
-
         # Quick stats
         st.subheader("Stats")
-        raw_categories = [c for c in user_profile.keys() if c not in ("condensed", "static", "system")]
-        raw_count = sum(len(user_profile[c]) for c in raw_categories)
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         col1.metric("Messages", user["msg_count"])
-        col2.metric("Observations", raw_count)
-        col3.metric("Categories", len(raw_categories))
+        
+        # Load memory count
+        session = get_session()
+        try:
+            memory_count = session.execute(
+                select(func.count()).select_from(DiaryEntry).where(DiaryEntry.user_id == user_id)
+            ).scalar()
+            col2.metric("Memories & Summaries", memory_count)
+        finally:
+            session.close()
 
     overview_fragment(selected_user_id)
 
@@ -414,68 +354,7 @@ with tab_conversations:
     conversations_fragment(selected_user_id)
 
 
-# ---- Tab: Observations ----
-
-with tab_observations:
-    @st.fragment
-    def observations_fragment(user_id):
-        user_profile = load_profile(user_id)
-        raw_categories = [c for c in sorted(user_profile.keys()) if c not in ("condensed", "static", "system")]
-
-        if not raw_categories:
-            st.info("No observations yet.")
-        else:
-            # Category filter
-            # Filter session state defaults to only include categories that exist for this user
-            valid_defaults = [cat for cat in (st.session_state.selected_observation_cats or []) if cat in raw_categories]
-            if not valid_defaults:
-                valid_defaults = raw_categories
-            
-            selected_cats = st.multiselect(
-                "Filter by category",
-                raw_categories,
-                default=valid_defaults,
-                key="observation_cats"
-            )
-            
-            # Update session state with current selection
-            st.session_state.selected_observation_cats = selected_cats
-
-            for category in selected_cats:
-                items = user_profile[category]
-                with st.expander(f"**{category}** ({len(items)} observations)", expanded=False):
-                    for item in items:
-                        st.markdown(f"**[{fmt(item['observed_at'])}]** {item['value']}")
-                        st.divider()
-
-    observations_fragment(selected_user_id)
-
-
-# ---- Tab: Scheduled ----
-
-with tab_scheduled:
-    @st.fragment
-    def scheduled_fragment(user_id):
-        scheduled_msgs, events = load_scheduled(user_id)
-
-        st.subheader(f"Pending Messages ({len(scheduled_msgs)})")
-        if scheduled_msgs:
-            for msg in scheduled_msgs:
-                st.markdown(f"**[{fmt(msg['time'])}]** `{msg['type']}` — {msg['context'] or 'no context'}")
-        else:
-            st.caption("No pending messages.")
-
-        st.subheader(f"Timeline Events ({len(events)})")
-        if events:
-            for event in events:
-                reminded = " ✓" if event["reminded"] else ""
-                st.markdown(f"**[{fmt(event['time'])}]** `{event['type']}` — {event['title']}{reminded}")
-                if event["desc"]:
-                    st.caption(event["desc"])
-        else:
-            st.caption("No timeline events.")
-
-    scheduled_fragment(selected_user_id)
+# Tab: Observations and Scheduled removed during cleanup
 
 
 # ---- Tab: Diary ----
@@ -596,55 +475,20 @@ with tab_database:
         
         session = get_session()
         try:
-            # Get counts for all tables
-            profile_count = session.execute(
-                select(func.count()).select_from(ProfileFact).where(ProfileFact.user_id == user_id)
-            ).scalar()
-            
             conv_count = session.execute(
                 select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
-            ).scalar()
-            
-            timeline_count = session.execute(
-                select(func.count()).select_from(TimelineEvent).where(TimelineEvent.user_id == user_id)
             ).scalar()
             
             diary_count = session.execute(
                 select(func.count()).select_from(DiaryEntry).where(DiaryEntry.user_id == user_id)
             ).scalar()
             
-            scheduled_count = session.execute(
-                select(func.count()).select_from(ScheduledMessage)
-                .where(ScheduledMessage.user_id == user_id, ScheduledMessage.executed == False)
-            ).scalar()
-            
             # Display counts
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
-                st.metric("👤 Profile Facts", profile_count)
                 st.metric("💬 Conversations", conv_count)
             with col2:
-                st.metric("📅 Timeline Events", timeline_count)
                 st.metric("📔 Diary Entries", diary_count)
-            with col3:
-                st.metric("⏰ Scheduled Messages", scheduled_count)
-            
-            st.markdown("---")
-            
-            # Profile Facts breakdown by category
-            st.markdown("### Profile Facts by Category")
-            profile_by_cat = session.execute(
-                select(ProfileFact.category, func.count(ProfileFact.id))
-                .where(ProfileFact.user_id == user_id)
-                .group_by(ProfileFact.category)
-                .order_by(func.count(ProfileFact.id).desc())
-            ).all()
-            
-            if profile_by_cat:
-                for category, count in profile_by_cat:
-                    st.markdown(f"- **{category}**: {count} facts")
-            else:
-                st.caption("No profile facts yet")
             
             st.markdown("---")
             

@@ -25,7 +25,7 @@ import pytz
 from sqlalchemy import select, desc, func
 
 from memory.database_async import AsyncDatabase
-from memory.models import User, ProfileFact, Conversation, ScheduledMessage, TimelineEvent
+from memory.models import User, Conversation, DiaryEntry
 from config.settings import settings
 
 TZ = pytz.timezone(settings.TIMEZONE)
@@ -64,60 +64,61 @@ async def export_user(user_id: int):
         user_dir = USERS_DIR / user_name.lower()
         user_dir.mkdir(parents=True, exist_ok=True)
 
-        # ---- Profile & Observations ----
-        facts_result = await session.execute(
-            select(ProfileFact)
-            .where(ProfileFact.user_id == user_id)
-            .order_by(ProfileFact.category, ProfileFact.observed_at.desc())
+        # ---- Diary Entries (Memories & Compacts) ----
+        diary_result = await session.execute(
+            select(DiaryEntry)
+            .where(DiaryEntry.user_id == user_id)
+            .order_by(DiaryEntry.timestamp.desc())
         )
-        facts = facts_result.scalars().all()
+        entries = diary_result.scalars().all()
 
         grouped = defaultdict(list)
-        for f in facts:
-            grouped[f.category].append(f)
+        for e in entries:
+            grouped[e.entry_type].append(e)
 
         lines = []
         lines.append(f"USER: {user.name or '-'} (ID: {user.id})")
         lines.append(f"Telegram ID: {user.telegram_id}")
         lines.append(f"Created: {fmt(user.created_at)}")
         lines.append(f"Last Active: {fmt(user.last_interaction)}")
+        lines.append(f"Reach-Out: {'Enabled' if user.reach_out_enabled else 'Disabled'}")
         lines.append("")
 
-        # Condensed narratives
-        if "condensed" in grouped:
+        # Conversation Memories
+        if grouped["conversation_memory"]:
             lines.append("=" * 60)
-            lines.append("CONDENSED NARRATIVES")
+            lines.append("CONVERSATION MEMORIES")
             lines.append("=" * 60)
-            for f in grouped["condensed"]:
-                lines.append(f"\n[{f.key}]")
-                lines.append(f.value)
-                lines.append(f"(condensed: {fmt(f.updated_at)})")
+            for e in grouped["conversation_memory"]:
+                lines.append(f"\n[{fmt(e.timestamp)}] {e.title}")
+                lines.append(f"Importance: {e.importance}/10")
+                lines.append(e.content)
             lines.append("")
 
-        # Static facts
-        if "static" in grouped:
+        # Compact Summaries
+        if grouped["compact_summary"]:
             lines.append("=" * 60)
-            lines.append("STATIC FACTS")
+            lines.append("COMPACT SUMMARIES")
             lines.append("=" * 60)
-            for f in grouped["static"]:
-                lines.append(f"- {f.value}")
+            for e in grouped["compact_summary"]:
+                lines.append(f"\n[{fmt(e.timestamp)}] {e.title}")
+                lines.append(e.content)
             lines.append("")
 
-        # Raw observations
-        raw_categories = [c for c in sorted(grouped.keys()) if c not in ("condensed", "static", "system")]
-        raw_count = sum(len(grouped[c]) for c in raw_categories)
-        lines.append("=" * 60)
-        lines.append(f"RAW OBSERVATIONS ({raw_count} total)")
-        lines.append("=" * 60)
-        for category in raw_categories:
-            lines.append(f"\n[{category}] ({len(grouped[category])} observations)")
-            for f in grouped[category]:
-                lines.append(f"  [{fmt(f.observed_at)}] {f.value}")
-        lines.append("")
+        # Significant Events
+        significant = [e for e in entries if e.entry_type not in ("conversation_memory", "compact_summary")]
+        if significant:
+            lines.append("=" * 60)
+            lines.append("SIGNIFICANT EVENTS")
+            lines.append("=" * 60)
+            for e in significant:
+                lines.append(f"\n[{fmt(e.timestamp)}] {e.entry_type.upper()}: {e.title}")
+                lines.append(e.content)
+            lines.append("")
 
-        profile_path = user_dir / "profile.txt"
-        profile_path.write_text("\n".join(lines), encoding="utf-8")
-        print(f"  Wrote {profile_path} ({len(facts)} facts)")
+        diary_path = user_dir / "diary.txt"
+        diary_path.write_text("\n".join(lines), encoding="utf-8")
+        print(f"  Wrote {diary_path} ({len(entries)} entries)")
 
         # ---- Conversations ----
         conv_result = await session.execute(
@@ -133,7 +134,6 @@ async def export_user(user_id: int):
 
         for c in convs:
             role_label = "USER" if c.role == "user" else "BOT"
-            ts = fmt_short(c.timestamp)
             date = fmt(c.timestamp)
             conv_lines.append(f"\n  [{date}] {role_label}:")
             for line in c.message.split("\n"):
