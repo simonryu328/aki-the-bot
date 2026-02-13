@@ -67,7 +67,7 @@ class LLMClient:
     async def chat(
         self,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: int = 1000,
         **kwargs: Any,
@@ -76,23 +76,39 @@ class LLMClient:
         Generate a chat completion.
 
         Args:
-            model: Model identifier (e.g., "gpt-4o", "claude-3-5-sonnet-20241022")
-            messages: List of message dicts with 'role' and 'content'
-            temperature: Sampling temperature (0-1)
+            model: Model identifier
+            messages: List of message dicts (now allows Any for content lists/dicts)
+            temperature: Sampling temperature
             max_tokens: Maximum tokens in response
-            **kwargs: Additional provider-specific parameters
+            **kwargs: Additional parameters
 
         Returns:
             Generated response text
-
-        Raises:
-            Exception: If all retry attempts fail
         """
+        # Check if any message part has cache_control (Anthropic specific)
+        has_cache_control = False
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and "cache_control" in part:
+                        has_cache_control = True
+                        break
+            if has_cache_control:
+                break
+
+        # Anthropic caching requires a beta header if using cache_control
+        if has_cache_control and "claude" in model.lower():
+            if "extra_headers" not in kwargs:
+                kwargs["extra_headers"] = {}
+            kwargs["extra_headers"]["anthropic-beta"] = "prompt-caching-2024-07-31"
+
         logger.debug(
             "LLM request",
             model=model,
             message_count=len(messages),
             temperature=temperature,
+            caching=has_cache_control,
         )
 
         try:
@@ -111,11 +127,13 @@ class LLMClient:
                 "LLM response",
                 model=model,
                 tokens_used=response.usage.total_tokens if response.usage else None,
+                cache_read=getattr(response.usage, "cache_read_input_tokens", 0),
+                cache_creation=getattr(response.usage, "cache_creation_input_tokens", 0),
                 response_length=len(content),
                 finish_reason=finish_reason,
             )
             
-            # Log truncated response for debugging (first 100 and last 100 chars)
+            # Log truncated response for debugging
             if len(content) > 200:
                 truncated = f"{content[:100]}...{content[-100:]}"
             else:
@@ -128,15 +146,6 @@ class LLMClient:
                 response_preview=truncated,
             )
             
-            # Warn if response was cut off
-            if finish_reason == "length":
-                logger.warning(
-                    "Response truncated by max_tokens limit",
-                    model=model,
-                    max_tokens=max_tokens,
-                    completion_tokens=response.usage.completion_tokens if response.usage else None,
-                )
-
             return content
 
         except Exception as e:
@@ -146,21 +155,38 @@ class LLMClient:
     async def chat_with_usage(
         self,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: int = 1000,
         **kwargs: Any,
     ) -> LLMResponse:
         """
         Generate a chat completion and return content + usage metadata.
-
-        Same as chat() but returns an LLMResponse with token counts.
         """
+        # Check if any message part has cache_control (Anthropic specific)
+        has_cache_control = False
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and "cache_control" in part:
+                        has_cache_control = True
+                        break
+            if has_cache_control:
+                break
+
+        # Anthropic caching requires a beta header if using cache_control
+        if has_cache_control and "claude" in model.lower():
+            if "extra_headers" not in kwargs:
+                kwargs["extra_headers"] = {}
+            kwargs["extra_headers"]["anthropic-beta"] = "prompt-caching-2024-07-31"
+
         logger.debug(
             "LLM request (with usage)",
             model=model,
             message_count=len(messages),
             temperature=temperature,
+            caching=has_cache_control,
         )
 
         try:
@@ -180,12 +206,18 @@ class LLMClient:
             output_tokens = usage.completion_tokens if usage else 0
             total_tokens = usage.total_tokens if usage else 0
 
+            # Caching metadata
+            cache_read = getattr(usage, "cache_read_input_tokens", 0)
+            cache_creation = getattr(usage, "cache_creation_input_tokens", 0)
+
             logger.debug(
                 "LLM response (with usage)",
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
+                cache_read=cache_read,
+                cache_creation=cache_creation,
                 finish_reason=finish_reason,
             )
 
@@ -200,14 +232,6 @@ class LLMClient:
                 finish_reason=finish_reason,
                 response_preview=truncated,
             )
-
-            if finish_reason == "length":
-                logger.warning(
-                    "Response truncated by max_tokens limit",
-                    model=model,
-                    max_tokens=max_tokens,
-                    completion_tokens=output_tokens,
-                )
 
             return LLMResponse(
                 content=content,
@@ -224,25 +248,16 @@ class LLMClient:
     async def chat_with_system(
         self,
         model: str,
-        system_prompt: str,
+        system_prompt: str | List[Dict[str, Any]],
         user_message: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
         **kwargs: Any,
     ) -> str:
         """
         Convenience method for chat with system prompt.
-
-        Args:
-            model: Model identifier
-            system_prompt: System instructions
-            user_message: Current user message
-            conversation_history: Optional previous messages
-            **kwargs: Additional parameters
-
-        Returns:
-            Generated response text
+        Allows system_prompt to be a string or a list of content blocks (for caching).
         """
-        messages = [{"role": "system", "content": system_prompt}]
+        messages: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
         if conversation_history:
             messages.extend(conversation_history)
@@ -254,17 +269,16 @@ class LLMClient:
     async def chat_with_system_and_usage(
         self,
         model: str,
-        system_prompt: str,
+        system_prompt: str | List[Dict[str, Any]],
         user_message: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
         **kwargs: Any,
     ) -> LLMResponse:
         """
         Convenience method for chat with system prompt, returning usage metadata.
-
-        Same as chat_with_system() but returns LLMResponse with token counts.
+        Allows system_prompt to be a string or a list of content blocks (for caching).
         """
-        messages = [{"role": "system", "content": system_prompt}]
+        messages: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
         if conversation_history:
             messages.extend(conversation_history)

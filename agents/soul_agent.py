@@ -130,19 +130,40 @@ class SoulAgent:
             time_context = "It's late night."
 
         # Assemble system prompt from frame + persona
-        system_prompt = SYSTEM_FRAME.format(
-            persona=self.persona,
+        from prompts.system_frame import SYSTEM_STATIC, SYSTEM_DYNAMIC
+        
+        # 1. Static part (Persona + Format) - Ideal for caching
+        static_text = SYSTEM_STATIC.format(persona=self.persona)
+        
+        # 2. Dynamic part (Time, Observations, History)
+        dynamic_text = SYSTEM_DYNAMIC.format(
+            observations=observations_text,
             current_time=current_time,
             time_context=time_context,
-            observations=observations_text,
             recent_exchanges=recent_exchanges_text,
             conversation_history=history_text,
         )
-        SoulAgent._last_system_prompt[user_id] = system_prompt
+        
+        # Update debug context (join for display)
+        SoulAgent._last_system_prompt[user_id] = static_text + dynamic_text
+
+        # Create list-based system prompt for caching support
+        # We put the cache_control at the end of the static block
+        system_prompt_blocks = [
+            {
+                "type": "text",
+                "text": static_text,
+                "cache_control": {"type": "ephemeral"}
+            },
+            {
+                "type": "text",
+                "text": dynamic_text
+            }
+        ]
 
         llm_response = await llm_client.chat_with_system_and_usage(
             model=self.model,
-            system_prompt=system_prompt,
+            system_prompt=system_prompt_blocks,
             user_message=message,
             temperature=0.7,
             max_tokens=1000,

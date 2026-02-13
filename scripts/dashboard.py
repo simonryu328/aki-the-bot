@@ -741,10 +741,27 @@ with tab_usage:
         day_output = sum(u.output for u in latest_day_totals)
         day_total = sum(u.total for u in latest_day_totals)
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         col1.metric("Today's Tokens", f"{day_total:,}")
-        col2.metric("Input", f"{day_input:,}")
-        col3.metric("Output", f"{day_output:,}")
+        
+        from config.settings import settings
+        budget = settings.USER_DAILY_TOKEN_BUDGET
+        if budget > 0:
+            remaining = max(0, budget - day_total)
+            col2.metric("Daily Budget", f"{budget:,}")
+            col3.metric("Remaining", f"{remaining:,}", delta=f"-{day_total:,}" if day_total > 0 else None)
+            
+            # Progress bar
+            progress = min(1.0, day_total / budget)
+            st.progress(progress, text=f"Daily Budget Consumption: {progress:.1%}")
+            if progress >= 1.0:
+                st.error("⚠️ User has exceeded their daily token budget.")
+            elif progress >= 0.8:
+                st.warning("⚠️ User is approaching their daily token budget.")
+        else:
+            col2.metric("Daily Budget", "Unlimited")
+            
+        col4.metric("Input / Output", f"{day_input:,} / {day_output:,}")
 
         # 2. Weekly Trend
         st.subheader("Daily Usage")

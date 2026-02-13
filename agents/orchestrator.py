@@ -88,7 +88,22 @@ class AgentOrchestrator:
             upcoming_events=events,
         )
 
-        # 4. Get companion response - pass pre-fetched user and full history
+        # 4. Check daily token budget
+        from config.settings import settings
+        if settings.USER_DAILY_TOKEN_BUDGET > 0:
+            usage_today = await self.memory.db.get_user_token_usage_today(user_id)
+            if usage_today >= settings.USER_DAILY_TOKEN_BUDGET:
+                logger.warning(
+                    "Token budget exceeded",
+                    user_id=user_id,
+                    usage_today=usage_today,
+                    budget=settings.USER_DAILY_TOKEN_BUDGET,
+                )
+                return [
+                    "You've given me so much to think about today! 🧠✨ Let's pause here so I can process everything. I'll be refreshed and ready to talk more tomorrow!"
+                ], "😴"
+
+        # 5. Get companion response - pass pre-fetched user and full history
         result = await self.agent.respond(
             user_id=user_id,
             message=message,
@@ -97,7 +112,7 @@ class AgentOrchestrator:
             user=user,  # Pass pre-fetched user to avoid refetching
         )
 
-        # 5. Store assistant response (full response, not split)
+        # 6. Store assistant response (full response, not split)
         await self.memory.add_conversation(
             user_id=user_id,
             role="assistant",
@@ -105,7 +120,7 @@ class AgentOrchestrator:
             thinking=result.thinking,
         )
 
-        # 6. Record token usage (background, non-blocking)
+        # 7. Record token usage (background, non-blocking)
         if result.usage and result.usage.total_tokens > 0:
             import asyncio
             asyncio.create_task(

@@ -258,6 +258,13 @@ class Settings(BaseSettings):
         ge=1,
     )
 
+    USER_DAILY_TOKEN_BUDGET: int = Field(
+        default=50000,
+        description="Maximum tokens a user can consume per day. "
+                    "Prevents runaway costs. Set to 0 to disable.",
+        ge=0,
+    )
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
