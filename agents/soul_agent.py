@@ -75,6 +75,7 @@ class SoulAgent:
     # In-memory formatted string caches (user_id -> string)
     _observations_cache: Dict[int, str] = {}
     _profile_string_cache: Dict[int, str] = {}
+    _last_recent_exchanges: Dict[int, str] = {}
 
     def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
@@ -140,6 +141,7 @@ class SoulAgent:
         
         # Update debug context
         SoulAgent._last_system_prompt[user_id] = static_text + dynamic_text
+        SoulAgent._last_recent_exchanges[user_id] = recent_exchanges_text
 
         # Create list-based system prompt for caching support
         system_prompt_blocks = [
@@ -864,6 +866,11 @@ class SoulAgent:
     def get_last_raw_response(cls, user_id: int) -> Optional[str]:
         """Get the last raw LLM response for a user (for debugging)."""
         return cls._last_raw_response.get(user_id)
+
+    @classmethod
+    def get_last_recent_exchanges(cls, user_id: int) -> Optional[str]:
+        """Get the last recent exchanges context for a user (for debugging)."""
+        return cls._last_recent_exchanges.get(user_id)
 
 
 # Singleton instance

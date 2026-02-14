@@ -766,14 +766,14 @@ class TelegramBot:
             await update.message.reply_text(f"Error: {e}")
 
     async def prompt_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Shows the last companion system prompt sent to the LLM."""
+        """Shows the last companion recent exchanges context for debugging."""
         user = update.effective_user
         telegram_id = user.id
         try:
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
-            prompt = SoulAgent.get_last_system_prompt(user_id)
-            response = f"📋 Last companion prompt:\n\n{prompt}" if prompt else "No prompt captured yet."
+            exchanges = SoulAgent.get_last_recent_exchanges(user_id)
+            response = f"📋 Last Recent Exchanges Context:\n\n{exchanges}" if exchanges else "No context captured yet."
             await self._send_long_message(update.effective_chat.id, response)
         except Exception as e:
             logger.error(f"Error in prompt command: {e}")
