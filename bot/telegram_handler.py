@@ -830,6 +830,9 @@ class TelegramBot:
             await memory_manager.update_user_reach_out_config(db_user.id, max_silence_days=days)
             await update.message.reply_text(f"✅ Max silence set to {days}d.")
         except Exception as e:
+            logger.error(f"Error in reachout_max command: {e}", exc_info=True)
+            await update.message.reply_text("❌ Error setting max silence days.")
+
     async def memories_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Open the Memory Viewer mini app"""
         try:
