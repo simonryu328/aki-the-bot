@@ -146,7 +146,7 @@ class Settings(BaseSettings):
         ge=1,
     )
     STICKER_MAX_MESSAGES: int = Field(
-        default=10,
+        default=7,
         description="Maximum messages before sending a sticker",
         ge=1,
     )
