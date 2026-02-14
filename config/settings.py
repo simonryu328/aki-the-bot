@@ -192,7 +192,7 @@ class Settings(BaseSettings):
     # These settings control how many records to fetch from the database
     
     DIARY_FETCH_LIMIT: int = Field(
-        default=10,
+        default=20,
         description="Number of diary entries to fetch when looking for compact summaries. "
                     "Should be >= COMPACT_SUMMARY_LIMIT to ensure we get enough compacts. "
                     "Used in: soul_agent._build_conversation_context(), _maybe_create_compact_summary()",

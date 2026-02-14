@@ -231,13 +231,28 @@ class SoulAgent:
         # Get diary entries to pick from
         diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
         
-        # Get up to N most recent of each type (diary_entries is newest first)
-        memory_entries = [e for e in diary_entries if e.entry_type == 'conversation_memory'][:settings.MEMORY_ENTRY_LIMIT]
-        summary_entries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:settings.COMPACT_SUMMARY_LIMIT]
+        # Filter into pools (diary_entries is newest first)
+        all_memories = [e for e in diary_entries if e.entry_type == 'conversation_memory']
+        all_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary']
         
-        # We want: [Oldest Memory, Newer Memory, Oldest Summary, Newer Summary]
-        # This satisfies the requirement: "The oldest 2 will be memory entries, and the most recent 2 will be the compact summaries."
-        # Within each category, we show them chronologically (oldest to newest) for flow.
+        # 1. Take up to 2 most recent summaries (Ranges 1 and 2)
+        summary_entries = all_summaries[:settings.COMPACT_SUMMARY_LIMIT]
+        
+        # 2. Determine cutoff: the earliest point covered by selected summaries
+        cutoff = None
+        if summary_entries:
+            oldest_summary = summary_entries[-1]
+            cutoff = oldest_summary.exchange_start or oldest_summary.timestamp
+            
+        # 3. Take up to 2 most recent memories that are OLDER than the summaries (Ranges 3 and 4)
+        if cutoff:
+            # We look for memories where the entire exchange ended before our cutoff
+            memory_entries = [m for m in all_memories if (m.exchange_end or m.timestamp) <= cutoff][:settings.MEMORY_ENTRY_LIMIT]
+        else:
+            # Fallback if no summaries are found
+            memory_entries = all_memories[:settings.MEMORY_ENTRY_LIMIT]
+        
+        # We want prompt order: [Oldest Memory, Newer Memory, Oldest Summary, Newer Summary] (Ranges 4, 3, 2, 1)
         context_items = []
         
         def format_recent_entry(entry):

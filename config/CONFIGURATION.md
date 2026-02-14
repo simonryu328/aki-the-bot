@@ -44,7 +44,15 @@ These settings control how much conversation history is included in the AI's con
 - **What it does:** Memory entries are timestamped reflections on conversation exchanges. This controls how many of those reflections are shown in addition to summaries.
 - **Example:** With value `2`, the AI sees the last 2 memory entries.
 
-**Note:** The system combines these in RECENT EXCHANGES, showing memories first (as the "oldest" context) and summaries second (as the "most recent" context), for a total of 4 context items by default.
+**Note:** The system uses a sliding window strategy to provide 4 distinct time ranges in RECENT EXCHANGES. It picks the 2 most recent compact summaries for the newest historical context, and then picks the 2 most recent memory entries that are *older* than those summaries. 
+
+In the prompt, they are ordered chronologically:
+1. Memory (Oldest)
+2. Memory
+3. Summary
+4. Summary (Newest)
+
+This ensures the AI sees a deep, multi-stage history without overlapping content.
 
 ---
 

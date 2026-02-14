@@ -996,17 +996,32 @@ class TelegramBot:
             now = datetime.now(tz)
             current_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
 
-            # Get diary entries to pick from
+            # Get diary entries to pick from (newest first)
             diary_entries = await memory_manager.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
             
-            # Get up to N most recent of each type (newest first)
-            memories = [e for e in diary_entries if e.entry_type == 'conversation_memory'][:settings.MEMORY_ENTRY_LIMIT]
-            summaries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:settings.COMPACT_SUMMARY_LIMIT]
+            # Filter into pools
+            all_memories = [e for e in diary_entries if e.entry_type == 'conversation_memory']
+            all_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary']
             
-            # Find the most recent end time to determine conversation cutoff
-            all_recent = memories + summaries
+            # 1. Take up to 2 most recent summaries (Ranges 1 and 2)
+            summaries = all_summaries[:settings.COMPACT_SUMMARY_LIMIT]
+            
+            # 2. Determine cutoff: the earliest point covered by selected summaries
+            cutoff = None
+            if summaries:
+                oldest_summary = summaries[-1]
+                cutoff = oldest_summary.exchange_start or oldest_summary.timestamp
+                
+            # 3. Take up to 2 most recent memories that are OLDER than the summaries (Ranges 3 and 4)
+            if cutoff:
+                memories = [m for m in all_memories if (m.exchange_end or m.timestamp) <= cutoff][:settings.MEMORY_ENTRY_LIMIT]
+            else:
+                memories = all_memories[:settings.MEMORY_ENTRY_LIMIT]
+            
+            # Find the most recent end time to determine conversation cutoff (Range 1 end)
+            all_selected = memories + summaries
             last_exchange_end = None
-            for entry in all_recent:
+            for entry in all_selected:
                 # Use exchange_end if available, otherwise fallback to entry timestamp
                 end_time = entry.exchange_end if entry.exchange_end else entry.timestamp
                 if last_exchange_end is None or end_time > last_exchange_end:
