@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aki - Memory Viewer</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-hint-color: #999999;
+            --tg-theme-link-color: #2481cc;
+            --tg-theme-button-color: #2481cc;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-secondary-bg-color: #f4f4f5;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            padding: 0;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 100%;
+            padding: 16px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--tg-theme-hint-color);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--tg-theme-hint-color);
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--tg-theme-secondary-bg-color);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--tg-theme-link-color);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--tg-theme-hint-color);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tab {
+            flex: 1;
+            min-width: 100px;
+            padding: 12px 16px;
+            background: var(--tg-theme-secondary-bg-color);
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab.active {
+            background: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+        }
+
+        .content {
+            display: none;
+        }
+
+        .content.active {
+            display: block;
+        }
+
+        .memory-card {
+            background: var(--tg-theme-secondary-bg-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .memory-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .memory-title {
+            font-size: 16px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .memory-date {
+            font-size: 12px;
+            color: var(--tg-theme-hint-color);
+            white-space: nowrap;
+            margin-left: 12px;
+        }
+
+        .memory-content {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--tg-theme-text-color);
+            margin-bottom: 8px;
+        }
+
+        .memory-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--tg-theme-hint-color);
+        }
+
+        .importance-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .importance-high {
+            background: #fee;
+            color: #c33;
+        }
+
+        .importance-medium {
+            background: #ffeaa7;
+            color: #d63031;
+        }
+
+        .importance-low {
+            background: #dfe6e9;
+            color: #636e72;
+        }
+
+        .conversation-message {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .message-user {
+            background: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            margin-left: 20px;
+        }
+
+        .message-assistant {
+            background: var(--tg-theme-secondary-bg-color);
+            margin-right: 20px;
+        }
+
+        .message-role {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            opacity: 0.7;
+        }
+
+        .message-text {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 4px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.6;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--tg-theme-hint-color);
+        }
+
+        .spinner {
+            border: 3px solid var(--tg-theme-secondary-bg-color);
+            border-top: 3px solid var(--tg-theme-button-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--tg-theme-hint-color);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .load-more {
+            width: 100%;
+            padding: 12px;
+            background: var(--tg-theme-secondary-bg-color);
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 16px;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: var(--tg-theme-secondary-bg-color);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .timeline-date {
+            font-weight: 600;
+            min-width: 100px;
+        }
+
+        .timeline-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--tg-theme-hint-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌟 Your Memories</h1>
+            <p id="user-name">Loading...</p>
+        </div>
+
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-conversations">-</div>
+                <div class="stat-label">Conversations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-memories">-</div>
+                <div class="stat-label">Memories</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-diary">-</div>
+                <div class="stat-label">Diary Entries</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-days">-</div>
+                <div class="stat-label">Days Active</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="memories">Memories</button>
+            <button class="tab" data-tab="conversations">Conversations</button>
+            <button class="tab" data-tab="diary">Diary</button>
+            <button class="tab" data-tab="timeline">Timeline</button>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div id="memories-content" class="content active">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading memories...</p>
+            </div>
+        </div>
+
+        <div id="conversations-content" class="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading conversations...</p>
+            </div>
+        </div>
+
+        <div id="diary-content" class="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading diary entries...</p>
+            </div>
+        </div>
+
+        <div id="timeline-content" class="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading timeline...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        // Apply Telegram theme
+        document.documentElement.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#ffffff');
+        document.documentElement.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#000000');
+        document.documentElement.style.setProperty('--tg-theme-hint-color', tg.themeParams.hint_color || '#999999');
+        document.documentElement.style.setProperty('--tg-theme-link-color', tg.themeParams.link_color || '#2481cc');
+        document.documentElement.style.setProperty('--tg-theme-button-color', tg.themeParams.button_color || '#2481cc');
+        document.documentElement.style.setProperty('--tg-theme-button-text-color', tg.themeParams.button_text_color || '#ffffff');
+        document.documentElement.style.setProperty('--tg-theme-secondary-bg-color', tg.themeParams.secondary_bg_color || '#f4f4f5');
+
+        // API Configuration
+        const API_BASE_URL = window.location.origin.includes('localhost') 
+            ? 'http://localhost:8000' 
+            : window.location.origin;
+
+        // Get init data for authentication
+        const initData = tg.initData;
+
+        // API Helper
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Authorization': `Bearer ${initData}`,
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'API request failed');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                showError(error.message);
+                throw error;
+            }
+        }
+
+        // Error Display
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `<div class="error">⚠️ ${message}</div>`;
+            setTimeout(() => {
+                errorContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        // Format Date
+        function formatDate(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 0) {
+                return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } else if (diffDays === 1) {
+                return 'Yesterday';
+            } else if (diffDays < 7) {
+                return `${diffDays} days ago`;
+            } else {
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            }
+        }
+
+        // Load User Stats
+        async function loadStats() {
+            try {
+                const stats = await apiCall('/api/user/stats');
+                
+                document.getElementById('stat-conversations').textContent = stats.total_conversations;
+                document.getElementById('stat-memories').textContent = stats.total_memories;
+                document.getElementById('stat-diary').textContent = stats.total_diary_entries;
+                document.getElementById('stat-days').textContent = stats.days_active;
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        // Load Memories
+        async function loadMemories() {
+            const container = document.getElementById('memories-content');
+            
+            try {
+                const memories = await apiCall('/api/memories?limit=50');
+                
+                if (memories.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💭</div>
+                            <p>No memories yet. Keep chatting to create memories!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = memories.map(memory => {
+                    const importanceClass = memory.importance >= 7 ? 'importance-high' : 
+                                          memory.importance >= 4 ? 'importance-medium' : 'importance-low';
+                    
+                    return `
+                        <div class="memory-card">
+                            <div class="memory-header">
+                                <div class="memory-title">${memory.title}</div>
+                                <div class="memory-date">${formatDate(memory.timestamp)}</div>
+                            </div>
+                            <div class="memory-content">${memory.content}</div>
+                            <div class="memory-meta">
+                                <span class="importance-badge ${importanceClass}">
+                                    Importance: ${memory.importance}/10
+                                </span>
+                                ${memory.exchange_start ? `<span>📅 ${formatDate(memory.exchange_start)}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                container.innerHTML = `<div class="error">Failed to load memories</div>`;
+            }
+        }
+
+        // Load Conversations
+        async function loadConversations() {
+            const container = document.getElementById('conversations-content');
+            
+            try {
+                const conversations = await apiCall('/api/conversations?limit=100');
+                
+                if (conversations.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💬</div>
+                            <p>No conversations yet. Start chatting!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = conversations.map(msg => {
+                    const isUser = msg.role === 'user';
+                    const className = isUser ? 'message-user' : 'message-assistant';
+                    
+                    return `
+                        <div class="conversation-message ${className}">
+                            <div class="message-role">${isUser ? 'You' : 'Aki'}</div>
+                            <div class="message-text">${msg.message}</div>
+                            <div class="message-time">${formatDate(msg.timestamp)}</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                container.innerHTML = `<div class="error">Failed to load conversations</div>`;
+            }
+        }
+
+        // Load Diary
+        async function loadDiary() {
+            const container = document.getElementById('diary-content');
+            
+            try {
+                const entries = await apiCall('/api/diary?limit=50');
+                
+                if (entries.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📔</div>
+                            <p>No diary entries yet.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = entries.map(entry => {
+                    const importanceClass = entry.importance >= 7 ? 'importance-high' : 
+                                          entry.importance >= 4 ? 'importance-medium' : 'importance-low';
+                    
+                    return `
+                        <div class="memory-card">
+                            <div class="memory-header">
+                                <div class="memory-title">${entry.title}</div>
+                                <div class="memory-date">${formatDate(entry.timestamp)}</div>
+                            </div>
+                            <div class="memory-content">${entry.content}</div>
+                            <div class="memory-meta">
+                                <span class="importance-badge ${importanceClass}">
+                                    ${entry.importance}/10
+                                </span>
+                                <span>Type: ${entry.entry_type}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                container.innerHTML = `<div class="error">Failed to load diary entries</div>`;
+            }
+        }
+
+        // Load Timeline
+        async function loadTimeline() {
+            const container = document.getElementById('timeline-content');
+            
+            try {
+                const timeline = await apiCall('/api/timeline?days=30');
+                
+                if (timeline.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📊</div>
+                            <p>No activity data yet.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = timeline.map(item => {
+                    return `
+                        <div class="timeline-item">
+                            <div class="timeline-date">${formatDate(item.date)}</div>
+                            <div class="timeline-stats">
+                                <span>💬 ${item.conversations}</span>
+                                <span>💭 ${item.memories}</span>
+                                <span>📔 ${item.diary_entries}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                container.innerHTML = `<div class="error">Failed to load timeline</div>`;
+            }
+        }
+
+        // Tab Switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                
+                // Update active tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update active content
+                document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+                document.getElementById(`${tabName}-content`).classList.add('active');
+                
+                // Load data if not already loaded
+                const content = document.getElementById(`${tabName}-content`);
+                if (content.querySelector('.loading')) {
+                    switch(tabName) {
+                        case 'memories':
+                            loadMemories();
+                            break;
+                        case 'conversations':
+                            loadConversations();
+                            break;
+                        case 'diary':
+                            loadDiary();
+                            break;
+                        case 'timeline':
+                            loadTimeline();
+                            break;
+                    }
+                }
+            });
+        });
+
+        // Initialize
+        async function init() {
+            // Set user name
+            if (tg.initDataUnsafe.user) {
+                const userName = tg.initDataUnsafe.user.first_name || 'User';
+                document.getElementById('user-name').textContent = `Welcome, ${userName}!`;
+            }
+
+            // Load initial data
+            await loadStats();
+            await loadMemories();
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
