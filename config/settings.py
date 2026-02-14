@@ -97,18 +97,6 @@ class Settings(BaseSettings):
                     "Auto-generated from bot token if empty.",
     )
     
-    # Mini App Configuration
-    MINIAPP_PORT: int = Field(
-        default=8000,
-        description="Port for the Telegram Mini App API server",
-        ge=1,
-        le=65535,
-    )
-    MINIAPP_URL: str = Field(
-        default="",
-        description="Public URL for the Mini App (e.g., https://aki-miniapp.up.railway.app). "
-                    "Used for serving the web interface.",
-    )
 
     # Reach-Out Configuration
     REACH_OUT_CHECK_INTERVAL_MINUTES: int = Field(

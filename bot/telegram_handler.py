@@ -833,51 +833,6 @@ class TelegramBot:
             logger.error(f"Error in reachout_max command: {e}", exc_info=True)
             await update.message.reply_text("❌ Error setting max silence days.")
 
-    async def memories_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Open the Memory Viewer mini app"""
-        try:
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-            
-            user = update.effective_user
-            telegram_id = user.id
-            
-            # Check if mini app URL is configured
-            miniapp_url = settings.MINIAPP_URL if hasattr(settings, 'MINIAPP_URL') and settings.MINIAPP_URL else None
-            
-            if not miniapp_url:
-                await update.message.reply_text(
-                    "❌ Memory Viewer is not configured yet. Please contact the administrator."
-                )
-                return
-            
-            # Create inline keyboard with web app button
-            keyboard = [[
-                InlineKeyboardButton(
-                    "🌟 View Your Memories",
-                    web_app=WebAppInfo(url=miniapp_url)
-                )
-            ]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(
-                "✨ *Your Memory Viewer*\n\n"
-                "Click the button below to explore:\n"
-                "• 💭 Conversation memories\n"
-                "• 💬 Full chat history\n"
-                "• 📔 Diary entries\n"
-                "• 📊 Activity timeline\n\n"
-                "All your memories in one beautiful interface!",
-                reply_markup=reply_markup,
-                parse_mode="Markdown"
-            )
-            
-            logger.info(f"Memories command used by user {telegram_id}")
-            
-        except Exception as e:
-            logger.error(f"Error in memories command: {e}", exc_info=True)
-            await update.message.reply_text(
-                "❌ Sorry, there was an error opening the Memory Viewer. Please try again later."
-            )
 
     async def memory_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -1256,9 +1211,6 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("reachout_max", self.reachout_max_command)
-        )
-        self.application.add_handler(
-            CommandHandler("memories", self.memories_command)
         )
         self.application.add_handler(
             CommandHandler("memory", self.memory_command)
