@@ -13,7 +13,7 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 from collections import deque
 import pytz
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, MenuButtonWebApp, WebAppInfo
 from telegram.constants import ChatAction
 from telegram.ext import (
     Application,
@@ -394,9 +394,15 @@ class TelegramBot:
         try:
             # Use the webhook URL + / as the web app URL for now
             web_app_url = settings.WEBHOOK_URL
+            
+            # Use typed objects for better compatibility
+            # Ensure URL is HTTPS
+            if not web_app_url.startswith("https://"):
+                web_app_url = f"https://{web_app_url.lstrip('http://')}"
+                
             await context.bot.set_chat_menu_button(
                 chat_id=chat_id,
-                menu_button={"type": "web_app", "text": "Open Logs", "web_app": {"url": web_app_url}}
+                menu_button=MenuButtonWebApp(text="Open Logs", web_app=WebAppInfo(url=web_app_url))
             )
             logger.info(f"Set menu button for user {telegram_id} to {web_app_url}")
             await update.message.reply_text(
@@ -405,7 +411,7 @@ class TelegramBot:
             )
         except Exception as e:
             logger.error(f"Error setting menu button: {e}")
-            await update.message.reply_text("Failed to set the menu button. Please try again.")
+            await update.message.reply_text(f"Failed to set the menu button: {str(e)}")
 
     async def handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
