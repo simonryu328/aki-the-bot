@@ -97,5 +97,8 @@ async def webhook_handler(token: str, request: Request):
 # We accept that the web folder might not exist yet during initial scaffolding
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web", "dist")
 if os.path.exists(static_dir):
+    logger.info(f"Serving static files from {static_dir}")
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+else:
+    logger.warning(f"Static directory not found: {static_dir}. Frontend will not be served.")
 
