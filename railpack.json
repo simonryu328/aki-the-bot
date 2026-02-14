@@ -27,7 +27,7 @@
         }
     },
     "deploy": {
-        "startCommand": "uv run python run_server.py",
+        "startCommand": ".venv/bin/python run_server.py",
         "inputs": [
             {
                 "step": "build"
