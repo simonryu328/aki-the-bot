@@ -6,15 +6,11 @@
     },
     "steps": {
         "install": {
-            "inputs": [
-                {
-                    "local": true,
-                    "include": [
-                        "."
-                    ]
-                }
-            ],
             "commands": [
+                {
+                    "src": ".",
+                    "dest": "."
+                },
                 "uv sync --frozen",
                 "cd web && npm install"
             ]
