@@ -58,16 +58,20 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok"}
 
-@app.get("/api/memories/{user_id}", response_model=list[DiaryEntrySchema])
-async def get_memories(user_id: int):
+@app.get("/api/memories/{telegram_id}", response_model=list[DiaryEntrySchema])
+async def get_memories(telegram_id: int):
     """
-    Fetch memories for a specific user.
+    Fetch memories for a specific user using their Telegram ID.
     In a real app, you'd validate the WebApp parsing data to ensure security.
-    For this prototype, we'll trust the user_id if this is a personal bot.
+    For this prototype, we'll trust the telegram_id if this is a personal bot.
     """
     try:
+        # Get internal user ID from Telegram ID
+        # use get_or_create to ensure we don't crash if new user opens app
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        
         entries = await memory_manager.get_diary_entries(
-            user_id=user_id,
+            user_id=user.id,
             limit=50,
             entry_type="conversation_memory" # Only show processed memories
         )

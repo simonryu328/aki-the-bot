@@ -38,7 +38,13 @@ function App() {
                 setMemories(response.data);
             } catch (err) {
                 console.error(err);
-                setError("Failed to load memories from space.");
+                if (err.response) {
+                    setError(`Error ${err.response.status}: ${JSON.stringify(err.response.data)}`);
+                } else if (err.request) {
+                    setError("No response received from server.");
+                } else {
+                    setError(err.message);
+                }
             } finally {
                 setLoading(false);
             }
