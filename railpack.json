@@ -6,8 +6,15 @@
     },
     "steps": {
         "install": {
+            "inputs": [
+                {
+                    "local": true,
+                    "include": [
+                        "."
+                    ]
+                }
+            ],
             "commands": [
-                "pip install uv",
                 "uv sync --frozen",
                 "cd web && npm install"
             ]
