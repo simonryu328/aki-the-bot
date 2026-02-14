@@ -46,3 +46,9 @@ users/
 
 # Claude Code
 .claude
+
+# Web / Frontend
+node_modules/
+web/node_modules/
+web/dist/
+web/.env*
