@@ -370,21 +370,42 @@ class TelegramBot:
                     reply_markup=reply_markup
                 )
                 
-            # Set the menu button to the Web App if URL is configured
-            if settings.WEBHOOK_URL:
-                # Use the webhook URL + / as the web app URL for now
-                web_app_url = settings.WEBHOOK_URL
-                await context.bot.set_chat_menu_button(
-                    chat_id=chat_id,
-                    menu_button={"type": "web_app", "text": "Open Logs", "web_app": {"url": web_app_url}}
-                )
-                logger.info(f"Set menu button for user {telegram_id} to {web_app_url}")
+
 
         except Exception as e:
             logger.error(f"Error in start command: {e}")
             await update.message.reply_text(
                 "Something went wrong. Please try /start again."
             )
+
+    async def logs_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /logs command.
+        Sets the Menu Button to open the Mini App (Logs).
+        """
+        user = update.effective_user
+        telegram_id = user.id
+        chat_id = update.effective_chat.id
+
+        if not settings.WEBHOOK_URL:
+            await update.message.reply_text("The Mini App URL is not configured.")
+            return
+
+        try:
+            # Use the webhook URL + / as the web app URL for now
+            web_app_url = settings.WEBHOOK_URL
+            await context.bot.set_chat_menu_button(
+                chat_id=chat_id,
+                menu_button={"type": "web_app", "text": "Open Logs", "web_app": {"url": web_app_url}}
+            )
+            logger.info(f"Set menu button for user {telegram_id} to {web_app_url}")
+            await update.message.reply_text(
+                "I've added the 'Open Logs' button to your menu! 🚀\n"
+                "You can tap it to see our conversation memories."
+            )
+        except Exception as e:
+            logger.error(f"Error setting menu button: {e}")
+            await update.message.reply_text("Failed to set the menu button. Please try again.")
 
     async def handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -1224,6 +1245,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("memory", self.memory_command)
+        )
+        self.application.add_handler(
+            CommandHandler("logs", self.logs_command)
         )
         
         # Message handlers
