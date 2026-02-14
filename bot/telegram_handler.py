@@ -879,7 +879,48 @@ class TelegramBot:
                 "❌ Sorry, there was an error opening the Memory Viewer. Please try again later."
             )
 
-            logger.error(f"Error in reachout_max: {e}")
+    async def memory_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle the /memory command.
+        Shows the latest untruncated conversation_memory entry for the user.
+        """
+        user = update.effective_user
+        telegram_id = user.id
+        
+        logger.info(f"User {telegram_id} requested their latest memory")
+        
+        try:
+            # Get user from DB
+            db_user = await memory_manager.get_or_create_user(telegram_id)
+            user_id = db_user.id
+            
+            # Fetch latest conversation_memory entry
+            entries = await memory_manager.get_diary_entries(
+                user_id=user_id,
+                limit=1,
+                entry_type="conversation_memory"
+            )
+            
+            if not entries:
+                await update.message.reply_text("I don't have any formal memories of our conversations yet. We should talk more! 😊")
+                return
+            
+            memory = entries[0]
+            
+            # Format the output
+            tz = pytz.timezone(settings.TIMEZONE)
+            utc_time = memory.timestamp.replace(tzinfo=pytz.utc)
+            local_time = utc_time.astimezone(tz)
+            ts_str = local_time.strftime("%A, %B %d at %I:%M %p")
+            
+            response = f"📔 *Latest Conversation Memory*\n_{ts_str}_\n\n{memory.content}"
+            
+            # Send using _send_long_message to handle Telegram's 4096 char limit
+            await self._send_long_message(chat_id=update.effective_chat.id, text=response)
+            
+        except Exception as e:
+            logger.error(f"Error in memory command: {e}", exc_info=True)
+            await update.message.reply_text("❌ Sorry, I had trouble retrieving your memories right now.")
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
         Send a message to a user.
@@ -1178,6 +1219,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("memories", self.memories_command)
+        )
+        self.application.add_handler(
+            CommandHandler("memory", self.memory_command)
         )
         
         # Message handlers

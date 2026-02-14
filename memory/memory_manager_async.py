@@ -203,7 +203,7 @@ class AsyncMemoryManager:
             raise MemoryException(f"Failed to add diary entry: {e}")
 
     async def get_diary_entries(
-        self, user_id: int, limit: int = 50
+        self, user_id: int, limit: int = 50, entry_type: Optional[str] = None
     ) -> List[DiaryEntrySchema]:
         """
         Get recent diary entries for a user.
@@ -211,11 +211,12 @@ class AsyncMemoryManager:
         Args:
             user_id: User ID
             limit: Maximum number of entries to return
+            entry_type: Optional filter by entry type
 
         Returns:
             List of DiaryEntrySchema
         """
-        return await self.db.get_diary_entries(user_id, limit)
+        return await self.db.get_diary_entries(user_id, limit, entry_type)
 
     # ==================== Reach-Out Management ====================
 
