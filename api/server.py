@@ -2,7 +2,7 @@
 import os
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,6 +12,7 @@ from config.settings import settings
 from bot.telegram_handler import bot
 from memory.memory_manager_async import memory_manager
 from schemas import DiaryEntrySchema
+from telegram import Update
 
 # Configure logging
 logging.basicConfig(
@@ -73,6 +74,23 @@ async def get_memories(user_id: int):
         return entries
     except Exception as e:
         logger.error(f"Error fetching memories: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/webhook/{token}")
+async def webhook_handler(token: str, request: Request):
+    """
+    Handle incoming Telegram updates via webhook.
+    """
+    if token != settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid token")
+    
+    try:
+        data = await request.json()
+        update = Update.de_json(data, bot.application.bot)
+        await bot.application.process_update(update)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error processing webhook update: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Mount Static Files (Frontend)
