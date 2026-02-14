@@ -226,29 +226,49 @@ class SoulAgent:
         """
         tz = pytz.timezone(settings.TIMEZONE)
         
-        # Get last N memory entries (always include these)
+        # Get diary entries to pick from
         diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
-        memory_entries = [e for e in diary_entries if e.entry_type == 'conversation_memory'][:settings.MEMORY_ENTRY_LIMIT]
         
-        # Format memory entries with timestamps
-        if memory_entries:
-            memory_lines = []
+        # Get up to N most recent of each type (diary_entries is newest first)
+        memory_entries = [e for e in diary_entries if e.entry_type == 'conversation_memory'][:settings.MEMORY_ENTRY_LIMIT]
+        summary_entries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:settings.COMPACT_SUMMARY_LIMIT]
+        
+        # We want: [Oldest Memory, Newer Memory, Oldest Summary, Newer Summary]
+        # This satisfies the requirement: "The oldest 2 will be memory entries, and the most recent 2 will be the compact summaries."
+        # Within each category, we show them chronologically (oldest to newest) for flow.
+        context_items = []
+        
+        def format_recent_entry(entry):
+            """Helper to format a memory or summary entry with timestamps."""
+            if entry.exchange_start and entry.exchange_end:
+                start_utc = entry.exchange_start.replace(tzinfo=pytz.utc)
+                end_utc = entry.exchange_end.replace(tzinfo=pytz.utc)
+                start_local = start_utc.astimezone(tz)
+                end_local = end_utc.astimezone(tz)
+                
+                # Format: [Jan 15, 10:30 AM - 11:45 AM] content
+                start_str = start_local.strftime("%b %d, %I:%M %p")
+                end_str = end_local.strftime("%I:%M %p")
+                return f"[{start_str} - {end_str}] {entry.content}"
+            else:
+                # Fallback for entries without exchange timestamps
+                entry_utc = entry.timestamp.replace(tzinfo=pytz.utc)
+                entry_local = entry_utc.astimezone(tz)
+                ts_str = entry_local.strftime("%b %d, %I:%M %p")
+                return f"[{ts_str}] {entry.content}"
+
+        # Add memory entries first (ordered oldest to newest)
+        for memory in reversed(memory_entries):
+            context_items.append(format_recent_entry(memory))
             
-            for memory in reversed(memory_entries):  # Show oldest to newest
-                if memory.exchange_start and memory.exchange_end:
-                    start_utc = memory.exchange_start.replace(tzinfo=pytz.utc)
-                    end_utc = memory.exchange_end.replace(tzinfo=pytz.utc)
-                    start_local = start_utc.astimezone(tz)
-                    end_local = end_utc.astimezone(tz)
-                    
-                    # Format: [Jan 15, 10:30 AM - 11:45 AM] Memory text
-                    start_str = start_local.strftime("%b %d, %I:%M %p")
-                    end_str = end_local.strftime("%I:%M %p")
-                    memory_lines.append(f"[{start_str} - {end_str}] {memory.content}")
-            
-            recent_exchanges_text = "\n".join(memory_lines)
+        # Add summary entries next (ordered oldest to newest)
+        for summary in reversed(summary_entries):
+            context_items.append(format_recent_entry(summary))
+        
+        if context_items:
+            recent_exchanges_text = "\n".join(context_items)
         else:
-            # No memory entries yet, show placeholder
+            # No entries yet, show placeholder
             recent_exchanges_text = "(No previous exchanges remembered yet)"
         
         # Always get the most recent N raw messages for CURRENT CONVERSATION

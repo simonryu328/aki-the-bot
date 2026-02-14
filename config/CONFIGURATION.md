@@ -25,14 +25,26 @@ These settings control how much conversation history is included in the AI's con
 - **Example:** With value `20`, the AI sees the last 20 messages in the current conversation.
 
 ### `COMPACT_SUMMARY_LIMIT`
-- **Default:** `5`
+- **Default:** `2`
 - **Type:** Integer (1-10)
-- **Purpose:** Number of compact summaries to include in the RECENT EXCHANGES section
+- **Purpose:** Number of recent compact summaries to include in the RECENT EXCHANGES section.
 - **Used in:**
   - `agents/soul_agent.py`: `_build_conversation_context()`
   - `bot/telegram_handler.py`: Reach-out message generation
-- **What it does:** Compact summaries are timestamped conversation summaries created every 10 messages. This controls how many of those summaries are shown to the AI for historical context.
-- **Example:** With value `5`, the AI sees summaries of the last 5 conversation batches (roughly 50 messages worth of context, condensed).
+- **What it does:** Compact summaries are timestamped conversation summaries created every N messages. This controls how many of those summaries are shown to the AI for historical context.
+- **Example:** With value `2`, the AI sees summaries of the last 2 conversation batches.
+
+### `MEMORY_ENTRY_LIMIT`
+- **Default:** `2`
+- **Type:** Integer (1-10)
+- **Purpose:** Number of recent memory entries to include in the RECENT EXCHANGES section.
+- **Used in:**
+  - `agents/soul_agent.py`: `_build_conversation_context()`
+  - `bot/telegram_handler.py`: Reach-out message generation
+- **What it does:** Memory entries are timestamped reflections on conversation exchanges. This controls how many of those reflections are shown in addition to summaries.
+- **Example:** With value `2`, the AI sees the last 2 memory entries.
+
+**Note:** The system combines these in RECENT EXCHANGES, showing memories first (as the "oldest" context) and summaries second (as the "most recent" context), for a total of 4 context items by default.
 
 ---
 

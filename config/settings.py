@@ -151,17 +151,16 @@ class Settings(BaseSettings):
     )
     
     COMPACT_SUMMARY_LIMIT: int = Field(
-        default=3,
-        description="DEPRECATED: Use MEMORY_ENTRY_LIMIT instead. Kept for backwards compatibility.",
+        default=2,
+        description="Number of recent compact summaries to include in RECENT EXCHANGES section. "
+                    "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
         ge=1,
         le=10,
     )
     
     MEMORY_ENTRY_LIMIT: int = Field(
-        default=3,
-        description="Number of memory entries to ALWAYS include in RECENT EXCHANGES section. "
-                    "Memory entries are timestamped reflections on conversation exchanges created every 10 messages. "
-                    "These are shown in addition to the raw messages in CURRENT CONVERSATION. "
+        default=2,
+        description="Number of recent memory entries to include in RECENT EXCHANGES section. "
                     "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
         ge=1,
         le=10,
@@ -169,7 +168,7 @@ class Settings(BaseSettings):
     
     
     COMPACT_INTERVAL: int = Field(
-        default=10,
+        default=30,
         description="Number of messages (user + assistant combined) before creating a compact summary AND memory entry. "
                     "Both are triggered together when this threshold is reached. "
                     "Compact summaries condense recent conversations into timestamped summaries. "
@@ -179,7 +178,7 @@ class Settings(BaseSettings):
     )
     
     MEMORY_ENTRY_INTERVAL: int = Field(
-        default=10,
+        default=30,
         description="Number of messages (user + assistant combined) before creating a conversation memory entry. "
                     "Currently uses COMPACT_INTERVAL value (both triggered together). "
                     "Memory entries capture significant moments, emotional beats, and relationship insights. "

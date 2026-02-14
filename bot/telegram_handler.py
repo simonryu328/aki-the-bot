@@ -996,44 +996,63 @@ class TelegramBot:
             now = datetime.now(tz)
             current_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
 
-            # Get recent memory entries
+            # Get diary entries to pick from
             diary_entries = await memory_manager.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
-            memory_entries = []
-            last_memory_end = None
             
-            for entry in diary_entries:
-                if entry.entry_type == "conversation_memory":
-                    # Format with timestamp
-                    if entry.exchange_start and entry.exchange_end:
-                        start_time = entry.exchange_start.replace(tzinfo=pytz.utc).astimezone(tz)
-                        end_time = entry.exchange_end.replace(tzinfo=pytz.utc).astimezone(tz)
-                        memory_entries.append(
-                            f"[START: {start_time.strftime('%Y-%m-%d %H:%M')}] "
-                            f"[END: {end_time.strftime('%Y-%m-%d %H:%M')}]\n{entry.content}"
-                        )
-                        # Track the most recent memory's end time
-                        if last_memory_end is None or entry.exchange_end > last_memory_end:
-                            last_memory_end = entry.exchange_end
-                
-                # Limit to configured number of memory entries
-                memory_entries = memory_entries[:settings.MEMORY_ENTRY_LIMIT]
+            # Get up to N most recent of each type (newest first)
+            memories = [e for e in diary_entries if e.entry_type == 'conversation_memory'][:settings.MEMORY_ENTRY_LIMIT]
+            summaries = [e for e in diary_entries if e.entry_type == 'compact_summary'][:settings.COMPACT_SUMMARY_LIMIT]
             
+            # Find the most recent end time to determine conversation cutoff
+            all_recent = memories + summaries
+            last_exchange_end = None
+            for entry in all_recent:
+                # Use exchange_end if available, otherwise fallback to entry timestamp
+                end_time = entry.exchange_end if entry.exchange_end else entry.timestamp
+                if last_exchange_end is None or end_time > last_exchange_end:
+                    last_exchange_end = end_time
+
+            # Format entries
+            context_items = []
+            
+            def format_reach_out_entry(entry):
+                """Helper to format a memory or summary entry with timestamps."""
+                if entry.exchange_start and entry.exchange_end:
+                    start_local = entry.exchange_start.replace(tzinfo=pytz.utc).astimezone(tz)
+                    end_local = entry.exchange_end.replace(tzinfo=pytz.utc).astimezone(tz)
+                    return (
+                        f"[START: {start_local.strftime('%Y-%m-%d %H:%M')}] "
+                        f"[END: {end_local.strftime('%Y-%m-%d %H:%M')}]\n{entry.content}"
+                    )
+                else:
+                    # Fallback for entries without exchange timestamps
+                    ts = entry.timestamp.replace(tzinfo=pytz.utc).astimezone(tz)
+                    return f"[{ts.strftime('%Y-%m-%d %H:%M')}]\n{entry.content}"
+
+            # Memory entries first (ordered oldest to newest)
+            for m in reversed(memories):
+                context_items.append(format_reach_out_entry(m))
+            
+            # Compact summaries next (ordered oldest to newest)
+            for s in reversed(summaries):
+                context_items.append(format_reach_out_entry(s))
+
             # Build RECENT EXCHANGES section
-            if memory_entries:
-                recent_exchanges = "RECENT EXCHANGES:\n" + "\n\n".join(memory_entries)
+            if context_items:
+                recent_exchanges = "RECENT EXCHANGES:\n" + "\n\n".join(context_items)
             else:
                 recent_exchanges = ""
 
-            # Get current conversations (only messages AFTER last memory entry)
-            if last_memory_end:
-                # Query conversations after the last memory entry's end time
+            # Get current conversations (only messages AFTER the last exchange included in history)
+            if last_exchange_end:
+                # Query conversations after the last exchange's end time
                 conversations = await memory_manager.db.get_conversations_after(
                     user_id=user_id,
-                    after=last_memory_end,
+                    after=last_exchange_end.replace(tzinfo=None) if last_exchange_end.tzinfo else last_exchange_end,
                     limit=settings.CONVERSATION_CONTEXT_LIMIT
                 )
             else:
-                # No memory entries yet, get recent conversations
+                # No context entries yet, get most recent conversations
                 conversations = await memory_manager.db.get_recent_conversations(user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT)
 
             # Build CURRENT CONVERSATION section
