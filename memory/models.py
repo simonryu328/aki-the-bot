@@ -121,3 +121,28 @@ class TokenUsage(Base):
 
     def __repr__(self):
         return f"<TokenUsage(user_id={self.user_id}, model='{self.model}', total={self.total_tokens}, type='{self.call_type}')>"
+
+
+class CalendarEvent(Base):
+    """Calendar events - user schedule items for reach-out awareness."""
+
+    __tablename__ = "calendar_events"
+    __table_args__ = (
+        Index("idx_calendar_events_user_start", "user_id", "event_start"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    event_start = Column(DateTime, nullable=False, index=True)
+    event_end = Column(DateTime, nullable=True)
+    is_all_day = Column(Boolean, default=False, nullable=False)
+    source = Column(String(50), default="manual", nullable=False)  # "manual", "bot", "google"
+    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
+
+    # Relationships
+    user = relationship("User", backref="calendar_events")
+
+    def __repr__(self):
+        return f"<CalendarEvent(user_id={self.user_id}, title='{self.title}', start={self.event_start})>"
