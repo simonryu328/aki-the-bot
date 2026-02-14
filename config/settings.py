@@ -141,12 +141,12 @@ class Settings(BaseSettings):
     
     # Sticker Configuration
     STICKER_MIN_MESSAGES: int = Field(
-        default=5,
+        default=2,
         description="Minimum messages before sending a sticker",
         ge=1,
     )
     STICKER_MAX_MESSAGES: int = Field(
-        default=20,
+        default=10,
         description="Maximum messages before sending a sticker",
         ge=1,
     )
