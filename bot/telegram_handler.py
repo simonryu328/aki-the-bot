@@ -882,30 +882,71 @@ class TelegramBot:
     async def memory_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Handle the /memory command.
-        Shows the latest untruncated conversation_memory entry for the user.
+        Supports:
+        - /memory: Latest memory
+        - /memory <n>: Nth latest memory
+        - /memory list: List recent 10 memories
         """
         user = update.effective_user
         telegram_id = user.id
-        
-        logger.info(f"User {telegram_id} requested their latest memory")
         
         try:
             # Get user from DB
             db_user = await memory_manager.get_or_create_user(telegram_id)
             user_id = db_user.id
             
-            # Fetch latest conversation_memory entry
+            # Parse argument
+            arg = context.args[0].lower() if context.args else "1"
+            
+            if arg == "list":
+                # Fetch latest 10 memories
+                entries = await memory_manager.get_diary_entries(
+                    user_id=user_id,
+                    limit=10,
+                    entry_type="conversation_memory"
+                )
+                
+                if not entries:
+                    await update.message.reply_text("I don't have any formal memories yet. 😊")
+                    return
+                
+                tz = pytz.timezone(settings.TIMEZONE)
+                response_lines = ["📔 *Recent Conversation Memories*"]
+                for i, entry in enumerate(entries, 1):
+                    utc_time = entry.timestamp.replace(tzinfo=pytz.utc)
+                    local_time = utc_time.astimezone(tz)
+                    ts = local_time.strftime("%b %d")
+                    # Use a short snippet of the content if title is generic
+                    title = entry.title if entry.title != "Conversation Memory" else f"Memory from {ts}"
+                    response_lines.append(f"{i}. *{ts}*: {title}")
+                
+                response_lines.append("\n_Use /memory <number> to view details._")
+                await update.message.reply_text("\n".join(response_lines), parse_mode="Markdown")
+                return
+
+            # Try to parse as index
+            try:
+                index = int(arg)
+                if index < 1:
+                    raise ValueError
+            except ValueError:
+                await update.message.reply_text("Usage: /memory [number | list]")
+                return
+
+            # Fetch Target memory (fetch up to 'index' and take the last)
             entries = await memory_manager.get_diary_entries(
                 user_id=user_id,
-                limit=1,
+                limit=index,
                 entry_type="conversation_memory"
             )
             
-            if not entries:
-                await update.message.reply_text("I don't have any formal memories of our conversations yet. We should talk more! 😊")
+            if not entries or len(entries) < index:
+                count = len(entries)
+                msg = f"I only have {count} memories." if count > 0 else "I don't have any memories yet."
+                await update.message.reply_text(msg)
                 return
             
-            memory = entries[0]
+            memory = entries[index - 1] # entries is sorted newest to oldest
             
             # Format the output
             tz = pytz.timezone(settings.TIMEZONE)
@@ -913,14 +954,13 @@ class TelegramBot:
             local_time = utc_time.astimezone(tz)
             ts_str = local_time.strftime("%A, %B %d at %I:%M %p")
             
-            response = f"📔 *Latest Conversation Memory*\n_{ts_str}_\n\n{memory.content}"
+            response = f"📔 *Conversation Memory #{index}*\n_{ts_str}_\n\n{memory.content}"
             
-            # Send using _send_long_message to handle Telegram's 4096 char limit
             await self._send_long_message(chat_id=update.effective_chat.id, text=response)
             
         except Exception as e:
             logger.error(f"Error in memory command: {e}", exc_info=True)
-            await update.message.reply_text("❌ Sorry, I had trouble retrieving your memories right now.")
+            await update.message.reply_text("❌ Sorry, I had trouble retrieving your memories.")
     async def send_message(self, telegram_id: int, message: str) -> None:
         """
         Send a message to a user.
