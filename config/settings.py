@@ -61,15 +61,15 @@ class Settings(BaseSettings):
     # claude-sonnet-4-5-20250929
 
     MODEL_CONVERSATION: str = Field(
-        default="claude-haiku-4-5-20251001",
+        default="gpt-4o",
         description="Model for main conversation responses",
     )
     MODEL_PROACTIVE: str = Field(
-        default="claude-haiku-4-5-20251001",
+        default="gpt-4o",
         description="Model for proactive/scheduled messages",
     )
     MODEL_SUMMARY: str = Field(
-        default="claude-haiku-4-5-20251001",
+        default="gpt-4o",
         description="Model for profile summaries",
     )
 
