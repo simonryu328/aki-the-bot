@@ -187,7 +187,9 @@ def load_token_usage(user_id: int):
                 TokenUsage.model,
                 func.sum(TokenUsage.input_tokens).label("input"),
                 func.sum(TokenUsage.output_tokens).label("output"),
-                func.sum(TokenUsage.total_tokens).label("total")
+                func.sum(TokenUsage.total_tokens).label("total"),
+                func.sum(getattr(TokenUsage, "cache_read_tokens", 0)).label("cache_read"),
+                func.sum(getattr(TokenUsage, "cache_creation_tokens", 0)).label("cache_creation")
             )
             .where(TokenUsage.user_id == user_id)
             .group_by(func.cast(TokenUsage.timestamp, sqlalchemy.Date), TokenUsage.model)
@@ -633,20 +635,52 @@ with tab_usage:
 
         cost_rows = []
         total_est_cost = 0
+        total_saved = 0
+        
+        # Anthropic Prompt Caching Pricing (per 1M tokens)
+        # Write (Creation): $3.75 (Sonnet) / $0.30 (Haiku) -> ~1.25x base price?
+        # Read (Hit): $0.30 (Sonnet) / $0.03 (Haiku) -> ~0.1x base price
+        # For simplicity, we compare (Cache Read * Input Price) vs (Cache Read * 0.1 * Input Price)
+        
         for u in usage_data:
             # Try to match pricing
-            price = PRICING.get(u.model.split("/")[-1], {"in": 0, "out": 0})
-            cost = (u.input / 1_000_000 * price["in"]) + (u.output / 1_000_000 * price["out"])
-            total_est_cost += cost
+            m_name = u.model.split("/")[-1]
+            price = PRICING.get(m_name, {"in": 0, "out": 0})
+            
+            # Base cost of standard tokens
+            base_input = u.input - getattr(u, "cache_read", 0) - getattr(u, "cache_creation", 0)
+            cost_base = (base_input / 1_000_000 * price["in"]) + (u.output / 1_000_000 * price["out"])
+            
+            # Cache creation (usually 1.25x price)
+            cost_creation = (getattr(u, "cache_creation", 0) / 1_000_000 * price["in"] * 1.25)
+            
+            # Cache read (usually 0.1x price)
+            cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"] * 0.1)
+            
+            # Savings: What it WOULD have cost minus what it DID cost
+            would_have_cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"])
+            saved = would_have_cost_read - cost_read
+            
+            day_cost = cost_base + cost_creation + cost_read
+            total_est_cost += day_cost
+            total_saved += saved
+            
             cost_rows.append({
                 "Date": u.date,
                 "Model": u.model,
                 "Total Tokens": u.total,
-                "Est. Cost ($)": f"${cost:.4f}"
+                "Cache Hits": getattr(u, "cache_read", 0),
+                "Est. Cost ($)": f"${day_cost:.4f}"
             })
         
-        st.table(cost_rows) # Show daily model/day entries
-        st.metric("Total Estimated Cost (Lifetime)", f"${total_est_cost:.2f}")
+        st.table(cost_rows)
+        
+        col1, col2 = st.columns(2)
+        col1.metric("Total Estimated Cost (Lifetime)", f"${total_est_cost:.2f}")
+        col2.metric("Total ⚡ Savings (Prompt Caching)", f"${total_saved:.2f}", delta=f"{total_saved:.4f}", delta_color="normal")
+        
+        if total_saved > 0:
+            st.success(f"🔥 Prompt caching has reduced your input costs by approximately {((total_saved / (total_est_cost + total_saved)) * 100):.1f}%!")
 
         # 4. Call Type Distribution
         st.subheader("Call Type Distribution")

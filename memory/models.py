@@ -113,6 +113,8 @@ class TokenUsage(Base):
     input_tokens = Column(Integer, nullable=False, default=0)
     output_tokens = Column(Integer, nullable=False, default=0)
     total_tokens = Column(Integer, nullable=False, default=0)
+    cache_read_tokens = Column(Integer, nullable=False, default=0)
+    cache_creation_tokens = Column(Integer, nullable=False, default=0)
     call_type = Column(String(100), nullable=False)  # "conversation", "compact", "observation", "proactive", "reach_out"
     timestamp = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
 

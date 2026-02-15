@@ -581,6 +581,8 @@ class AsyncDatabase:
         input_tokens: int,
         output_tokens: int,
         total_tokens: int,
+        cache_read_tokens: int = 0,
+        cache_creation_tokens: int = 0,
         call_type: str = "conversation",
     ) -> TokenUsageSchema:
         """Record an LLM token usage event."""
@@ -592,6 +594,8 @@ class AsyncDatabase:
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     total_tokens=total_tokens,
+                    cache_read_tokens=cache_read_tokens,
+                    cache_creation_tokens=cache_creation_tokens,
                     call_type=call_type,
                     timestamp=datetime.utcnow(),
                 )

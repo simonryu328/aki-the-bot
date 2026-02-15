@@ -14,6 +14,8 @@ class TokenUsageCreateSchema(BaseModel):
     input_tokens: int = Field(..., ge=0, description="Input/prompt tokens")
     output_tokens: int = Field(..., ge=0, description="Output/completion tokens")
     total_tokens: int = Field(..., ge=0, description="Total tokens")
+    cache_read_tokens: int = Field(default=0, ge=0, description="Tokens read from cache")
+    cache_creation_tokens: int = Field(default=0, ge=0, description="Tokens written to cache")
     call_type: str = Field(..., description="Type of LLM call (conversation, compact, observation, proactive, reach_out)")
 
 

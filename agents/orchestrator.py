@@ -125,6 +125,8 @@ class AgentOrchestrator:
                     input_tokens=result.usage.input_tokens,
                     output_tokens=result.usage.output_tokens,
                     total_tokens=result.usage.total_tokens,
+                    cache_read_tokens=result.usage.cache_read_tokens,
+                    cache_creation_tokens=result.usage.cache_creation_tokens,
                     call_type="conversation",
                 )
             )
