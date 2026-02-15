@@ -82,51 +82,275 @@ body {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: calc(var(--safe-top) + 24px) 16px 12px;
+    padding: calc(var(--safe-top) + 8px) 16px 8px;
     background: var(--header-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 0.5px solid var(--separator);
 }
 
-/* ... (keep nav-tab styles same) ... */
+.nav-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: var(--hint);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-fast);
+    letter-spacing: 0.01em;
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-tab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.nav-tab:active {
+    transform: scale(0.95);
+}
+
+.nav-tab.active {
+    color: var(--btn-text);
+}
+
+.nav-tab.active::before {
+    opacity: 1;
+}
+
+.nav-tab.active .nav-icon,
+.nav-tab.active span {
+    position: relative;
+    z-index: 1;
+}
+
+.nav-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+/* ── Panel Container ── */
+.panels-container {
+    display: flex;
+    width: 300%;
+    height: 100%;
+    transition: transform var(--transition-smooth);
+    will-change: transform;
+    transform: translateX(0%);
+    /* Start on Journal (first panel) */
+}
+
+.panel {
+    width: 33.3333%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
 
 .panel-content {
-    padding: calc(var(--safe-top) + 80px) 20px calc(var(--safe-bottom) + 140px);
+    padding: calc(var(--safe-top) + 60px) 20px calc(var(--safe-bottom) + 50px);
     min-height: 100%;
 }
 
-/* ... (keep other styles) ... */
+/* ── Panel Typography ── */
+.panel-title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 2px;
+    color: var(--text);
+}
+
+.panel-subtitle {
+    font-size: 14px;
+    color: var(--subtitle);
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.section-heading {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--section-header);
+    margin-bottom: 12px;
+    padding-left: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   PANEL 1: Journal (Past)
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Journal Card List ── */
+.journal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.journal-card {
+    background: var(--section-bg);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-card);
+    border: 0.5px solid var(--separator);
+    transition: all var(--transition-fast);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: cardFadeIn 400ms ease-out forwards;
+}
+
+.journal-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #a855f7));
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.journal-card:first-child::before {
+    opacity: 1;
+}
+
+.journal-card:active {
+    transform: scale(0.98) !important;
+    box-shadow: none;
+}
+
+/* Stagger animation */
+.journal-card:nth-child(1) {
+    animation-delay: 60ms;
+}
+
+.journal-card:nth-child(2) {
+    animation-delay: 120ms;
+}
+
+.journal-card:nth-child(3) {
+    animation-delay: 180ms;
+}
+
+.journal-card:nth-child(4) {
+    animation-delay: 240ms;
+}
+
+.journal-card:nth-child(5) {
+    animation-delay: 300ms;
+}
+
+.journal-card:nth-child(6) {
+    animation-delay: 360ms;
+}
+
+.journal-card:nth-child(7) {
+    animation-delay: 420ms;
+}
+
+.journal-card:nth-child(8) {
+    animation-delay: 480ms;
+}
+
+.journal-card:nth-child(9) {
+    animation-delay: 540ms;
+}
+
+.journal-card:nth-child(10) {
+    animation-delay: 600ms;
+}
+
+@keyframes cardFadeIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.journal-card-date {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+.journal-card-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+    line-height: 1.3;
+}
+
+.journal-card-preview {
+    font-size: 14px;
+    color: var(--hint);
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.journal-card-tags {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.journal-tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    letter-spacing: 0.02em;
+}
+
+/* ── Expanded Card ── */
+.journal-card.expanded .journal-card-preview {
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    display: block;
+}
+
+.journal-card.expanded::before {
+    opacity: 1;
+}
 
 /* ── Search Bar ── */
 .search-bar {
-    position: fixed;
-    bottom: calc(var(--safe-bottom) + 60px);
-    left: 20px;
-    right: 20px;
-    z-index: 90;
-    padding: 0;
-    background: transparent;
-    pointer-events: none;
-    /* Allow clicks to pass through container */
-}
-
-.search-input {
-    width: 100%;
-    padding: 12px 14px 12px 42px;
-    border: 1.5px solid var(--separator);
-    border-radius: var(--radius-xl);
-    background: var(--section-bg);
-    /* Ensure input has background */
-    color: var(--text);
-    font-family: inherit;
-    font-size: 15px;
-    outline: none;
-    transition: all var(--transition-fast);
-    box-shadow: var(--shadow-card);
-    /* Add shadow for floating effect */
-    pointer-events: auto;
-    /* Re-enable clicks on input */
+    position: sticky;
+    bottom: 0;
+    padding: 12px 0;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
 }
 
 .search-icon {
@@ -138,7 +362,28 @@ body {
     height: 18px;
     color: var(--hint);
     pointer-events: none;
-    z-index: 91;
+}
+
+.search-input {
+    width: 100%;
+    padding: 14px 14px 14px 42px;
+    border: 1.5px solid var(--separator);
+    border-radius: var(--radius-md);
+    background: var(--section-bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+    outline: none;
+    transition: all var(--transition-fast);
+}
+
+.search-input::placeholder {
+    color: var(--hint);
+}
+
+.search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 /* ── Loading State ── */
@@ -243,31 +488,22 @@ body {
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    align-items: center;
-    /* Ensure dots are vertically centered */
-    justify-content: center;
     gap: 8px;
-    padding: 8px 14px;
-    /* Slightly adjusted padding */
-    background: color-mix(in srgb, var(--header-bg) 80%, transparent);
-    /* Use header-bg for consistency */
+    padding: 6px 12px;
+    background: color-mix(in srgb, var(--secondary-bg) 80%, transparent);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-radius: 100px;
     z-index: 100;
     border: 0.5px solid var(--separator);
-    box-shadow: var(--shadow-card);
 }
 
 .dot {
-    display: block;
-    /* Ensure it respects width/height */
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--text);
-    /* Use text color for better contrast in light/dark mode */
-    opacity: 0.2;
+    background: var(--hint);
+    opacity: 0.3;
     transition: all var(--transition-smooth);
     cursor: pointer;
 }
