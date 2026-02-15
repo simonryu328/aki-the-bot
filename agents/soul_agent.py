@@ -288,9 +288,39 @@ class SoulAgent:
             # No entries yet, show placeholder
             recent_exchanges_text = "(No previous exchanges remembered yet)"
         
-        # Always get the most recent N raw messages for CURRENT CONVERSATION
-        # This provides detailed recent context regardless of compact summaries
-        current_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
+        # 4. Optimized History Slicing (Current Conversation)
+        # We only want to show raw messages that aren't already covered by a summary.
+        if summary_entries:
+            latest_summary = summary_entries[0]
+            # summary_end is the timestamp of the last message included in that summary
+            summary_end = latest_summary.exchange_end or latest_summary.timestamp
+            
+            # Filter history: 1. Everything after summary + 2. Small "glue" overlap (3 msgs)
+            after_summary = []
+            overlap = []
+            
+            # conversation_history is chronological (oldest to newest)
+            # We iterate backwards to pick newest first
+            for conv in reversed(conversation_history):
+                conv_ts = conv.timestamp.replace(tzinfo=None) if conv.timestamp else datetime.utcnow()
+                sum_ts = summary_end.replace(tzinfo=None)
+                
+                if conv_ts > sum_ts:
+                    after_summary.append(conv)
+                elif len(overlap) < 3: # Keep 3 messages for conversational "glue"
+                    overlap.append(conv)
+                else:
+                    break
+            
+            # Combine and restore chronological order
+            current_convos = list(reversed(after_summary + overlap))
+            
+            # Safety: if for some reason the above returns nothing, fallback
+            if not current_convos:
+                current_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
+        else:
+            # Fallback for new users with no summaries yet
+            current_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
         
         # Get user name for formatting - use pre-fetched user if available
         if user is None:

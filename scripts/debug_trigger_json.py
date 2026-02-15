@@ -3,6 +3,7 @@ import asyncio
 import os
 import sys
 import json
+from datetime import datetime
 
 # Add project root to path
 sys.path.append(os.getcwd())
@@ -28,12 +29,14 @@ async def check_user_trigger(telegram_id):
     # 2. Get last compact timestamp
     diary_entries = await memory_manager.get_diary_entries(user_id, limit=50)
     last_compact = None
+    all_summaries = []
     for entry in diary_entries:
         if entry.entry_type == 'compact_summary':
-            last_compact = entry.timestamp
-            break
+            all_summaries.append(entry)
+            if not last_compact:
+                last_compact = entry.timestamp
     
-    results["last_compact"] = str(last_compact) if last_compact else None
+    results["last_compact_ts"] = str(last_compact) if last_compact else None
 
     # 3. Count messages since then
     all_convos = await memory_manager.db.get_recent_conversations(user_id, limit=100)
@@ -46,12 +49,29 @@ async def check_user_trigger(telegram_id):
     else:
         message_count = len(all_convos)
 
-    # 4. Results
+    # 4. Check Context Optimization (The new feature)
+    # Replicate the logic from soul_agent._build_conversation_context
+    effective_history_len = 0
+    if all_summaries:
+        latest = all_summaries[0]
+        end_ts = (latest.exchange_end or latest.timestamp).replace(tzinfo=None)
+        
+        after = [c for c in all_convos if (c.timestamp or datetime.utcnow()).replace(tzinfo=None) > end_ts]
+        overlap = [c for c in all_convos if (c.timestamp or datetime.utcnow()).replace(tzinfo=None) <= end_ts][-3:]
+        effective_history_len = len(after) + len(overlap)
+    else:
+        effective_history_len = min(len(all_convos), settings.CONVERSATION_CONTEXT_LIMIT)
+
+    # 5. Results
     threshold = settings.COMPACT_INTERVAL
-    results["message_count"] = message_count
+    results["backlog_count"] = message_count
     results["threshold"] = threshold
-    results["remaining"] = threshold - message_count if message_count < threshold else 0
     results["trigger_ready"] = message_count >= threshold
+    results["optimization"] = {
+        "original_limit": settings.CONVERSATION_CONTEXT_LIMIT,
+        "optimized_history_length": effective_history_len,
+        "tokens_saved_estimate_pct": round((1 - (effective_history_len / settings.CONVERSATION_CONTEXT_LIMIT)) * 100, 1) if effective_history_len < settings.CONVERSATION_CONTEXT_LIMIT else 0
+    }
     
     return results
 
