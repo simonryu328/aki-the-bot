@@ -34,9 +34,9 @@
     const navTabs = document.querySelectorAll('.nav-tab');
     const dots = document.querySelectorAll('.dot');
     const todayDate = document.getElementById('todayDate');
-    const journalList = document.getElementById('journalList');
-    const searchInput = document.getElementById('searchInput');
     const searchBar = document.getElementById('searchBar');
+    const searchInput = document.getElementById('searchInput');
+    const journalList = document.getElementById('journalList');
     const loadingState = document.getElementById('loadingState');
     const errorState = document.getElementById('errorState');
     const errorText = document.getElementById('errorText');
@@ -280,11 +280,6 @@
     }
 
     // ── Search ──────────────────────────────────────────
-
-    // Eliminate click delay on mobile for faster keyboard popup
-    searchInput.addEventListener('touchstart', (e) => {
-        searchInput.focus();
-    });
 
     searchInput.addEventListener('input', () => {
         const query = searchInput.value.toLowerCase().trim();
