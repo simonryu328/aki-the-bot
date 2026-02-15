@@ -281,6 +281,11 @@
 
     // ── Search ──────────────────────────────────────────
 
+    // Eliminate click delay on mobile for faster keyboard popup
+    searchInput.addEventListener('touchstart', (e) => {
+        searchInput.focus();
+    });
+
     searchInput.addEventListener('input', () => {
         const query = searchInput.value.toLowerCase().trim();
         if (!query) {

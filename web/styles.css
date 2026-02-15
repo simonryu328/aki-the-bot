@@ -34,7 +34,7 @@
     --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
     /* Safe area */
-    --safe-top: var(--tg-content-safe-area-inset-top, 0px);
+    --safe-top: var(--tg-safe-area-inset-top, 0px);
     --safe-bottom: var(--tg-safe-area-inset-bottom, 0px);
     --safe-left: var(--tg-safe-area-inset-left, 0px);
     --safe-right: var(--tg-safe-area-inset-right, 0px);
@@ -67,6 +67,12 @@ body {
     user-select: none;
 }
 
+input,
+textarea {
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+}
+
 .hidden {
     display: none !important;
 }
@@ -79,10 +85,10 @@ body {
     right: 0;
     z-index: 100;
     display: flex;
-    align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: calc(var(--safe-top) + 8px) 16px 8px;
+    /* Extra padding to avoid Telegram's Close/3-dot menu */
+    padding: calc(var(--safe-top) + 20px) 16px 14px;
     background: var(--header-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -163,7 +169,7 @@ body {
 }
 
 .panel-content {
-    padding: calc(var(--safe-top) + 60px) 20px calc(var(--safe-bottom) + 50px);
+    padding: calc(var(--safe-top) + 100px) 20px calc(var(--safe-bottom) + 80px);
     min-height: 100%;
 }
 
@@ -348,9 +354,10 @@ body {
 /* ── Search Bar ── */
 .search-bar {
     position: sticky;
-    bottom: 0;
-    padding: 12px 0;
-    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    bottom: 60px;
+    padding: 12px 20px;
+    background: linear-gradient(to top, var(--bg) 80%, transparent);
+    z-index: 10;
 }
 
 .search-icon {
