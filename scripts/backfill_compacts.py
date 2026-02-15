@@ -82,7 +82,7 @@ async def create_compact_for_batch(
             model=settings.MODEL_SUMMARY,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=300,
+            max_tokens=800,
         )
         
         # Store summary

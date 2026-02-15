@@ -588,7 +588,7 @@ class SoulAgent:
             conversation_history: Pre-fetched conversation history (optional, will fetch if not provided)
         """
         try:
-            # Get last compact timestamp
+            # 1. Get last compact timestamp
             diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
             last_compact = None
             for entry in diary_entries:
@@ -596,22 +596,23 @@ class SoulAgent:
                     last_compact = entry.timestamp
                     break
             
-            # Use pre-fetched conversations if available, otherwise fetch
-            if conversation_history is None:
-                all_convos = await self.memory.db.get_recent_conversations(user_id, limit=100)
-            else:
-                # We already have recent conversations, use them
-                all_convos = conversation_history
+            # 2. Fetch conversations to check threshold - ignore passed history for checking
+            # because orchestrator only passes CONVERSATION_CONTEXT_LIMIT (20), which is
+            # lower than COMPACT_INTERVAL (30), causing triggers to never fire.
+            threshold = max(settings.COMPACT_INTERVAL, settings.MEMORY_ENTRY_INTERVAL)
             
-            # Count messages after last compact
-            message_count = 0
             if last_compact:
-                for conv in all_convos:
-                    if conv.timestamp and conv.timestamp > last_compact:
-                        message_count += 1
+                # Fetch messages after last compact with enough limit to hit threshold
+                all_convos = await self.memory.db.get_conversations_after(
+                    user_id, last_compact, limit=max(100, threshold + 10)
+                )
             else:
-                # No compact exists yet, count all messages
-                message_count = len(all_convos)
+                # No compact exists, fetch recent history
+                all_convos = await self.memory.db.get_recent_conversations(
+                    user_id, limit=max(100, threshold + 10)
+                )
+                
+            message_count = len(all_convos)
             
             # Bundle background tasks
             tasks = []
@@ -654,11 +655,11 @@ class SoulAgent:
             # Use pre-fetched conversations if available, otherwise fetch
             if conversation_history is None:
                 recent_convos = await self.memory.db.get_recent_conversations(
-                    user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
+                    user_id, limit=100
                 )
             else:
                 # Use the first N messages from pre-fetched history
-                recent_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
+                recent_convos = conversation_history[:100]
             if not recent_convos:
                 logger.debug("No recent conversations to summarize", user_id=user_id)
                 return
@@ -771,11 +772,11 @@ class SoulAgent:
             # Use pre-fetched conversations if available, otherwise fetch
             if conversation_history is None:
                 recent_convos = await self.memory.db.get_recent_conversations(
-                    user_id, limit=settings.CONVERSATION_CONTEXT_LIMIT
+                    user_id, limit=100
                 )
             else:
                 # Use the first N messages from pre-fetched history
-                recent_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
+                recent_convos = conversation_history[:100]
             if not recent_convos:
                 logger.debug("No recent conversations for memory entry", user_id=user_id)
                 return
