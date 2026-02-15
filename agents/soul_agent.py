@@ -773,6 +773,19 @@ class SoulAgent:
                 if last_conv.timestamp:
                     exchange_end_dt = last_conv.timestamp  # Store as UTC
                 
+                # Record token usage for compact summary
+                if result.usage and result.usage.total_tokens > 0:
+                    await self.memory.record_token_usage(
+                        user_id=user_id,
+                        model=result.usage.model,
+                        input_tokens=result.usage.input_tokens,
+                        output_tokens=result.usage.output_tokens,
+                        total_tokens=result.usage.total_tokens,
+                        cache_read_tokens=result.usage.cache_read_tokens,
+                        cache_creation_tokens=result.usage.cache_creation_tokens,
+                        call_type="compact",
+                    )
+                
                 # Store in diary entries with exchange timestamps
                 await self.memory.add_diary_entry(
                     user_id=user_id,
@@ -899,6 +912,19 @@ class SoulAgent:
                     exchange_start_dt = first_conv.timestamp  # Store as UTC
                 if last_conv.timestamp:
                     exchange_end_dt = last_conv.timestamp  # Store as UTC
+                
+                # Record token usage for memory entry
+                if result.usage and result.usage.total_tokens > 0:
+                    await self.memory.record_token_usage(
+                        user_id=user_id,
+                        model=result.usage.model,
+                        input_tokens=result.usage.input_tokens,
+                        output_tokens=result.usage.output_tokens,
+                        total_tokens=result.usage.total_tokens,
+                        cache_read_tokens=result.usage.cache_read_tokens,
+                        cache_creation_tokens=result.usage.cache_creation_tokens,
+                        call_type="memory",
+                    )
                 
                 # Store in diary entries with exchange timestamps
                 await self.memory.add_diary_entry(

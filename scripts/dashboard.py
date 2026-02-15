@@ -444,7 +444,7 @@ with tab_diary:
                     st.markdown(f"### {emoji} {entry_type.replace('_', ' ').title()} ({len(entries)})")
                     
                     for entry in entries:
-                        timestamp = fmt(entry["timestamp"])
+                        ts_str = fmt(entry["timestamp"])
                         importance = entry.get("importance", "N/A")
                         
                         # Format exchange times if available
@@ -455,11 +455,11 @@ with tab_diary:
                             exchange_info = f"\n📅 Exchange: {start} → {end}"
                         
                         # Create title with metadata
-                        title = f"**{entry['title']}** — {timestamp}"
+                        display_title = f"**{entry['title']}** — {ts_str}"
                         if importance != "N/A":
-                            title += f" (Importance: {importance}/10)"
+                            display_title += f" (Importance: {importance}/10)"
                         
-                        with st.expander(title, expanded=False):
+                        with st.expander(display_title, expanded=False):
                             st.write(entry["content"])
                             if exchange_info:
                                 st.caption(exchange_info)
@@ -613,16 +613,23 @@ with tab_usage:
             
         col4.metric("Input / Output", f"{day_input:,} / {day_output:,}")
 
-        # 2. Weekly Trend
+        # 2. Daily Trend
         st.subheader("Daily Usage")
         # Format for chart
-        chart_data = defaultdict(int)
+        daily_data = []
         for u in usage_data:
-            chart_data[u.date.strftime("%Y-%m-%d")] += u.total
+            daily_data.append({
+                "Date": u.date,
+                "Tokens": u.total
+            })
         
-        # Sort and plot
-        sorted_dates = sorted(chart_data.keys())
-        st.line_chart([chart_data[d] for d in sorted_dates])
+        if daily_data:
+            df_daily = pd.DataFrame(daily_data).groupby("Date").sum().reset_index()
+            df_daily = df_daily.sort_values("Date")
+            # Set Date as index for proper labels
+            st.line_chart(df_daily.set_index("Date")["Tokens"])
+        else:
+            st.info("No usage data available yet.")
 
         # 3. Model & Cost Breakdown
         st.subheader("Model Breakdown & Est. Cost")
@@ -634,6 +641,7 @@ with tab_usage:
             "claude-3-5-sonnet-20241022": {"in": 3.00, "out": 15.00},
             "gemini-1.5-flash": {"in": 0.075, "out": 0.30},
             "gemini-1.5-pro": {"in": 1.25, "out": 5.00},
+            "default": {"in": 3.00, "out": 15.00},
         }
 
         cost_rows = []
@@ -648,7 +656,7 @@ with tab_usage:
         for u in usage_data:
             # Try to match pricing
             m_name = u.model.split("/")[-1]
-            price = PRICING.get(m_name, {"in": 0, "out": 0})
+            price = PRICING.get(m_name, PRICING.get("default", {"in": 0, "out": 0}))
             
             # Base cost of standard tokens
             base_input = u.input - getattr(u, "cache_read", 0) - getattr(u, "cache_creation", 0)
