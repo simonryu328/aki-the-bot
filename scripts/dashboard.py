@@ -180,17 +180,25 @@ def load_user_settings(user_id: int):
 def load_token_usage(user_id: int):
     session = get_session()
     try:
+        from sqlalchemy import inspect
+        inst = inspect(TokenUsage)
+        has_cache_cols = "cache_read_tokens" in [c.key for c in inst.mapper.column_attrs]
+        
         # Get usage grouped by date and model
+        cols = [
+            func.cast(TokenUsage.timestamp, sqlalchemy.Date).label("date"),
+            TokenUsage.model,
+            func.sum(TokenUsage.input_tokens).label("input"),
+            func.sum(TokenUsage.output_tokens).label("output"),
+            func.sum(TokenUsage.total_tokens).label("total")
+        ]
+        
+        if has_cache_cols:
+            cols.append(func.sum(TokenUsage.cache_read_tokens).label("cache_read"))
+            cols.append(func.sum(TokenUsage.cache_creation_tokens).label("cache_creation"))
+            
         usage = session.execute(
-            select(
-                func.cast(TokenUsage.timestamp, sqlalchemy.Date).label("date"),
-                TokenUsage.model,
-                func.sum(TokenUsage.input_tokens).label("input"),
-                func.sum(TokenUsage.output_tokens).label("output"),
-                func.sum(TokenUsage.total_tokens).label("total"),
-                func.sum(getattr(TokenUsage, "cache_read_tokens", 0)).label("cache_read"),
-                func.sum(getattr(TokenUsage, "cache_creation_tokens", 0)).label("cache_creation")
-            )
+            select(*cols)
             .where(TokenUsage.user_id == user_id)
             .group_by(func.cast(TokenUsage.timestamp, sqlalchemy.Date), TokenUsage.model)
             .order_by(desc("date"))
@@ -302,8 +310,7 @@ tab_overview, tab_conversations, tab_diary, tab_usage, tab_database, tab_setting
 # ---- Tab: Overview ----
 
 with tab_overview:
-    @st.fragment
-    def overview_fragment(user_id):
+    def overview_content(user_id):
         user = next(u for u in users if u["id"] == user_id)
         
         st.header(f"{user['name']}")
@@ -323,14 +330,13 @@ with tab_overview:
         finally:
             session.close()
 
-    overview_fragment(selected_user_id)
+    overview_content(selected_user_id)
 
 
 # ---- Tab: Conversations ----
 
 with tab_conversations:
-    @st.fragment
-    def conversations_fragment(user_id):
+    def conversations_content(user_id):
         msg_limit = st.slider(
             "Messages to load",
             10, 500,
@@ -353,7 +359,7 @@ with tab_conversations:
                     with st.expander("thinking"):
                         st.text(msg["thinking"])
 
-    conversations_fragment(selected_user_id)
+    conversations_content(selected_user_id)
 
 
 # Tab: Observations and Scheduled removed during cleanup
@@ -362,8 +368,7 @@ with tab_conversations:
 # ---- Tab: Diary ----
 
 with tab_diary:
-    @st.fragment
-    def diary_fragment(user_id):
+    def diary_content(user_id):
         st.subheader("Diary Entries")
         
         # Get stats
@@ -463,14 +468,13 @@ with tab_diary:
                     
                     st.markdown("---")
 
-    diary_fragment(selected_user_id)
+    diary_content(selected_user_id)
 
 
 # ---- Tab: Database ----
 
 with tab_database:
-    @st.fragment
-    def database_fragment(user_id):
+    def database_content(user_id):
         user = next(u for u in users if u["id"] == user_id)
         st.subheader("Database Overview")
         st.caption(f"Complete view of all data for {user['name']}")
@@ -565,14 +569,13 @@ with tab_database:
         finally:
             session.close()
 
-    database_fragment(selected_user_id)
+    database_content(selected_user_id)
 
 
 # ---- Tab: Usage ----
 
 with tab_usage:
-    @st.fragment
-    def usage_fragment(user_id):
+    def usage_content(user_id):
         st.subheader("Token Usage & Costs")
         
         usage_data, type_breakdown = load_token_usage(user_id)
@@ -690,14 +693,13 @@ with tab_usage:
             ])
             st.bar_chart(df_type.set_index("Call Type"))
 
-    usage_fragment(selected_user_id)
+    usage_content(selected_user_id)
 
 
 # ---- Tab: Settings ----
 
 with tab_settings:
-    @st.fragment
-    def settings_fragment(user_id):
+    def settings_content(user_id):
         st.subheader("User Settings")
         
         user_settings = load_user_settings(user_id)
@@ -722,5 +724,5 @@ with tab_settings:
             st.markdown("---")
             st.caption("Users can configure these settings via Telegram commands: /reachout_settings, /reachout_enable, /reachout_disable, /reachout_min, /reachout_max")
 
-    settings_fragment(selected_user_id)
+    settings_content(selected_user_id)
 
