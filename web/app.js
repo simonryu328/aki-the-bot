@@ -9,8 +9,19 @@
     const tg = window.Telegram?.WebApp;
     if (tg) {
         tg.ready();
-        tg.expand();
+
+        // Request fullscreen for newer Telegram versions (8.0+)
+        if (tg.requestFullscreen) {
+            tg.requestFullscreen();
+        } else {
+            tg.expand();
+        }
+
         tg.disableVerticalSwipes();
+
+        // Ensure header and background colors match the theme
+        tg.setHeaderColor(tg.themeParams.header_bg_color || '#ffffff');
+        tg.setBackgroundColor(tg.themeParams.bg_color || '#ffffff');
     }
 
     // ── State ──
