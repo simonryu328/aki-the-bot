@@ -1,16 +1,141 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Logs from Space</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Aki — Your personal reflection journal">
+    <title>Aki — Journal</title>
+
+    <!-- Telegram Mini App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" id="navTabs">
+        <button class="nav-tab active" data-panel="0">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <span>Journal</span>
+        </button>
+        <button class="nav-tab" data-panel="1">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Today</span>
+        </button>
+        <button class="nav-tab" data-panel="2">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            <span>Notes</span>
+        </button>
+    </nav>
+
+    <!-- Panel Container -->
+    <main class="panels-container" id="panelsContainer">
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- PANEL 1: Journal (Past)                     -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="panel" id="panelJournal">
+            <div class="panel-content">
+                <h1 class="panel-title">Journal</h1>
+                <p class="panel-subtitle">Aki's reflections</p>
+
+                <!-- Loading State -->
+                <div class="loading-state" id="loadingState">
+                    <div class="loading-spinner"></div>
+                    <p class="loading-text">Loading entries...</p>
+                </div>
+
+                <!-- Error State -->
+                <div class="error-state hidden" id="errorState">
+                    <p class="error-text" id="errorText"></p>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state hidden" id="emptyState">
+                    <p class="empty-text">No entries yet.</p>
+                    <p class="empty-hint">Start a conversation with Aki to create memories.</p>
+                </div>
+
+                <!-- Journal Cards List -->
+                <div class="journal-list" id="journalList">
+                    <!-- Cards rendered by JS -->
+                </div>
+
+                <!-- Search Bar -->
+                <div class="search-bar hidden" id="searchBar">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input type="text" class="search-input" placeholder="Search entries..." id="searchInput"
+                        aria-label="Search journal entries">
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- PANEL 2: Today (Coming Soon)                -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="panel" id="panelToday">
+            <div class="panel-content">
+                <h1 class="panel-title">Today</h1>
+                <p class="panel-subtitle" id="todayDate"></p>
+
+                <div class="coming-soon">
+                    <div class="coming-soon-icon">🌅</div>
+                    <p class="coming-soon-text">Your daily dashboard is coming soon.</p>
+                    <p class="coming-soon-hint">Quotes, schedule, and intentions — all in one place.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- PANEL 3: Notes (Coming Soon)                -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="panel" id="panelNotes">
+            <div class="panel-content">
+                <h1 class="panel-title">Notes</h1>
+                <p class="panel-subtitle">Quick capture</p>
+
+                <div class="coming-soon">
+                    <div class="coming-soon-icon">✍️</div>
+                    <p class="coming-soon-text">Your notes space is coming soon.</p>
+                    <p class="coming-soon-hint">Goals, memos, and notes to Aki — write here, Aki reads.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Dot Indicators -->
+    <div class="dot-indicators" id="dotIndicators">
+        <span class="dot active" data-panel="0"></span>
+        <span class="dot" data-panel="1"></span>
+        <span class="dot" data-panel="2"></span>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 
 </html>
