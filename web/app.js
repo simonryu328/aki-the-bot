@@ -144,9 +144,40 @@
         return urlParams.get('user_id') || tg?.initDataUnsafe?.user?.id;
     }
 
-    function formatDate(isoStr) {
+    function formatDate(isoStr, includeTime = false) {
+        if (!isoStr) return '';
         const d = new Date(isoStr);
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        if (isNaN(d.getTime())) return '';
+
+        const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        if (!includeTime) return datePart;
+
+        const timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return `${datePart} ${timePart}`;
+    }
+
+    function formatRange(startIso, endIso, timestampIso) {
+        if (!startIso || !endIso) return formatDate(timestampIso);
+
+        const start = new Date(startIso);
+        const end = new Date(endIso);
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return formatDate(timestampIso);
+
+        const isSameDay = start.getFullYear() === end.getFullYear() &&
+            start.getMonth() === end.getMonth() &&
+            start.getDate() === end.getDate();
+
+        if (isSameDay) {
+            const dateStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const startTime = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            const endTime = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            return `${dateStr} • ${startTime} – ${endTime}`;
+        } else {
+            const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            return `${startStr} – ${endStr}`;
+        }
     }
 
     function truncateText(text, maxLen) {
@@ -172,8 +203,8 @@
 
             // Build tags from entry type
             const tags = [];
-            if (entry.type) {
-                const label = entry.type.replace(/_/g, ' ');
+            if (entry.entry_type) {
+                const label = entry.entry_type.replace(/_/g, ' ');
                 tags.push(label);
             }
             if (entry.importance && entry.importance >= 7) {
@@ -181,7 +212,7 @@
             }
 
             card.innerHTML = `
-        <div class="journal-card-date">${formatDate(entry.created_at)}</div>
+        <div class="journal-card-date">${formatRange(entry.exchange_start, entry.exchange_end, entry.timestamp)}</div>
         <div class="journal-card-title">${escapeHtml(entry.title || 'Untitled')}</div>
         <div class="journal-card-preview">${escapeHtml(truncateText(entry.content, 300))}</div>
         ${tags.length ? `<div class="journal-card-tags">${tags.map(t => `<span class="journal-tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
