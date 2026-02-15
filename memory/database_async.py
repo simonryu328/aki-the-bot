@@ -393,6 +393,34 @@ class AsyncDatabase:
             logger.error("Failed to add diary entry", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to add diary entry: {e}")
 
+    async def update_diary_entry(
+        self,
+        entry_id: int,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+    ) -> DiaryEntrySchema:
+        """Update an existing diary entry."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(DiaryEntry).where(DiaryEntry.id == entry_id))
+                entry = result.scalar_one_or_none()
+                if not entry:
+                    raise RecordNotFoundError(f"Diary entry {entry_id} not found")
+                
+                if title is not None:
+                    entry.title = title
+                if content is not None:
+                    entry.content = content
+                
+                session.add(entry)
+                await session.flush()
+                logger.debug("Updated diary entry", entry_id=entry_id, title=title)
+                return DiaryEntrySchema.model_validate(entry)
+
+        except SQLAlchemyError as e:
+            logger.error("Failed to update diary entry", entry_id=entry_id, error=str(e))
+            raise DatabaseException(f"Failed to update diary entry: {e}")
+
     async def get_diary_entries(
         self, user_id: int, limit: int = 5, entry_type: Optional[str] = None
     ) -> List[DiaryEntrySchema]:

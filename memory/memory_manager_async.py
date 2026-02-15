@@ -202,6 +202,23 @@ class AsyncMemoryManager:
             logger.error("Failed to add diary entry", user_id=user_id, error=str(e))
             raise MemoryException(f"Failed to add diary entry: {e}")
 
+    async def update_diary_entry(
+        self,
+        entry_id: int,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+    ) -> DiaryEntrySchema:
+        """
+        Update an existing diary entry.
+        """
+        try:
+            entry = await self.db.update_diary_entry(entry_id, title, content)
+            logger.info("Updated diary entry", entry_id=entry_id, title=title)
+            return entry
+        except Exception as e:
+            logger.error("Failed to update diary entry", entry_id=entry_id, error=str(e))
+            raise MemoryException(f"Failed to update diary entry: {e}")
+
     async def get_diary_entries(
         self, user_id: int, limit: int = 50, entry_type: Optional[str] = None
     ) -> List[DiaryEntrySchema]:

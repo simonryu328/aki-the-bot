@@ -17,9 +17,11 @@ Recent conversation:
 ---
 Write how Aki should remember this conversation with {user_name}. Focus on who they are, what matters to them, and what threads are continuing. Include specific details that reveal character or context—not just events, but what those events mean. Write naturally, as if you're helping a friend remember someone they care about.
 
-Return only one paragraph. No titles, no labels, no bullets, no extra lines. Use this structure:
-
+Return your response in this format:
+<title>Short, evocative title (3-6 words) that captures the essence of this exchange</title>
+<memory>
 [Opening that captures the essence of this exchange][what this reveals about who {user_name} is and what matters to them]. [Ongoing threads, patterns, or context that's important to remember]. [What this means for your relationship or future conversations].
+</memory>
 
 Guidelines:
 - Always use {user_name}'s name when referring to them, never "they" or "the user"

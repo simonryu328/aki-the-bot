@@ -949,7 +949,8 @@ class TelegramBot:
             local_time = utc_time.astimezone(tz)
             ts_str = local_time.strftime("%A, %B %d at %I:%M %p")
             
-            response = f"📔 *Conversation Memory #{index}*\n_{ts_str}_\n\n{memory.content}"
+            title = memory.title if memory.title and memory.title != "Conversation Memory" else f"Conversation Memory #{index}"
+            response = f"📔 *{title}*\n_{ts_str}_\n\n{memory.content}"
             
             await self._send_long_message(chat_id=update.effective_chat.id, text=response)
             

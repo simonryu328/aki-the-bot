@@ -834,7 +834,20 @@ class SoulAgent:
             
             # Store memory as a diary entry with type "conversation_memory"
             if result and result.strip():
-                memory_content = result.strip()
+                # Parse title and content from tags
+                title_match = re.search(r'<title>(.*?)</title>', result, re.DOTALL)
+                memory_match = re.search(r'<memory>(.*?)</memory>', result, re.DOTALL)
+                
+                if title_match and memory_match:
+                    title = title_match.group(1).strip()
+                    memory_content = memory_match.group(1).strip()
+                else:
+                    # Fallback for old format or if parsing fails
+                    title = "Conversation Memory"
+                    memory_content = result.strip()
+                    # Remove any stray tags if present
+                    memory_content = re.sub(r'</?memory>', '', memory_content).strip()
+                    memory_content = re.sub(r'</?title>', '', memory_content).strip()
                 
                 # Convert start/end times back to datetime objects for storage
                 exchange_start_dt = None
@@ -848,14 +861,14 @@ class SoulAgent:
                 await self.memory.add_diary_entry(
                     user_id=user_id,
                     entry_type="conversation_memory",
-                    title="Conversation Memory",
+                    title=title,
                     content=memory_content,
                     importance=6,  # Slightly higher importance than compact summaries
                     exchange_start=exchange_start_dt,
                     exchange_end=exchange_end_dt,
                 )
                 
-                logger.info("Stored conversation memory", user_id=user_id,
+                logger.info("Stored conversation memory", user_id=user_id, title=title,
                            exchange_start=start_time, exchange_end=end_time)
             else:
                 logger.warning("Empty memory entry generated", user_id=user_id)
