@@ -172,12 +172,20 @@ class SoulAgent:
         # Store raw response for debug
         SoulAgent._last_raw_response[user_id] = raw_response
         
-        # Log raw response
+        # Log response and savings
         log_func = logger.info if settings.LOG_RAW_LLM else logger.debug
-        log_func(
-            "Raw response",
+        
+        cache_msg = ""
+        if result.usage and result.usage.cache_read_tokens > 0:
+            savings = result.usage.cache_read_tokens
+            cache_msg = f" | ⚡ CACHE HIT: {savings} tokens saved"
+        elif result.usage and result.usage.cache_creation_tokens > 0:
+            cache_msg = f" | 🆕 CACHE CREATED: {result.usage.cache_creation_tokens} tokens"
+
+        logger.info(
+            f"Response generated{cache_msg}",
             user_id=user_id,
-            tokens_used=llm_response.total_tokens,
+            tokens=result.usage.total_tokens if result.usage else 0,
         )
 
         # Parse thinking, response, messages, and emoji

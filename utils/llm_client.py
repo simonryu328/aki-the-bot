@@ -32,6 +32,8 @@ class LLMResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
 
 
 class LLMClient:
@@ -239,6 +241,8 @@ class LLMClient:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
+                cache_read_tokens=cache_read,
+                cache_creation_tokens=cache_creation,
             )
 
         except Exception as e:
