@@ -50,7 +50,7 @@ async def backfill_titles():
                     # 3. Generate title using LLM
                     prompt = TITLE_GENERATION_PROMPT.format(content=entry.content)
                     title = await llm_client.chat(
-                        model=settings.MODEL_SUMMARY,
+                        model=settings.MODEL_MEMORY,
                         messages=[{"role": "user", "content": prompt}],
                         temperature=0.3,
                         max_tokens=50

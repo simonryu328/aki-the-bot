@@ -705,10 +705,10 @@ class SoulAgent:
             
             # Generate summary
             result = await llm_client.chat(
-                model=settings.MODEL_SUMMARY,
+                model=settings.MODEL_MEMORY,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=300,
+                max_tokens=settings.SUMMARY_MAX_TOKENS,
             )
             
             logger.debug(
@@ -820,10 +820,10 @@ class SoulAgent:
             
             # Generate memory entry
             result = await llm_client.chat(
-                model=settings.MODEL_SUMMARY,
+                model=settings.MODEL_MEMORY,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.5,  # Slightly higher temperature for more natural, personal writing
-                max_tokens=500,
+                max_tokens=settings.MEMORY_MAX_TOKENS,
             )
             
             logger.debug(

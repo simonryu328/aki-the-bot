@@ -68,9 +68,19 @@ class Settings(BaseSettings):
         default="claude-haiku-4-5-20251001",
         description="Model for proactive/scheduled messages",
     )
-    MODEL_SUMMARY: str = Field(
+    MODEL_MEMORY: str = Field(
         default="claude-haiku-4-5-20251001",
-        description="Model for profile summaries",
+        description="Model for memories and summaries",
+    )
+
+    MEMORY_MAX_TOKENS: int = Field(
+        default=500,
+        description="Max tokens for conversation memory generation",
+    )
+
+    SUMMARY_MAX_TOKENS: int = Field(
+        default=300,
+        description="Max tokens for compact summary generation",
     )
 
     # Environment

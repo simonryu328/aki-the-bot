@@ -128,7 +128,7 @@ async def test_chapter_generation(user_id: int = 1):
         print("\n⏳ Generating chapter...")
         try:
             response = await llm_client.chat(
-                model=settings.MODEL_SUMMARY,
+                model=settings.MODEL_MEMORY,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=1000,

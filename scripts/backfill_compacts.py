@@ -79,7 +79,7 @@ async def create_compact_for_batch(
         
         # Generate summary
         result = await llm_client.chat(
-            model=settings.MODEL_SUMMARY,
+            model=settings.MODEL_MEMORY,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=800,
