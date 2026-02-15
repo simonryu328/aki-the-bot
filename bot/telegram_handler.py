@@ -393,7 +393,10 @@ class TelegramBot:
 
         try:
             # Use the webhook URL + / as the web app URL for now
-            web_app_url = settings.WEBHOOK_URL
+            # Add a version timestamp to bypass Telegram's aggressive caching
+            import time
+            v = int(time.time())
+            web_app_url = f"{settings.WEBHOOK_URL}?v={v}"
             
             # Use typed objects for better compatibility
             # Ensure URL is HTTPS
