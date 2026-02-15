@@ -9,14 +9,7 @@
     const tg = window.Telegram?.WebApp;
     if (tg) {
         tg.ready();
-
-        // Request fullscreen for newer Telegram versions (8.0+)
-        if (tg.requestFullscreen) {
-            tg.requestFullscreen();
-        } else {
-            tg.expand();
-        }
-
+        tg.expand();
         tg.disableVerticalSwipes();
 
         // Ensure header and background colors match the theme
