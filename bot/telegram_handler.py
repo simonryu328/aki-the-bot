@@ -378,10 +378,10 @@ class TelegramBot:
                 "Something went wrong. Please try /start again."
             )
 
-    async def logs_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def app_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
-        Handle the /logs command.
-        Sets the Menu Button to open the Mini App (Logs).
+        Handle the /app command.
+        Sets the Menu Button to open the Mini App.
         """
         user = update.effective_user
         telegram_id = user.id
@@ -405,16 +405,45 @@ class TelegramBot:
                 
             await context.bot.set_chat_menu_button(
                 chat_id=chat_id,
-                menu_button=MenuButtonWebApp(text="Open Logs", web_app=WebAppInfo(url=web_app_url))
+                menu_button=MenuButtonWebApp(text="App", web_app=WebAppInfo(url=web_app_url))
             )
             logger.info(f"Set menu button for user {telegram_id} to {web_app_url}")
             await update.message.reply_text(
-                "I've added the 'Open Logs' button to your menu! 🚀\n"
-                "You can tap it to see our conversation memories."
+                "I've added the 'App' button to your menu! 🚀\n"
+                "You can tap it anytime to see your memories and reflections."
             )
         except Exception as e:
             logger.error(f"Error setting menu button: {e}")
             await update.message.reply_text(f"Failed to set the menu button: {str(e)}")
+
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /help command. Lists all available commands."""
+        commands = [
+            ("start", "Initialize or restart our relationship"),
+            ("app", "Add the 'App' button to your menu"),
+            ("help", "See this list of commands"),
+            ("memory", "Browse our shared memories (/memory list)"),
+            ("reset", "Clear all our data and start over (use with caution)"),
+            ("reachout_settings", "Manage how and when I reach out to you"),
+        ]
+        
+        # Add debug commands only if debug mode or similar is on (optional, but keep for now)
+        debug_commands = [
+            ("debug", "Show technical state info"),
+            ("thinking", "See my last internal reflection"),
+            ("prompt", "See the context I'm remembering"),
+            ("raw", "See my last raw response"),
+        ]
+        
+        response = "✨ *Available Commands*\n\n"
+        for cmd, desc in commands:
+            response += f"/{cmd} - {desc}\n"
+        
+        response += "\n🛠 *Technical Commands*\n\n"
+        for cmd, desc in debug_commands:
+            response += f"/{cmd} - {desc}\n"
+            
+        await update.message.reply_text(response, parse_mode="Markdown")
 
     async def handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -1253,46 +1282,25 @@ class TelegramBot:
         # Error handler - must be added first to catch all errors
         self.application.add_error_handler(self.error_handler)
         
-        # Command handlers
-        self.application.add_handler(
-            CommandHandler("start", self.start_command)
-        )
-        self.application.add_handler(
-            CommandHandler("reset", self.reset_command)
-        )
-        self.application.add_handler(
-            CommandHandler("debug", self.debug_command)
-        )
-        self.application.add_handler(
-            CommandHandler("thinking", self.thinking_command)
-        )
-        self.application.add_handler(
-            CommandHandler("prompt", self.prompt_command)
-        )
-        self.application.add_handler(
-            CommandHandler("raw", self.raw_command)
-        )
-        self.application.add_handler(
-            CommandHandler("reachout_settings", self.reachout_settings_command)
-        )
-        self.application.add_handler(
-            CommandHandler("reachout_enable", self.reachout_enable_command)
-        )
-        self.application.add_handler(
-            CommandHandler("reachout_disable", self.reachout_disable_command)
-        )
-        self.application.add_handler(
-            CommandHandler("reachout_min", self.reachout_min_command)
-        )
-        self.application.add_handler(
-            CommandHandler("reachout_max", self.reachout_max_command)
-        )
-        self.application.add_handler(
-            CommandHandler("memory", self.memory_command)
-        )
-        self.application.add_handler(
-            CommandHandler("logs", self.logs_command)
-        )
+        # Core Commands
+        self.application.add_handler(CommandHandler("start", self.start_command))
+        self.application.add_handler(CommandHandler("app", self.app_command))
+        self.application.add_handler(CommandHandler("help", self.help_command))
+        self.application.add_handler(CommandHandler("memory", self.memory_command))
+        
+        # User Settings & Data
+        self.application.add_handler(CommandHandler("reset", self.reset_command))
+        self.application.add_handler(CommandHandler("reachout_settings", self.reachout_settings_command))
+        self.application.add_handler(CommandHandler("reachout_enable", self.reachout_enable_command))
+        self.application.add_handler(CommandHandler("reachout_disable", self.reachout_disable_command))
+        self.application.add_handler(CommandHandler("reachout_min", self.reachout_min_command))
+        self.application.add_handler(CommandHandler("reachout_max", self.reachout_max_command))
+        
+        # Debug & Technical
+        self.application.add_handler(CommandHandler("debug", self.debug_command))
+        self.application.add_handler(CommandHandler("thinking", self.thinking_command))
+        self.application.add_handler(CommandHandler("prompt", self.prompt_command))
+        self.application.add_handler(CommandHandler("raw", self.raw_command))
         
         # Message handlers
         self.application.add_handler(

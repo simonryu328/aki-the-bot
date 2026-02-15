@@ -114,6 +114,10 @@ Advanced text processing that:
 - `prompts/observation.py` - Fact extraction
 - `prompts/reach_out.py` - Proactive messaging
 
+## 🕹️ Bot Commands
+
+For a full list of available commands and instructions on how to add new ones, see the [Telegram Commands Guide](docs/TELEGRAM_COMMANDS.md).
+
 ## 📊 Data Models
 
 ### User Profile
