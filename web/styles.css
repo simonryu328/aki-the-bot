@@ -34,7 +34,7 @@
     --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
     /* Safe area */
-    --safe-top: var(--tg-safe-area-inset-top, 0px);
+    --safe-top: var(--tg-content-safe-area-inset-top, 0px);
     --safe-bottom: var(--tg-safe-area-inset-bottom, 0px);
     --safe-left: var(--tg-safe-area-inset-left, 0px);
     --safe-right: var(--tg-safe-area-inset-right, 0px);
@@ -81,8 +81,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: calc(var(--safe-top) + 12px) 16px 10px;
+    gap: 2px;
+    padding: calc(var(--safe-top) + 6px) 60px 6px;
     background: var(--header-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -92,13 +92,13 @@ body {
 .nav-tab {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
+    gap: 5px;
+    padding: 6px 14px;
     border: none;
     background: transparent;
     color: var(--hint);
     font-family: inherit;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     border-radius: var(--radius-lg);
@@ -137,8 +137,8 @@ body {
 }
 
 .nav-icon {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
 }
 
@@ -163,7 +163,7 @@ body {
 }
 
 .panel-content {
-    padding: calc(var(--safe-top) + 60px) 20px calc(var(--safe-bottom) + 50px);
+    padding: calc(var(--safe-top) + 52px) 20px calc(var(--safe-bottom) + 16px);
     min-height: 100%;
 }
 
@@ -347,10 +347,9 @@ body {
 
 /* ── Search Bar ── */
 .search-bar {
-    position: sticky;
-    bottom: 0;
-    padding: 12px 0;
-    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    position: relative;
+    padding: 0 0 14px;
+    margin-bottom: 4px;
 }
 
 .search-icon {
@@ -483,36 +482,7 @@ body {
    ═══════════════════════════════════════════════════════ */
 
 .dot-indicators {
-    position: fixed;
-    bottom: calc(var(--safe-bottom) + 20px);
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 8px;
-    padding: 6px 12px;
-    background: color-mix(in srgb, var(--secondary-bg) 80%, transparent);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-radius: 100px;
-    z-index: 100;
-    border: 0.5px solid var(--separator);
-}
-
-.dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--hint);
-    opacity: 0.3;
-    transition: all var(--transition-smooth);
-    cursor: pointer;
-}
-
-.dot.active {
-    width: 24px;
-    border-radius: 4px;
-    background: var(--accent);
-    opacity: 1;
+    display: none;
 }
 
 /* ═══════════════════════════════════════════════════════
