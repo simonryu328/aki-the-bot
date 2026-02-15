@@ -75,13 +75,11 @@ For multiple messages (like real texting), use [BREAK] to separate:
 The [BREAK] marker tells the system to send these as separate messages with natural timing between them.
 """
 
-# SYSTEM_DYNAMIC contains parts that change every message (Time, History)
+# SYSTEM_DYNAMIC contains parts that change every message (History)
+# Recent Exchanges is placed first as it stays stable for many messages
+# Current Conversation follows
+# RIGHT NOW (Time) is placed last because it is the most volatile
 SYSTEM_DYNAMIC = """
----
-
-RIGHT NOW:
-{current_time}. {time_context}
-
 ---
 
 RECENT EXCHANGES:
@@ -91,6 +89,11 @@ RECENT EXCHANGES:
 
 CURRENT CONVERSATION:
 {conversation_history}
+
+---
+
+RIGHT NOW:
+{current_time}. {time_context}
 """
 
 # Legacy support for anything still using SYSTEM_FRAME

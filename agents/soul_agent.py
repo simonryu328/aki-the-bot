@@ -131,28 +131,32 @@ class SoulAgent:
         # 1. Static part (Persona + Format)
         static_text = SYSTEM_STATIC.format(persona=self.persona)
         
-        # 2. Dynamic part (Time, History)
-        dynamic_text = SYSTEM_DYNAMIC.format(
-            current_time=current_time,
-            time_context=time_context,
-            recent_exchanges=recent_exchanges_text,
-            conversation_history=history_text,
-        )
+        # 2. Dynamic part - Split into Semi-Static (Exchanges) and Volatile (History/Time)
+        # We place RECENT EXCHANGES in its own block so it can be cached independently
+        # and doesn't get invalidated by the clock.
+        exchanges_block = f"\n---\n\nRECENT EXCHANGES:\n{recent_exchanges_text}"
+        volatile_block = f"\n---\n\nCURRENT CONVERSATION:\n{history_text}\n\n---\n\nRIGHT NOW:\n{current_time}. {time_context}"
         
         # Update debug context
-        SoulAgent._last_system_prompt[user_id] = static_text + dynamic_text
+        SoulAgent._last_system_prompt[user_id] = static_text + exchanges_block + volatile_block
         SoulAgent._last_recent_exchanges[user_id] = recent_exchanges_text
 
         # Create list-based system prompt for caching support
+        # We use 2 out of 4 available cache breakpoints
         system_prompt_blocks = [
             {
                 "type": "text",
                 "text": static_text,
-                "cache_control": {"type": "ephemeral"}
+                "cache_control": {"type": "ephemeral"} # 1st Breakpoint: Persona/Format
             },
             {
                 "type": "text",
-                "text": dynamic_text
+                "text": exchanges_block,
+                "cache_control": {"type": "ephemeral"} # 2nd Breakpoint: Summaries/Memories
+            },
+            {
+                "type": "text",
+                "text": volatile_block
             }
         ]
 
