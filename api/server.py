@@ -309,8 +309,15 @@ async def ask_question(telegram_id: int, payload: dict):
 
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
         
-        # 1. Let the bot "think" it received this message
-        # We process it through orchestrator which stores it and generates Aki's reply
+        # 1. Send the question back to the chat so there's context
+        # We format it slightly so it's clear it's the "Ask Aki" prompt
+        await bot.application.bot.send_message(
+            chat_id=telegram_id, 
+            text=f"Prompt: {question}",
+            parse_mode=None
+        )
+
+        # 2. Let the bot "think" it received this message
         messages, emoji = await orchestrator.process_message(
             telegram_id=telegram_id,
             message=question,
@@ -318,8 +325,7 @@ async def ask_question(telegram_id: int, payload: dict):
             username=user.username,
         )
 
-        # 2. Proactively send the responses to the user in Telegram
-        # This makes it seamless - they close the app and the reply is already there
+        # 3. Send the responses
         for msg in messages:
             await bot.application.bot.send_message(chat_id=telegram_id, text=msg)
         
