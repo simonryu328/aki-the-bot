@@ -47,8 +47,10 @@ REQUIRED JSON STRUCTURE:
     "A third suggested question"
   ],
   "personal_stats": {{
-    "current_vibe": "One word or short phrase for their current energy",
-    "top_topic": "What they've been obsessing over lately"
+    "current_vibe": "One word or short phrase",
+    "vibe_description": "Cheeky 1-sentence explanation of why they have this vibe",
+    "top_topic": "The thing they've been obsessing over",
+    "topic_description": "1-sentence on what Aki noticed about this obsession"
   }}
 }}
 

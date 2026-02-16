@@ -81,7 +81,9 @@ interface PersonalizedInsights {
   fun_questions: string[];
   personal_stats: {
     current_vibe: string;
+    vibe_description: string;
     top_topic: string;
+    topic_description: string;
   };
 }
 
@@ -133,7 +135,9 @@ const welcomeNameContinue = document.getElementById('welcomeNameContinue') as HT
 // Personalized Insights References
 const personalizedInsightsContainer = document.getElementById('personalizedInsights') as HTMLElement;
 const statVibe = document.getElementById('statVibe') as HTMLElement;
+const statVibeDesc = document.getElementById('statVibeDesc') as HTMLElement;
 const statTopic = document.getElementById('statTopic') as HTMLElement;
+const statTopicDesc = document.getElementById('statTopicDesc') as HTMLElement;
 const unhingedList = document.getElementById('unhingedList') as HTMLElement;
 const observationsList = document.getElementById('observationsList') as HTMLElement;
 const questionsList = document.getElementById('questionsList') as HTMLElement;
@@ -414,7 +418,9 @@ function renderPersonalizedInsights(data: PersonalizedInsights) {
 
   // Render Stats
   if (statVibe) statVibe.textContent = data.personal_stats.current_vibe;
+  if (statVibeDesc) statVibeDesc.textContent = data.personal_stats.vibe_description;
   if (statTopic) statTopic.textContent = data.personal_stats.top_topic;
+  if (statTopicDesc) statTopicDesc.textContent = data.personal_stats.topic_description;
 
   // Render Unhinged Quotes
   if (unhingedList) {
