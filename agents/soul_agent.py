@@ -706,11 +706,6 @@ class SoulAgent:
                 logger.info("Triggering memory entry", user_id=user_id, message_count=message_count)
                 tasks.append(self._create_memory_entry(user_id=user_id, conversation_history=all_convos))
             
-            # Trigger fresh personalized insights in background when summary is made
-            if message_count >= settings.COMPACT_INTERVAL:
-                logger.info("Triggering background insights refresh", user_id=user_id)
-                tasks.append(self.generate_personalized_insights(user_id=user_id, store=True))
-            
             if tasks:
                 await asyncio.gather(*tasks)
             
