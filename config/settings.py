@@ -72,6 +72,10 @@ class Settings(BaseSettings):
         default="claude-haiku-4-5-20251001",
         description="Model for memories and summaries",
     )
+    MODEL_DAILY_MESSAGE: str = Field(
+        default="claude-haiku-4-5-20251001",
+        description="Model for generating daily motivational messages",
+    )
 
     MEMORY_MAX_TOKENS: int = Field(
         default=500,

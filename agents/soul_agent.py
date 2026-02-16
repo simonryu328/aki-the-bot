@@ -959,41 +959,56 @@ class SoulAgent:
             Tuple of (message_content, is_fallback)
         """
         try:
-            # 1. Get user context (similar to build_conversation_context)
+            # 1. Get user context
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "friend"
             
-            # Use build_conversation_context to get the same high-quality context we use for chat
-            # We fetch 50 recent messages just to be safe for context
-            convos = await self.memory.db.get_recent_conversations(user_id, limit=50)
-            context_text, history_text = await self._build_conversation_context(user_id, convos, user)
+            # Fetch minimal context for daily message: 1 summary and last 5 messages
+            diary_entries = await self.memory.get_diary_entries(user_id, limit=10)
+            summaries = [e for e in diary_entries if e.entry_type == 'compact_summary']
+            memories = [e for e in diary_entries if e.entry_type == 'conversation_memory']
+            
+            # Use the single most recent summary or memory
+            best_entry = summaries[0] if summaries else (memories[0] if memories else None)
+            
+            tz = pytz.timezone(settings.TIMEZONE)
+            context_text = "(No previous exchanges remembered yet)"
+            if best_entry:
+                ts = best_entry.timestamp.replace(tzinfo=pytz.utc).astimezone(tz).strftime("%b %d")
+                context_text = f"[{ts}] {best_entry.content}"
+            
+            # Last 5 messages
+            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=5)
+            history_text = self._format_history(recent_convos, user_name)
             
             # 2. Check if we have any meaningful context
-            # If no context at all (new user), use fallback
-            if not convos and context_text == "(No previous exchanges remembered yet)":
+            if not recent_convos and context_text == "(No previous exchanges remembered yet)":
                 import random
                 return random.choice(FALLBACK_QUOTES), True
             
-            # 3. Generate via LLM
+            # 3. Generate via LLM using dedicated daily message model
             prompt = DAILY_MESSAGE_PROMPT.format(
                 user_name=user_name,
                 context=context_text,
                 recent_history=history_text,
             )
             
-            logger.info("Generating daily message", user_id=user_id)
+            logger.info("Generating daily message", user_id=user_id, model=settings.MODEL_DAILY_MESSAGE)
             
             message = await llm_client.chat(
-                model=self.model,
+                model=settings.MODEL_DAILY_MESSAGE,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
-                max_tokens=200,
+                max_tokens=150,
             )
             
             if isinstance(message, str):
-                final_message = message.strip()
+                raw = message.strip()
             else:
-                final_message = message.content.strip()
+                raw = message.content.strip()
+            
+            # 4. Sanitize: strip markdown, headers, and commentary
+            final_message = self._sanitize_daily_message(raw)
             
             # Handle potential empty response
             if not final_message:
@@ -1006,6 +1021,42 @@ class SoulAgent:
             logger.error("Failed to generate daily message", user_id=user_id, error=str(e))
             import random
             return random.choice(FALLBACK_QUOTES), True
+
+    @staticmethod
+    def _sanitize_daily_message(raw: str) -> str:
+        """Strip markdown formatting, headers, and commentary from daily message output."""
+        text = raw.strip()
+        
+        # Remove markdown headers (# Daily Message, ## etc.)
+        text = re.sub(r'^#+\s.*\n?', '', text, flags=re.MULTILINE).strip()
+        
+        # Remove markdown bold/italic
+        text = re.sub(r'\*{1,2}(.*?)\*{1,2}', r'\1', text)
+        text = re.sub(r'_{1,2}(.*?)_{1,2}', r'\1', text)
+        
+        # If there's a "---" separator, only keep what's before it (the actual message)
+        if '---' in text:
+            text = text.split('---')[0].strip()
+        
+        # If multi-line, take only the first non-empty paragraph
+        # (LLM sometimes appends "Why this works:" or similar commentary)
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        if paragraphs:
+            text = paragraphs[0]
+        
+        # Collapse any remaining newlines into spaces
+        text = ' '.join(text.split())
+        
+        # Trim to ~280 chars at sentence boundary if too long
+        if len(text) > 300:
+            cut = text[:280]
+            last_period = max(cut.rfind('.'), cut.rfind('!'), cut.rfind('?'))
+            if last_period > 100:
+                text = cut[:last_period + 1]
+            else:
+                text = cut.rsplit(' ', 1)[0] + '…'
+        
+        return text.strip()
 
     @classmethod
     def get_last_thinking(cls, user_id: int) -> Optional[str]:
