@@ -47,16 +47,18 @@ REQUIRED JSON STRUCTURE:
     "A third suggested question"
   ],
   "personal_stats": {{
-    "current_vibe": "One word or short phrase",
-    "vibe_description": "Cheeky 1-sentence explanation of why they have this vibe",
-    "top_topic": "The thing they've been obsessing over",
-    "topic_description": "1-sentence on what Aki noticed about this obsession"
+    "current_vibe": "3-5 words max (e.g., 'The Builder in Beta Mode')",
+    "vibe_description": "Cheeky 1-sentence explanation (max 15 words)",
+    "top_topic": "1-3 words max (e.g., 'Aki's Soul')",
+    "topic_description": "1-sentence summary (max 15 words)"
   }}
 }}
 
 RULES:
-1. Be FUN. Use internet-native language (lmao, wild, iconic, etc. where appropriate).
-2. Don't be mean, but be "unhinged" as requested. Poke gentle fun at their chaotic ideas.
-3. Use the user's name: {user_name}.
-4. Output ONLY the JSON. No markdown, no commentary.
+1. Be FUN and observant.
+2. Keep stats VERY SHORT. Vibe and Topic must be punchy nicknames, not sentences.
+3. Descriptions must be strictly one sentence.
+4. Don't be mean, but be "unhinged" as requested. Poke gentle fun at their chaotic ideas.
+5. Use the user's name: {user_name}.
+6. Output ONLY the JSON. No markdown, no commentary.
 """
