@@ -1063,6 +1063,8 @@ body {
   box-shadow: var(--shadow-card);
   border: 1px solid var(--separator);
   transition: transform var(--transition-fast);
+  min-width: 0;
+  /* Allow card to shrink in grid */
 }
 
 .stat-card:active {
@@ -1090,12 +1092,12 @@ body {
 }
 
 .stat-value {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.2;
 }
 
 /* Insight Groups */
