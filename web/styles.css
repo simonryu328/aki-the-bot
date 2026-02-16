@@ -165,8 +165,8 @@ body {
     height: 100%;
     transition: transform var(--transition-smooth);
     will-change: transform;
-    transform: translateX(0%);
-    /* Start on Journal (first panel) */
+    transform: translateX(-33.3333%);
+    /* Start on Today (middle panel) */
 }
 
 .panel {
