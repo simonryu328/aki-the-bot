@@ -18,7 +18,7 @@
     }
 
     // ── State ──
-    let currentPanel = 0; // Start on Journal
+    let currentPanel = 1; // Start on Today
     const totalPanels = 3;
     let allEntries = [];   // Full dataset for search
 
@@ -57,7 +57,7 @@
 
         // Telegram back button — show on non-home panels
         if (tg) {
-            if (index !== 0) {
+            if (index !== 1) {
                 tg.BackButton.show();
             } else {
                 tg.BackButton.hide();
@@ -82,7 +82,7 @@
     // Back button handler
     if (tg) {
         tg.onEvent('backButtonClicked', () => {
-            goToPanel(0); // Always go back to Journal
+            goToPanel(1); // Always go back to Today
         });
     }
 
@@ -314,5 +314,6 @@
     // ── Init ──
     fetchEntries();
     fetchDailyMessage();
+    goToPanel(1); // Initialize UI to Today
 
 })();
