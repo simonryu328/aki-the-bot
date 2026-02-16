@@ -213,7 +213,57 @@
         </div>
       </div>
 
-      <div class="coming-soon">
+      <!-- Personalized Insights Section -->
+      <div id="personalizedInsights" class="insights-container hidden">
+        <h2 class="section-heading">Personalized for You</h2>
+
+        <!-- Vibe & Top Topic Stats -->
+        <div class="stats-row">
+          <div class="stat-card vibe">
+            <div class="stat-label">Current Vibe</div>
+            <div class="stat-value" id="statVibe">...</div>
+          </div>
+          <div class="stat-card topic">
+            <div class="stat-label">Obsession</div>
+            <div class="stat-value" id="statTopic">...</div>
+          </div>
+        </div>
+
+        <!-- Unhinged Quotes -->
+        <div class="insight-group unhinged">
+          <div class="group-header">
+            <span class="group-icon">🔥</span>
+            <span class="group-title">Iconic Things You've Said</span>
+          </div>
+          <div id="unhingedList" class="insight-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Aki's Observations -->
+        <div class="insight-group observations">
+          <div class="group-header">
+            <span class="group-icon">👁️</span>
+            <span class="group-title">Aki's Observations</span>
+          </div>
+          <div id="observationsList" class="insight-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Fun Questions -->
+        <div class="insight-group questions">
+          <div class="group-header">
+            <span class="group-icon">💬</span>
+            <span class="group-title">Ask me these...</span>
+          </div>
+          <div id="questionsList" class="questions-grid">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="coming-soon" id="todayComingSoon">
         <div class="coming-soon-icon">🌅</div>
         <p class="coming-soon-text">Your daily dashboard is coming soon.</p>
         <p class="coming-soon-hint">Quotes, schedule, and intentions — all in one place.</p>

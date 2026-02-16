@@ -34,7 +34,9 @@ from prompts import (
     MEMORY_PROMPT,
     DAILY_MESSAGE_PROMPT,
     FALLBACK_QUOTES,
+    PERSONALIZED_INSIGHTS_PROMPT,
 )
+import json
 from prompts.system_frame import SYSTEM_FRAME
 from prompts.personas import COMPANION_PERSONA
 
@@ -1112,6 +1114,94 @@ class SoulAgent:
         """Get the last recent exchanges context for a user (for debugging)."""
         return cls._last_recent_exchanges.get(user_id)
 
+
+    async def generate_personalized_insights(
+        self,
+        user_id: int,
+    ) -> Dict:
+        """
+        Generate fun, personalized insights (unhinged quotes, observations, etc.) for the user.
+        
+        Returns:
+            Dictionary containing unhinged quotes, observations, and fun questions.
+        """
+        try:
+            # 1. Get user context
+            user = await self.memory.get_user_by_id(user_id)
+            user_name = user.name if user and user.name else "friend"
+            
+            # Fetch context: summaries and memories
+            diary_entries = await self.memory.get_diary_entries(user_id, limit=20)
+            
+            user_tz_str = await self._get_user_tz(user_id, user)
+            tz = pytz.timezone(user_tz_str)
+            
+            context_items = []
+            for entry in diary_entries:
+                ts = entry.timestamp.replace(tzinfo=pytz.utc).astimezone(tz).strftime("%b %d")
+                context_items.append(f"[{ts}] {entry.entry_type}: {entry.content}")
+            
+            context_text = "\n".join(context_items) if context_items else "(No previous memories yet)"
+            
+            # Fetch recent conversations for exact quotes
+            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=30)
+            history_text = self._format_history(recent_convos, user_name, tz_str=user_tz_str)
+            
+            # 2. Check for minimal context
+            if not recent_convos and not diary_entries:
+                return {
+                    "unhinged_quotes": [],
+                    "aki_observations": [],
+                    "fun_questions": [
+                        "What's your favorite way to start the day?",
+                        "If you could have any superpower, what would it be?",
+                        "What's a topic you could talk about for hours?"
+                    ],
+                    "personal_stats": {
+                        "current_vibe": "New Friend",
+                        "top_topic": "Unknown"
+                    }
+                }
+            
+            # 3. Generate via LLM
+            prompt = PERSONALIZED_INSIGHTS_PROMPT.format(
+                user_name=user_name,
+                context=context_text,
+                recent_history=history_text,
+            )
+            
+            logger.info("Generating personalized insights", user_id=user_id)
+            
+            response = await llm_client.chat(
+                model=settings.MODEL_MEMORY,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.8,
+                max_tokens=1000,
+            )
+            
+            content = response.content if hasattr(response, 'content') else str(response)
+            
+            # Parse JSON
+            try:
+                # Find JSON block if it's wrapped in backticks
+                json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group(1))
+                else:
+                    data = json.loads(content)
+                return data
+            except json.JSONDecodeError:
+                logger.error("Failed to parse personalized insights JSON", user_id=user_id, raw=content)
+                return {
+                    "unhinged_quotes": [],
+                    "aki_observations": [{"title": "Observation failed", "description": "I'm still thinking about you...", "emoji": "🤔"}],
+                    "fun_questions": ["What's on your mind today?"],
+                    "personal_stats": {"current_vibe": "Thinking", "top_topic": "You"}
+                }
+                
+        except Exception as e:
+            logger.error("Failed to generate personalized insights", user_id=user_id, error=str(e))
+            return {"error": str(e)}
 
 # Singleton instance
 soul_agent = SoulAgent()

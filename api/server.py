@@ -225,6 +225,23 @@ async def get_daily_message(telegram_id: int):
         )
 
 
+@app.get("/api/personalized-insights/{telegram_id}")
+async def get_personalized_insights(telegram_id: int):
+    """
+    Get fun, personalized insights (unhinged quotes, observations, etc.) for the user.
+    """
+    try:
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        
+        # Check cache if needed, but for now we'll generate fresh to keep it exciting
+        # In a real app, you might cache this for 24h as well
+        data = await soul_agent.generate_personalized_insights(user.id)
+        return data
+    except Exception as e:
+        logger.error(f"Error serving personalized insights: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/calendar/{telegram_id}", response_model=list[CalendarEventSchema])
 async def get_calendar_events(
     telegram_id: int,

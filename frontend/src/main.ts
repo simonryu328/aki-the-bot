@@ -67,6 +67,24 @@ interface UserProfile {
   onboarding_state: string | null;
 }
 
+interface PersonalizedInsights {
+  unhinged_quotes: {
+    quote: string;
+    context: string;
+    emoji: string;
+  }[];
+  aki_observations: {
+    title: string;
+    description: string;
+    emoji: string;
+  }[];
+  fun_questions: string[];
+  personal_stats: {
+    current_vibe: string;
+    top_topic: string;
+  };
+}
+
 // ── Initialization ──────────────────────────────────
 
 const tg = window.Telegram?.WebApp;
@@ -111,6 +129,15 @@ const welcomeTzValue = document.getElementById('welcomeTzValue') as HTMLElement;
 const welcomeTzTime = document.getElementById('welcomeTzTime') as HTMLElement;
 const welcomeNameInput = document.getElementById('welcomeNameInput') as HTMLInputElement;
 const welcomeNameContinue = document.getElementById('welcomeNameContinue') as HTMLButtonElement;
+
+// Personalized Insights References
+const personalizedInsightsContainer = document.getElementById('personalizedInsights') as HTMLElement;
+const statVibe = document.getElementById('statVibe') as HTMLElement;
+const statTopic = document.getElementById('statTopic') as HTMLElement;
+const unhingedList = document.getElementById('unhingedList') as HTMLElement;
+const observationsList = document.getElementById('observationsList') as HTMLElement;
+const questionsList = document.getElementById('questionsList') as HTMLElement;
+const todayComingSoon = document.getElementById('todayComingSoon') as HTMLElement;
 
 // ── Navigation ──────────────────────────────────────
 
@@ -361,6 +388,86 @@ async function fetchDailyMessage() {
   }
 }
 
+// ── Personalized Insights ─────────────────────────────
+
+async function fetchPersonalizedInsights() {
+  const userId = getUserId();
+  if (!userId) return;
+
+  try {
+    const res = await fetch(`/api/personalized-insights/${userId}`);
+    if (!res.ok) throw new Error('Failed to fetch personalized insights');
+    const data: PersonalizedInsights = await res.json();
+
+    renderPersonalizedInsights(data);
+  } catch (err) {
+    console.error('Personalized insights fetch failed:', err);
+  }
+}
+
+function renderPersonalizedInsights(data: PersonalizedInsights) {
+  if (!personalizedInsightsContainer) return;
+
+  // Show container, hide "coming soon"
+  personalizedInsightsContainer.classList.remove('hidden');
+  todayComingSoon?.classList.add('hidden');
+
+  // Render Stats
+  if (statVibe) statVibe.textContent = data.personal_stats.current_vibe;
+  if (statTopic) statTopic.textContent = data.personal_stats.top_topic;
+
+  // Render Unhinged Quotes
+  if (unhingedList) {
+    unhingedList.innerHTML = '';
+    data.unhinged_quotes.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'insight-card';
+      card.innerHTML = `
+        <div class="insight-emoji">${item.emoji || '🔥'}</div>
+        <div class="insight-content">
+          <div class="insight-quote">“${escapeHtml(item.quote)}”</div>
+          <div class="insight-desc">${escapeHtml(item.context)}</div>
+        </div>
+      `;
+      unhingedList.appendChild(card);
+    });
+  }
+
+  // Render Observations
+  if (observationsList) {
+    observationsList.innerHTML = '';
+    data.aki_observations.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'insight-card';
+      card.innerHTML = `
+        <div class="insight-emoji">${item.emoji || '👁️'}</div>
+        <div class="insight-content">
+          <div class="insight-title">${escapeHtml(item.title)}</div>
+          <div class="insight-desc">${escapeHtml(item.description)}</div>
+        </div>
+      `;
+      observationsList.appendChild(card);
+    });
+  }
+
+  // Render Fun Questions
+  if (questionsList) {
+    questionsList.innerHTML = '';
+    data.fun_questions.forEach(q => {
+      const chip = document.createElement('div');
+      chip.className = 'question-chip';
+      chip.textContent = q;
+      chip.addEventListener('click', () => {
+        if (tg) tg.HapticFeedback.impactOccurred('medium');
+        // In a real app, this could copy to clipboard or even send the message
+        // For now, we'll just show it
+        console.log(`Suggested question: ${q}`);
+      });
+      questionsList.appendChild(chip);
+    });
+  }
+}
+
 // ── Welcome Flow ──────────────────────────────────────
 
 let welcomeSlideIndex = 0;
@@ -543,6 +650,7 @@ async function init() {
 
   fetchEntries();
   fetchDailyMessage();
+  fetchPersonalizedInsights();
   goToPanel(1); // Initialize UI to Today
 
   // ── Final Transition: Hide Splash Screen ──
