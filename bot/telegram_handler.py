@@ -405,7 +405,7 @@ class TelegramBot:
                 
             await context.bot.set_chat_menu_button(
                 chat_id=chat_id,
-                menu_button=MenuButtonWebApp(text="\u200b", web_app=WebAppInfo(url=web_app_url))
+                menu_button=MenuButtonWebApp(text="✨", web_app=WebAppInfo(url=web_app_url))
             )
             logger.info(f"Set menu button for user {telegram_id} to {web_app_url}")
             await update.message.reply_text(
