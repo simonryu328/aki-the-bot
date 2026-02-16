@@ -337,12 +337,20 @@ async def webhook_handler(token: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Mount Static Files (Frontend)
-# We accept that the web folder might not exist yet during initial scaffolding
-static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
-if os.path.exists(static_dir):
-    logger.info(f"Serving static files from {static_dir}")
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+# Priority:
+# 1. frontend/dist (Modern TS version)
+# 2. web (Legacy Vanilla version)
+base_dir = os.path.dirname(os.path.dirname(__file__))
+modern_static_dir = os.path.join(base_dir, "frontend", "dist")
+legacy_static_dir = os.path.join(base_dir, "web")
+
+if os.path.exists(modern_static_dir):
+    logger.info(f"Serving modern frontend from {modern_static_dir}")
+    app.mount("/", StaticFiles(directory=modern_static_dir, html=True), name="static")
+elif os.path.exists(legacy_static_dir):
+    logger.info(f"Serving legacy frontend from {legacy_static_dir}")
+    app.mount("/", StaticFiles(directory=legacy_static_dir, html=True), name="static")
 else:
-    logger.warning(f"Static directory not found: {static_dir}. Frontend will not be served.")
+    logger.warning(f"No static directory found (checked {modern_static_dir} and {legacy_static_dir}). Frontend will not be served.")
 
 

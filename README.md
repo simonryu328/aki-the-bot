@@ -93,7 +93,8 @@ Advanced text processing that:
 - **Vector Store**: Pinecone (optional)
 - **LLM**: OpenAI GPT-4 / Anthropic Claude
 - **Deployment**: Railway / Docker
-- **Package Manager**: uv
+- **Package Manager**: uv (Python), npm (Frontend)
+- **Frontend**: TypeScript, Vite, Vanilla CSS
 
 ## 🛠️ Core Components
 
@@ -111,8 +112,11 @@ Advanced text processing that:
 - `prompts/system_frame.py` - Structural prompt scaffolding
 - `prompts/personas/` - Swappable personality modules
 - `prompts/compact.py` - Conversation summarization
-- `prompts/observation.py` - Fact extraction
-- `prompts/reach_out.py` - Proactive messaging
+
+### Frontend (Mini App)
+- `frontend/src/main.ts` - Core TypeScript logic & Telegram SDK integration
+- `frontend/src/style.css` - Modern UI styling
+- `frontend/index.html` - App entry point
 
 ## 🕹️ Bot Commands
 

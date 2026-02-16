@@ -1,6 +1,16 @@
 # ==========================================
-# Aki — Runtime (Python + static frontend)
+# Aki — Multi-stage Build (Vite + Python)
 # ==========================================
+
+# --- Stage 1: Build the Frontend ---
+FROM node:20-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+# --- Stage 2: Python Runtime ---
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
@@ -14,8 +24,11 @@ ENV PYTHONUNBUFFERED=1 \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (includes web/ with vanilla HTML/CSS/JS)
+# Copy application code
 COPY . .
+
+# Copy built frontend from previous stage
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Run the server
 CMD ["python", "run_server.py"]
