@@ -17,7 +17,7 @@ from memory.database_async import db
 from memory.models import CalendarEvent
 from agents.soul_agent import soul_agent
 from schemas import DiaryEntrySchema, CalendarEventSchema, CalendarEventCreate, DailyMessageSchema
-from telegram import Update
+from telegram import Update, Message
 from sqlalchemy import select, delete as sa_delete
 
 # Configure logging
@@ -292,7 +292,41 @@ async def get_personalized_insights(telegram_id: int):
         }
 
 
-@app.get("/api/calendar/{telegram_id}", response_model=list[CalendarEventSchema])
+@app.post("/api/ask-question/{telegram_id}")
+async def ask_question(telegram_id: int, payload: dict):
+    """
+    Handle a user clicking a suggested question.
+    1. Triggers orchestrator to process the question.
+    2. Sends the response messages through the Telegram bot.
+    """
+    try:
+        from bot.telegram_handler import bot
+        from agents.orchestrator import orchestrator
+        
+        question = payload.get("question")
+        if not question:
+            raise HTTPException(status_code=400, detail="Question is required")
+
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        
+        # 1. Let the bot "think" it received this message
+        # We process it through orchestrator which stores it and generates Aki's reply
+        messages, emoji = await orchestrator.process_message(
+            telegram_id=telegram_id,
+            message=question,
+            name=user.name,
+            username=user.username,
+        )
+
+        # 2. Proactively send the responses to the user in Telegram
+        # This makes it seamless - they close the app and the reply is already there
+        for msg in messages:
+            await bot.application.bot.send_message(chat_id=telegram_id, text=msg)
+        
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error processing question trigger: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/calendar/{telegram_id}", response_model=list[CalendarEventSchema])

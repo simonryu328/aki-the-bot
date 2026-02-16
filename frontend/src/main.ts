@@ -38,6 +38,7 @@ interface TelegramWebApp {
   initDataUnsafe: {
     user?: TelegramUser;
   };
+  close: () => void;
 }
 
 declare global {
@@ -105,6 +106,7 @@ let currentPanel = 1; // Start on Today
 const totalPanels = 3;
 let allEntries: JournalEntry[] = [];
 let detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const API_BASE_URL = ''; // Same origin
 
 // ── DOM References ──────────────────────────────────
 
@@ -463,11 +465,34 @@ function renderPersonalizedInsights(data: PersonalizedInsights) {
       const chip = document.createElement('div');
       chip.className = 'question-chip';
       chip.textContent = q;
-      chip.addEventListener('click', () => {
+      chip.addEventListener('click', async () => {
         if (tg) tg.HapticFeedback.impactOccurred('medium');
-        // In a real app, this could copy to clipboard or even send the message
-        // For now, we'll just show it
-        console.log(`Suggested question: ${q}`);
+
+        const telegramId = tg?.initDataUnsafe?.user?.id || 1; // Fallback for testing
+
+        try {
+          // Disable chip during sending
+          chip.style.opacity = '0.5';
+          chip.style.pointerEvents = 'none';
+
+          const response = await fetch(`${API_BASE_URL}/api/ask-question/${telegramId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: q })
+          });
+
+          if (response.ok) {
+            // Give a small delay for the message to arrive in TG
+            if (tg) {
+              tg.HapticFeedback.notificationOccurred('success');
+              setTimeout(() => tg.close(), 300);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to send question", err);
+          chip.style.opacity = '1';
+          chip.style.pointerEvents = 'auto';
+        }
       });
       questionsList.appendChild(chip);
     });
