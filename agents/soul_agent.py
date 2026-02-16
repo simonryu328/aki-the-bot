@@ -36,7 +36,7 @@ from prompts import (
     FALLBACK_QUOTES,
 )
 from prompts.system_frame import SYSTEM_FRAME
-from prompts.personas import AKI_PERSONA
+from prompts.personas import COMPANION_PERSONA
 
 logger = get_logger(__name__)
 
@@ -79,7 +79,7 @@ class SoulAgent:
     _profile_string_cache: Dict[int, str] = {}
     _last_recent_exchanges: Dict[int, str] = {}
 
-    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = AKI_PERSONA):
+    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
         """Initialize companion agent.
 
         Args:
