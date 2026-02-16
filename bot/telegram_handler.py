@@ -418,6 +418,7 @@ class TelegramBot:
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle the /help command. Lists all available commands."""
+        logger.info(f"Help command triggered by user {update.effective_user.id}")
         commands = [
             ("start", "Initialize or restart our relationship"),
             ("app", "Add the 'App' button to your menu"),
@@ -437,13 +438,13 @@ class TelegramBot:
         
         response = "✨ *Available Commands*\n\n"
         for cmd, desc in commands:
-            response += f"/{cmd} - {desc}\n"
+            response += f"`/{cmd}` - {desc}\n"
         
         response += "\n🛠 *Technical Commands*\n\n"
         for cmd, desc in debug_commands:
-            response += f"/{cmd} - {desc}\n"
+            response += f"`/{cmd}` - {desc}\n"
             
-        await update.message.reply_text(response, parse_mode="Markdown")
+        await update.effective_message.reply_text(response, parse_mode="Markdown")
 
     async def handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -1315,6 +1316,24 @@ class TelegramBot:
 
         logger.info("Telegram bot handlers configured")
 
+    async def _register_commands(self) -> None:
+        """Register commands with Telegram to show in the menu."""
+        from telegram import BotCommand
+        commands = [
+            BotCommand("help", "See list of commands"),
+            BotCommand("memory", "Browse our shared memories"),
+            BotCommand("app", "Open the dashboard"),
+            BotCommand("reset", "Wipe all data and restart"),
+            BotCommand("reachout_settings", "Manage reach-out config"),
+            BotCommand("thinking", "See Aki's current thoughts"),
+            BotCommand("prompt", "See Aki's context"),
+        ]
+        try:
+            await self.application.bot.set_my_commands(commands)
+            logger.info("Successfully registered bot commands with Telegram")
+        except Exception as e:
+            logger.error(f"Failed to register bot commands: {e}")
+
     async def _check_inactive_users(self, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Periodically check for users who haven't interacted in a while.
@@ -1340,6 +1359,9 @@ class TelegramBot:
 
         # Set up handlers
         self.setup_handlers()
+        
+        # Register commands with Telegram (menu button)
+        asyncio.create_task(self._register_commands())
 
         # Set up the reach-out checker
         reach_out_interval = settings.REACH_OUT_CHECK_INTERVAL_MINUTES * 60  # Convert to seconds
