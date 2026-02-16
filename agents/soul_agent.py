@@ -176,16 +176,16 @@ class SoulAgent:
         log_func = logger.info if settings.LOG_RAW_LLM else logger.debug
         
         cache_msg = ""
-        if result.usage and result.usage.cache_read_tokens > 0:
-            savings = result.usage.cache_read_tokens
+        if llm_response and llm_response.cache_read_tokens > 0:
+            savings = llm_response.cache_read_tokens
             cache_msg = f" | ⚡ CACHE HIT: {savings} tokens saved"
-        elif result.usage and result.usage.cache_creation_tokens > 0:
-            cache_msg = f" | 🆕 CACHE CREATED: {result.usage.cache_creation_tokens} tokens"
+        elif llm_response and llm_response.cache_creation_tokens > 0:
+            cache_msg = f" | 🆕 CACHE CREATED: {llm_response.cache_creation_tokens} tokens"
 
         logger.info(
             f"Response generated{cache_msg}",
             user_id=user_id,
-            tokens=result.usage.total_tokens if result.usage else 0,
+            tokens=llm_response.total_tokens if llm_response else 0,
         )
 
         # Parse thinking, response, messages, and emoji
