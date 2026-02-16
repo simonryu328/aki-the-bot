@@ -706,6 +706,11 @@ class SoulAgent:
                 logger.info("Triggering memory entry", user_id=user_id, message_count=message_count)
                 tasks.append(self._create_memory_entry(user_id=user_id, conversation_history=all_convos))
             
+            # Trigger fresh personalized insights in background when summary is made
+            if message_count >= settings.COMPACT_INTERVAL:
+                logger.info("Triggering background insights refresh", user_id=user_id)
+                tasks.append(self.generate_personalized_insights(user_id=user_id, store=True))
+            
             if tasks:
                 await asyncio.gather(*tasks)
             
@@ -1118,10 +1123,16 @@ class SoulAgent:
     async def generate_personalized_insights(
         self,
         user_id: int,
+        store: bool = False,
     ) -> Dict:
         """
         Generate fun, personalized insights (unhinged quotes, observations, etc.) for the user.
+        Uses DEEP CONTEXT: Fetches last 10 memories + ALL user messages from that time range.
         
+        Args:
+            user_id: User ID
+            store: If True, saves to database as a diary entry
+            
         Returns:
             Dictionary containing unhinged quotes, observations, and fun questions.
         """
@@ -1130,50 +1141,100 @@ class SoulAgent:
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "friend"
             
-            # Fetch context: summaries and memories
-            diary_entries = await self.memory.get_diary_entries(user_id, limit=20)
+            # 2. Fetch Deep Context
+            # Step A: Get last 10 Conversation Memories (these serve as the "spine" of the history)
+            memories = await self.memory.get_diary_entries(
+                user_id=user_id, 
+                limit=10, 
+                entry_type="conversation_memory"
+            )
             
-            user_tz_str = await self._get_user_tz(user_id, user)
-            tz = pytz.timezone(user_tz_str)
-            
-            context_items = []
-            for entry in diary_entries:
-                ts = entry.timestamp.replace(tzinfo=pytz.utc).astimezone(tz).strftime("%b %d")
-                context_items.append(f"[{ts}] {entry.entry_type}: {entry.content}")
-            
-            context_text = "\n".join(context_items) if context_items else "(No previous memories yet)"
-            
-            # Fetch recent conversations for exact quotes
-            recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=30)
-            history_text = self._format_history(recent_convos, user_name, tz_str=user_tz_str)
-            
-            # 2. Check for minimal context
-            if not recent_convos and not diary_entries:
+            # Default context if no memories exist
+            if not memories:
                 return {
                     "unhinged_quotes": [],
                     "aki_observations": [],
-                    "fun_questions": [
-                        "What's your favorite way to start the day?",
-                        "If you could have any superpower, what would it be?",
-                        "What's a topic you could talk about for hours?"
-                    ],
-                    "personal_stats": {
-                        "current_vibe": "New Friend",
-                        "top_topic": "Unknown"
-                    }
+                    "fun_questions": ["What's your favorite way to start the day?", "What's a topic you could talk about for hours?"],
+                    "personal_stats": {"current_vibe": "New Friend", "top_topic": "Unknown"}
                 }
+
+            # Step B: Determine the time range (Oldest Memory Start -> Now)
+            # We look for 'exchange_start' (start of convo) or fallback to 'timestamp'
+            timestamps = [m.exchange_start or m.timestamp for m in memories]
+            cutoff_time = min(timestamps) if timestamps else None
+            
+            if not cutoff_time:
+                # Should not happen given "if not memories" check, but safe fallback
+                cutoff_time = datetime.utcnow() - timedelta(days=7)
+
+            # Step C: Fetch ALL USER messages since that cutoff
+            # We only want ROLE='user' to save tokens and find "unhinged" user quotes
+            raw_conversations = await self.memory.db.get_conversations_after(
+                user_id=user_id,
+                after=cutoff_time,
+                limit=500 # Safe upper limit to prevent overflow, though 10 memories shouldn't exceed this
+            )
+            user_messages = [c for c in raw_conversations if c.role == "user"]
+            
+            # Step D: Group Memories with their Context
+            # We will format this as a timeline for the LLM
+            formatted_context = []
+            
+            # Sort memories oldest to newest
+            memories.sort(key=lambda m: m.timestamp)
+            
+            # Helper to find messages "belonging" to a memory
+            # A message belongs if it matches the memory's exchange_start/end window
+            # or if it effectively falls in the gap before the next memory
+            
+            used_msg_ids = set()
+            
+            for i, memory in enumerate(memories):
+                mem_start = memory.exchange_start or memory.timestamp
+                mem_end = memory.exchange_end or memory.timestamp
+                
+                # Loose matching: Find user msgs that are >= start - 10min AND <= end + 10min
+                # Or simply assign unassigned messages that occurred before this memory
+                
+                matched_msgs = []
+                for msg in user_messages:
+                    if msg.id in used_msg_ids:
+                        continue
+                    
+                    # If message is before this memory's end (plus buffer), we assign it here
+                    # This effectively sweeps up "preceding" context into the current memory block
+                    if msg.timestamp <= (mem_end + timedelta(minutes=30)):
+                        matched_msgs.append(f"- \"{msg.message}\"")
+                        used_msg_ids.add(msg.id)
+                
+                # Add to formatted block
+                title = memory.title or "Conversation"
+                block = f"## MEMORY: {title}\n(Summary: {memory.content})\n"
+                if matched_msgs:
+                    block += "RAW USER QUOTES:\n" + "\n".join(matched_msgs)
+                else:
+                    block += "(No direct exact quotes found for this range)"
+                
+                formatted_context.append(block)
+            
+            # Catch failures or leftover recent messages
+            leftovers = [m for m in user_messages if m.id not in used_msg_ids]
+            if leftovers:
+                formatted_context.append("## RECENT UNPROCESSED CONTEXT\nRAW USER QUOTES:\n" + "\n".join([f"- \"{m.message}\"" for m in leftovers]))
+            
+            final_context_text = "\n\n".join(formatted_context)
             
             # 3. Generate via LLM
+            # Note: We removed 'recent_history' from prompt as we are now feeding custom 'context'
             prompt = PERSONALIZED_INSIGHTS_PROMPT.format(
                 user_name=user_name,
-                context=context_text,
-                recent_history=history_text,
+                context=final_context_text,
             )
             
-            logger.info("Generating personalized insights", user_id=user_id)
+            logger.info("Generating personalized insights", user_id=user_id, model=settings.MODEL_INSIGHTS)
             
             response = await llm_client.chat(
-                model=settings.MODEL_MEMORY,
+                model=settings.MODEL_INSIGHTS,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
                 max_tokens=1000,
@@ -1186,9 +1247,23 @@ class SoulAgent:
                 # Find JSON block if it's wrapped in backticks
                 json_match = re.search(r'(\{.*\})', content, re.DOTALL)
                 if json_match:
-                    data = json.loads(json_match.group(1))
+                    content_json = json_match.group(1)
                 else:
-                    data = json.loads(content)
+                    content_json = content
+                
+                data = json.loads(content_json)
+                
+                # 4. Store if requested
+                if store:
+                    await self.memory.add_diary_entry(
+                        user_id=user_id,
+                        entry_type="personalized_insights",
+                        title="Personalized Fun Sheet",
+                        content=content_json, # Store raw JSON string
+                        importance=8
+                    )
+                    logger.info("Stored fresh personalized insights", user_id=user_id)
+                
                 return data
             except json.JSONDecodeError:
                 logger.error("Failed to parse personalized insights JSON", user_id=user_id, raw=content)

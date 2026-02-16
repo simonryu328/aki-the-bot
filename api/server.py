@@ -229,17 +229,70 @@ async def get_daily_message(telegram_id: int):
 async def get_personalized_insights(telegram_id: int):
     """
     Get fun, personalized insights (unhinged quotes, observations, etc.) for the user.
+    Uses 'Milestone-based' Caching: 
+    - Checks if 50+ new messages have been sent since the last insight generation.
+    - If YES: Generates fresh insights.
+    - If NO: Returns the cached insights.
     """
     try:
+        import pytz
+        import json
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
         
-        # Check cache if needed, but for now we'll generate fresh to keep it exciting
-        # In a real app, you might cache this for 24h as well
-        data = await soul_agent.generate_personalized_insights(user.id)
-        return data
+        # 1. Get the last insights entry
+        entries = await memory_manager.get_diary_entries(
+            user_id=user.id,
+            limit=1,
+            entry_type="personalized_insights"
+        )
+        
+        should_regenerate = False
+        cached_data = None
+        
+        if entries:
+            last_entry = entries[0]
+            try:
+                cached_data = json.loads(last_entry.content)
+                
+                # Check message count since this entry
+                # We specifically count USER messages as they drive the content
+                new_msg_count = await memory_manager.db.get_message_count_after(
+                    user_id=user.id,
+                    after=last_entry.timestamp,
+                    role="user"
+                )
+                
+                logger.info(f"User {user.id}: {new_msg_count} new messages since last insight (Threshold: 50)")
+                
+                if new_msg_count >= 50:
+                    should_regenerate = True
+            except json.JSONDecodeError:
+                should_regenerate = True
+        else:
+            should_regenerate = True
+
+        if should_regenerate:
+            # Generate fresh
+            logger.info(f"Regenerating personalized insights for user {telegram_id}")
+            data = await soul_agent.generate_personalized_insights(user.id, store=True)
+            return data
+        else:
+            # Return cached
+            logger.info(f"Returning cached insights for user {telegram_id}")
+            return cached_data
+
     except Exception as e:
         logger.error(f"Error serving personalized insights: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Build strict fallback structure matching frontend processing
+        return {
+            "unhinged_quotes": [],
+            "aki_observations": [{"title": "Thinking...", "description": "Gathering more memories of you.", "emoji": "🤔"}],
+            "fun_questions": ["What's on your mind today?"],
+            "personal_stats": {"current_vibe": "New Friend", "top_topic": "Interests"}
+        }
+
+
+@app.get("/api/calendar/{telegram_id}", response_model=list[CalendarEventSchema])
 
 
 @app.get("/api/calendar/{telegram_id}", response_model=list[CalendarEventSchema])

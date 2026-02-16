@@ -357,7 +357,21 @@ class AsyncDatabase:
                         user_id=user_id, after=after, error=str(e))
             raise DatabaseException(f"Failed to get conversations: {e}")
 
-    # ==================== Diary Entry Operations ====================
+    async def get_message_count_after(self, user_id: int, after: datetime, role: Optional[str] = None) -> int:
+        """Count messages after a timestamp."""
+        try:
+            async with self.get_session() as session:
+                query = select(func.count(Conversation.id)).where(
+                    Conversation.user_id == user_id,
+                    Conversation.timestamp > after
+                )
+                if role:
+                    query = query.where(Conversation.role == role)
+                result = await session.execute(query)
+                return result.scalar() or 0
+        except SQLAlchemyError as e:
+            logger.error("Failed to count messages", user_id=user_id, error=str(e))
+            return 0
 
     async def add_diary_entry(
         self,
