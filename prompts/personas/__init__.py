@@ -10,8 +10,12 @@ Usage:
 
 from prompts.personas.companion import COMPANION_PERSONA
 from prompts.personas.friend import FRIEND_PERSONA
+from prompts.personas.companion_v2 import COMPANION_V2_PERSONA
+from prompts.personas.aki_persona import AKI_PERSONA
 
 __all__ = [
     "COMPANION_PERSONA",
     "FRIEND_PERSONA",
+    "COMPANION_V2_PERSONA",
+    "AKI_PERSONA",
 ]

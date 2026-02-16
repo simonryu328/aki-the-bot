@@ -36,7 +36,7 @@ from prompts import (
     FALLBACK_QUOTES,
 )
 from prompts.system_frame import SYSTEM_FRAME
-from prompts.personas import COMPANION_PERSONA
+from prompts.personas import AKI_PERSONA
 
 logger = get_logger(__name__)
 
@@ -79,7 +79,7 @@ class SoulAgent:
     _profile_string_cache: Dict[int, str] = {}
     _last_recent_exchanges: Dict[int, str] = {}
 
-    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = COMPANION_PERSONA):
+    def __init__(self, model: str = settings.MODEL_CONVERSATION, persona: str = AKI_PERSONA):
         """Initialize companion agent.
 
         Args:
@@ -128,6 +128,11 @@ class SoulAgent:
         Returns:
             SoulResponse with response, thinking
         """
+        # Resolve user name and context
+        if user is None:
+            user = await self.memory.get_user_by_id(user_id)
+        user_name = user.name if user and user.name else "them"
+
         # Fetch conversation context
         recent_exchanges_text, history_text = await self._build_conversation_context(user_id, conversation_history, user)
         
@@ -149,7 +154,13 @@ class SoulAgent:
         from prompts.system_frame import SYSTEM_STATIC, SYSTEM_DYNAMIC
         
         # 1. Static part (Persona + Format)
-        static_text = SYSTEM_STATIC.format(persona=self.persona)
+        # Allow persona to use {user_name} via .format()
+        try:
+            formatted_persona = self.persona.format(user_name=user_name)
+        except (KeyError, ValueError):
+            formatted_persona = self.persona
+            
+        static_text = SYSTEM_STATIC.format(persona=formatted_persona)
         
         # 2. Dynamic part - Split into Semi-Static (Exchanges) and Volatile (History/Time)
         # We place RECENT EXCHANGES in its own block so it can be cached independently
