@@ -646,3 +646,264 @@ body {
         margin: 0 auto;
     }
 }
+
+/* ═══════════════════════════════════════════════════════
+   Welcome Overlay (First-time Users)
+   ═══════════════════════════════════════════════════════ */
+
+.welcome-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: var(--bg);
+    overflow: hidden;
+}
+
+.welcome-slides {
+    display: flex;
+    width: 300%;
+    height: 100%;
+    transition: transform var(--transition-smooth);
+    will-change: transform;
+    transform: translateX(0%);
+}
+
+.welcome-slide {
+    width: 33.3333%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.welcome-slide-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 40px 32px;
+    max-width: 380px;
+    width: 100%;
+    animation: welcomeFadeIn 600ms ease-out;
+}
+
+@keyframes welcomeFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.welcome-emoji {
+    font-size: 64px;
+    margin-bottom: 20px;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+    animation: welcomeFloat 3s ease-in-out infinite;
+}
+
+@keyframes welcomeFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+.welcome-title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 12px;
+}
+
+.welcome-text {
+    font-size: 16px;
+    color: var(--hint);
+    line-height: 1.6;
+    max-width: 300px;
+    margin-bottom: 8px;
+}
+
+.welcome-hint {
+    margin-top: 32px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    opacity: 0.8;
+    animation: welcomeHintPulse 2s ease-in-out infinite;
+}
+
+@keyframes welcomeHintPulse {
+
+    0%,
+    100% {
+        opacity: 0.5;
+        transform: translateX(0);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translateX(4px);
+    }
+}
+
+/* ── Panel Preview Cards (Slide 2) ── */
+
+.welcome-panels-preview {
+    display: flex;
+    gap: 12px;
+    margin: 24px 0;
+    width: 100%;
+}
+
+.welcome-panel-card {
+    flex: 1;
+    background: var(--section-bg);
+    border: 1.5px solid var(--separator);
+    border-radius: var(--radius-md);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: all var(--transition-smooth);
+}
+
+.welcome-panel-card.active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--section-bg));
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.welcome-panel-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.welcome-panel-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.welcome-panel-desc {
+    font-size: 11px;
+    color: var(--hint);
+    line-height: 1.4;
+}
+
+/* ── Timezone Info (Slide 3) ── */
+
+.welcome-timezone-info {
+    background: var(--section-bg);
+    border: 1.5px solid var(--separator);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin: 24px 0;
+    width: 100%;
+    text-align: center;
+}
+
+.welcome-tz-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--section-header);
+    margin-bottom: 8px;
+}
+
+.welcome-tz-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.welcome-tz-time {
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ── Finish Button ── */
+
+.welcome-finish-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 280px;
+    padding: 16px 32px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--btn);
+    color: var(--btn-text);
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--btn) 30%, transparent);
+    margin-top: 8px;
+}
+
+.welcome-finish-btn:active {
+    transform: scale(0.96);
+    box-shadow: none;
+}
+
+/* ── Welcome Dots ── */
+
+.welcome-dots {
+    position: fixed;
+    bottom: calc(var(--safe-bottom) + 40px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 1001;
+}
+
+.welcome-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--hint);
+    opacity: 0.3;
+    transition: all var(--transition-smooth);
+    cursor: pointer;
+}
+
+.welcome-dot.active {
+    width: 28px;
+    border-radius: 4px;
+    background: var(--accent);
+    opacity: 1;
+}
+
+/* ── Welcome exit animation ── */
+
+.welcome-overlay.exiting {
+    animation: welcomeExit 500ms ease-in forwards;
+}
+
+@keyframes welcomeExit {
+    to {
+        opacity: 0;
+        transform: scale(1.05);
+    }
+}

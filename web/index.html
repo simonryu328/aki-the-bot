@@ -21,6 +21,79 @@
 
 <body>
 
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- WELCOME OVERLAY (first-time users)          -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="welcome-overlay hidden" id="welcomeOverlay">
+        <div class="welcome-slides" id="welcomeSlides">
+
+            <!-- Slide 1: Welcome -->
+            <div class="welcome-slide" data-slide="0">
+                <div class="welcome-slide-content">
+                    <div class="welcome-emoji">✨</div>
+                    <h1 class="welcome-title">Welcome to Aki</h1>
+                    <p class="welcome-text">Your personal AI companion — here to listen, remember, and grow with you.
+                    </p>
+                    <div class="welcome-hint">Swipe to continue →</div>
+                </div>
+            </div>
+
+            <!-- Slide 2: Tutorial -->
+            <div class="welcome-slide" data-slide="1">
+                <div class="welcome-slide-content">
+                    <div class="welcome-emoji">📖</div>
+                    <h1 class="welcome-title">Your Dashboard</h1>
+                    <div class="welcome-panels-preview">
+                        <div class="welcome-panel-card">
+                            <div class="welcome-panel-icon">📔</div>
+                            <div class="welcome-panel-label">Journal</div>
+                            <div class="welcome-panel-desc">Aki's reflections on your conversations</div>
+                        </div>
+                        <div class="welcome-panel-card active">
+                            <div class="welcome-panel-icon">🕐</div>
+                            <div class="welcome-panel-label">Today</div>
+                            <div class="welcome-panel-desc">Daily messages and your schedule</div>
+                        </div>
+                        <div class="welcome-panel-card">
+                            <div class="welcome-panel-icon">✍️</div>
+                            <div class="welcome-panel-label">Notes</div>
+                            <div class="welcome-panel-desc">Quick thoughts and memos</div>
+                        </div>
+                    </div>
+                    <p class="welcome-text">Swipe left and right to navigate between panels.</p>
+                </div>
+            </div>
+
+            <!-- Slide 3: All Set -->
+            <div class="welcome-slide" data-slide="2">
+                <div class="welcome-slide-content">
+                    <div class="welcome-emoji">🎉</div>
+                    <h1 class="welcome-title">You're All Set!</h1>
+                    <div class="welcome-timezone-info" id="welcomeTimezoneInfo">
+                        <div class="welcome-tz-label">Your timezone</div>
+                        <div class="welcome-tz-value" id="welcomeTzValue">Detecting...</div>
+                        <div class="welcome-tz-time" id="welcomeTzTime"></div>
+                    </div>
+                    <button class="welcome-finish-btn" id="welcomeFinishBtn">
+                        <span>Get Started</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Welcome Dots -->
+        <div class="welcome-dots" id="welcomeDots">
+            <span class="welcome-dot active" data-slide="0"></span>
+            <span class="welcome-dot" data-slide="1"></span>
+            <span class="welcome-dot" data-slide="2"></span>
+        </div>
+    </div>
+
     <!-- Navigation Tabs -->
     <nav class="nav-tabs" id="navTabs">
         <button class="nav-tab active" data-panel="0">

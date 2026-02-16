@@ -311,9 +311,173 @@
         }
     }
 
-    // ── Init ──
-    fetchEntries();
-    fetchDailyMessage();
-    goToPanel(1); // Initialize UI to Today
+    // ── Welcome Flow ──────────────────────────────────────
+
+    const welcomeOverlay = document.getElementById('welcomeOverlay');
+    const welcomeSlides = document.getElementById('welcomeSlides');
+    const welcomeDots = document.querySelectorAll('.welcome-dot');
+    const welcomeFinishBtn = document.getElementById('welcomeFinishBtn');
+    const welcomeTzValue = document.getElementById('welcomeTzValue');
+    const welcomeTzTime = document.getElementById('welcomeTzTime');
+
+    let welcomeSlide = 0;
+    const totalWelcomeSlides = 3;
+    let detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+    function goToWelcomeSlide(index) {
+        if (index < 0 || index >= totalWelcomeSlides) return;
+        welcomeSlide = index;
+        const offset = -(index * 33.3333);
+        welcomeSlides.style.transform = `translateX(${offset}%)`;
+
+        welcomeDots.forEach((dot, i) => {
+            dot.classList.toggle('active', i === index);
+        });
+
+        // Haptic feedback
+        if (tg) tg.HapticFeedback.impactOccurred('light');
+    }
+
+    // Welcome dot clicks
+    welcomeDots.forEach(dot => {
+        dot.addEventListener('click', () => {
+            goToWelcomeSlide(parseInt(dot.dataset.slide));
+        });
+    });
+
+    // Welcome swipe
+    let wTouchStartX = 0;
+    let wTouchStartY = 0;
+    let wIsSwiping = false;
+
+    if (welcomeOverlay) {
+        welcomeOverlay.addEventListener('touchstart', (e) => {
+            wTouchStartX = e.touches[0].clientX;
+            wTouchStartY = e.touches[0].clientY;
+            wIsSwiping = false;
+        }, { passive: true });
+
+        welcomeOverlay.addEventListener('touchmove', (e) => {
+            const dx = e.touches[0].clientX - wTouchStartX;
+            const dy = e.touches[0].clientY - wTouchStartY;
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+                wIsSwiping = true;
+            }
+        }, { passive: true });
+
+        welcomeOverlay.addEventListener('touchend', (e) => {
+            if (!wIsSwiping) return;
+            const dx = e.changedTouches[0].clientX - wTouchStartX;
+            if (Math.abs(dx) > 50) {
+                if (dx < 0 && welcomeSlide < totalWelcomeSlides - 1) {
+                    goToWelcomeSlide(welcomeSlide + 1);
+                } else if (dx > 0 && welcomeSlide > 0) {
+                    goToWelcomeSlide(welcomeSlide - 1);
+                }
+            }
+        }, { passive: true });
+    }
+
+    // Keyboard navigation for welcome slides
+    document.addEventListener('keydown', (e) => {
+        if (welcomeOverlay && !welcomeOverlay.classList.contains('hidden')) {
+            if (e.key === 'ArrowLeft') goToWelcomeSlide(welcomeSlide - 1);
+            if (e.key === 'ArrowRight') goToWelcomeSlide(welcomeSlide + 1);
+        }
+    });
+
+    function showDetectedTimezone() {
+        // Display auto-detected timezone on slide 3
+        if (welcomeTzValue) {
+            welcomeTzValue.textContent = detectedTimezone.replace(/_/g, ' ');
+        }
+        if (welcomeTzTime) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                timeZone: detectedTimezone,
+            });
+            welcomeTzTime.textContent = timeStr + ' right now';
+        }
+    }
+
+    async function completeSetup() {
+        const userId = getUserId();
+        if (!userId) return;
+
+        welcomeFinishBtn.disabled = true;
+        welcomeFinishBtn.querySelector('span').textContent = 'Setting up...';
+
+        try {
+            const res = await fetch(`/api/user/${userId}/setup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ timezone: detectedTimezone }),
+            });
+
+            if (!res.ok) throw new Error(`Setup failed (${res.status})`);
+
+            // Smooth exit
+            if (tg) tg.HapticFeedback.notificationOccurred('success');
+            welcomeOverlay.classList.add('exiting');
+            setTimeout(() => {
+                welcomeOverlay.classList.add('hidden');
+                welcomeOverlay.classList.remove('exiting');
+            }, 500);
+
+        } catch (err) {
+            console.error('Setup error:', err);
+            welcomeFinishBtn.disabled = false;
+            welcomeFinishBtn.querySelector('span').textContent = 'Get Started';
+            // Still dismiss — don't trap them in the overlay
+            welcomeOverlay.classList.add('hidden');
+        }
+    }
+
+    if (welcomeFinishBtn) {
+        welcomeFinishBtn.addEventListener('click', completeSetup);
+    }
+
+    // ── Init ──────────────────────────────────────────────
+
+    async function init() {
+        const userId = getUserId();
+
+        if (userId) {
+            try {
+                // Check user profile for onboarding state
+                const res = await fetch(`/api/user/${userId}`);
+                if (res.ok) {
+                    const profile = await res.json();
+
+                    if (profile.onboarding_state !== null && profile.onboarding_state !== undefined) {
+                        // User hasn't completed onboarding — show welcome flow
+                        showDetectedTimezone();
+                        welcomeOverlay.classList.remove('hidden');
+                    } else {
+                        // Also silently update timezone if it's still the default
+                        // and the detected one is different
+                        if (profile.timezone === 'America/Toronto' && detectedTimezone !== 'America/Toronto') {
+                            fetch(`/api/user/${userId}/setup`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ timezone: detectedTimezone }),
+                            }).catch(() => { }); // Silent, non-blocking
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to check user profile:', err);
+            }
+        }
+
+        // Load data regardless of onboarding state
+        fetchEntries();
+        fetchDailyMessage();
+        goToPanel(1); // Initialize UI to Today
+    }
+
+    init();
 
 })();

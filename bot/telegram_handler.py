@@ -30,6 +30,8 @@ from memory.memory_manager_async import memory_manager
 from utils.llm_client import llm_client
 from prompts import REACH_OUT_PROMPT
 
+
+
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -424,6 +426,7 @@ class TelegramBot:
             ("app", "Add the 'App' button to your menu"),
             ("help", "See this list of commands"),
             ("memory", "Browse our shared memories (/memory list)"),
+            ("timezone", "Change your timezone"),
             ("reset", "Clear all our data and start over (use with caution)"),
             ("reachout_settings", "Manage how and when I reach out to you"),
         ]
@@ -445,6 +448,58 @@ class TelegramBot:
             response += f"`/{cmd}` - {desc}\n"
             
         await update.effective_message.reply_text(response, parse_mode="Markdown")
+
+    async def timezone_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /timezone command. Lets user change their timezone directly."""
+        user = update.effective_user
+        telegram_id = user.id
+        
+        try:
+            db_user = await memory_manager.db.get_user_by_telegram_id(telegram_id)
+            if not db_user:
+                await update.message.reply_text("Please run /start first.")
+                return
+            
+            # Check if they passed a timezone directly: /timezone America/New_York
+            if context.args and len(context.args) > 0:
+                tz_input = context.args[0].strip()
+                try:
+                    pytz.timezone(tz_input)
+                    await memory_manager.db.update_user_profile(
+                        user_id=db_user.id,
+                        timezone=tz_input
+                    )
+                    # Evict from cache
+                    if db_user.id in memory_manager._user_cache:
+                        del memory_manager._user_cache[db_user.id]
+                    
+                    tz = pytz.timezone(tz_input)
+                    local_now = datetime.now(tz).strftime("%I:%M %p")
+                    await update.message.reply_text(
+                        f"✅ Timezone updated to {tz_input} ({local_now} for you right now)."
+                    )
+                    logger.info(f"User {telegram_id} changed timezone to {tz_input}")
+                except pytz.exceptions.UnknownTimeZoneError:
+                    await update.message.reply_text(
+                        f"'{tz_input}' is not a valid timezone. Use IANA format like 'America/New_York' or 'Europe/London'."
+                    )
+                return
+            
+            # No arguments — show current timezone and usage hint
+            current_tz = db_user.timezone or settings.TIMEZONE
+            tz_obj = pytz.timezone(current_tz)
+            current_time = datetime.now(tz_obj).strftime("%I:%M %p")
+            
+            await update.message.reply_text(
+                f"🕐 Your current timezone: `{current_tz}` ({current_time})\n\n"
+                "To change it, use:\n`/timezone America/New_York`\n`/timezone Europe/London`\n`/timezone Asia/Tokyo`\n\n"
+                "_Your timezone is also auto-detected when you open the App._",
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in timezone command: {e}")
+            await update.message.reply_text(f"Error: {e}")
 
     async def handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -490,7 +545,7 @@ class TelegramBot:
                     chosen_name = message_text.strip()
                 
                 if chosen_name and len(chosen_name) > 0:
-                    # Update user with chosen name and complete onboarding
+                    # Update user with chosen name, set to awaiting_setup (mini app completes it)
                     await memory_manager.db.get_or_create_user(
                         telegram_id=telegram_id,
                         name=chosen_name,
@@ -498,23 +553,35 @@ class TelegramBot:
                     )
                     await memory_manager.db.update_user_onboarding_state(
                         telegram_id=telegram_id,
-                        onboarding_state=None  # Onboarding complete
+                        onboarding_state="awaiting_setup"  # Mini app will complete this
                     )
                     
-                    # System completion message (neutral, not Aki)
-                    completion_msg = "Setup is complete! You can say hi to Aki when you're ready."
+                    logger.info(f"User {telegram_id} chose name '{chosen_name}', awaiting mini app setup")
+                    
+                    # Tell user to open the mini app to finish setup
+                    completion_msg = f"Great, {chosen_name}! 👋\n\n"
+                    completion_msg += "Now tap the **App** button at the bottom of this chat to finish setting up."
+                    completion_msg += "\n\n_This takes just a second — it detects your timezone automatically._"
                     
                     await update.message.reply_text(
                         completion_msg,
-                        reply_markup=ReplyKeyboardRemove()
+                        reply_markup=ReplyKeyboardRemove(),
+                        parse_mode="Markdown"
                     )
-                    logger.info(f"User {telegram_id} completed onboarding as '{chosen_name}'")
                 else:
                     # Invalid name, ask again
                     await update.message.reply_text(
                         "Please enter a valid name:",
                         reply_markup=ReplyKeyboardRemove()
                     )
+                return
+            
+            elif existing_user and existing_user.onboarding_state in ("awaiting_setup", "awaiting_timezone"):
+                # User hasn't finished mini app setup — remind them
+                await update.message.reply_text(
+                    "Almost there! Tap the **App** button at the bottom of this chat to finish setting up. 👇",
+                    parse_mode="Markdown"
+                )
                 return
                 
         except Exception as e:
@@ -935,7 +1002,7 @@ class TelegramBot:
                     await update.message.reply_text("I don't have any formal memories yet. 😊")
                     return
                 
-                tz = pytz.timezone(settings.TIMEZONE)
+                tz = pytz.timezone(db_user.timezone or settings.TIMEZONE)
                 response_lines = ["📔 *Recent Conversation Memories*"]
                 for i, entry in enumerate(entries, 1):
                     utc_time = entry.timestamp.replace(tzinfo=pytz.utc)
@@ -974,7 +1041,7 @@ class TelegramBot:
             memory = entries[index - 1] # entries is sorted newest to oldest
             
             # Format the output
-            tz = pytz.timezone(settings.TIMEZONE)
+            tz = pytz.timezone(db_user.timezone or settings.TIMEZONE)
             utc_time = memory.timestamp.replace(tzinfo=pytz.utc)
             local_time = utc_time.astimezone(tz)
             ts_str = local_time.strftime("%A, %B %d at %I:%M %p")
@@ -1025,8 +1092,9 @@ class TelegramBot:
             
             user_name = user.name or "friend"
 
-            # Get timezone
-            tz = pytz.timezone(settings.TIMEZONE)
+            # Get user's timezone
+            user_tz_str = user.timezone or settings.TIMEZONE
+            tz = pytz.timezone(user_tz_str)
             now = datetime.now(tz)
             current_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
 
@@ -1184,8 +1252,6 @@ class TelegramBot:
 
             logger.info(f"Checking {len(eligible_users)} eligible users for inactivity reach-outs")
 
-            tz = pytz.timezone(settings.TIMEZONE)
-            now = datetime.now(tz)
             sent_count = 0
 
             for user in eligible_users:
@@ -1195,6 +1261,11 @@ class TelegramBot:
                     
                     if not last_user_msg:
                         continue
+
+                    # Use user's timezone for time calculations
+                    user_tz_str = user.timezone or settings.TIMEZONE
+                    tz = pytz.timezone(user_tz_str)
+                    now = datetime.now(tz)
 
                     # Calculate hours since last message
                     msg_time = last_user_msg.timestamp
@@ -1291,6 +1362,7 @@ class TelegramBot:
         
         # User Settings & Data
         self.application.add_handler(CommandHandler("reset", self.reset_command))
+        self.application.add_handler(CommandHandler("timezone", self.timezone_command))
         self.application.add_handler(CommandHandler("reachout_settings", self.reachout_settings_command))
         self.application.add_handler(CommandHandler("reachout_enable", self.reachout_enable_command))
         self.application.add_handler(CommandHandler("reachout_disable", self.reachout_disable_command))
@@ -1323,6 +1395,7 @@ class TelegramBot:
             BotCommand("help", "See list of commands"),
             BotCommand("memory", "Browse our shared memories"),
             BotCommand("app", "Open the dashboard"),
+            BotCommand("timezone", "Change your timezone"),
             BotCommand("reset", "Wipe all data and restart"),
             BotCommand("reachout_settings", "Manage reach-out config"),
             BotCommand("thinking", "See Aki's current thoughts"),

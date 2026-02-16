@@ -64,6 +64,71 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok"}
 
+
+# ── User Profile Endpoints ──────────────────────────────────────────
+
+class UserProfileResponse(BaseModel):
+    id: int
+    telegram_id: int
+    name: Optional[str] = None
+    timezone: str
+    onboarding_state: Optional[str] = None
+
+class SetupRequest(BaseModel):
+    timezone: str
+
+@app.get("/api/user/{telegram_id}", response_model=UserProfileResponse)
+async def get_user_profile(telegram_id: int):
+    """Get user profile for the mini app (onboarding state, timezone, etc.)."""
+    try:
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        return UserProfileResponse(
+            id=user.id,
+            telegram_id=telegram_id,
+            name=user.name,
+            timezone=user.timezone or settings.TIMEZONE,
+            onboarding_state=user.onboarding_state,
+        )
+    except Exception as e:
+        logger.error(f"Error fetching user profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/user/{telegram_id}/setup")
+async def complete_user_setup(telegram_id: int, req: SetupRequest):
+    """
+    Called by the mini app to complete onboarding.
+    Sets the user's timezone (auto-detected by JS) and marks onboarding as complete.
+    """
+    try:
+        import pytz
+        # Validate timezone
+        try:
+            pytz.timezone(req.timezone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            raise HTTPException(status_code=400, detail=f"Invalid timezone: {req.timezone}")
+
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+
+        # Update timezone
+        await db.update_user_profile(user_id=user.id, timezone=req.timezone)
+
+        # Mark onboarding complete
+        await db.update_user_onboarding_state(telegram_id=telegram_id, onboarding_state=None)
+
+        # Evict user from cache so changes take effect immediately
+        if user.id in memory_manager._user_cache:
+            del memory_manager._user_cache[user.id]
+
+        logger.info(f"User {telegram_id} completed setup via mini app (tz={req.timezone})")
+        return {"status": "ok", "timezone": req.timezone}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error completing user setup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/memories/{telegram_id}", response_model=list[DiaryEntrySchema])
 async def get_memories(telegram_id: int):
     """

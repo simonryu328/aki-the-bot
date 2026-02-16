@@ -90,6 +90,23 @@ class SoulAgent:
         self.persona = persona
         self.memory = memory_manager
 
+    async def _get_user_tz(self, user_id: int, user: Optional['UserSchema'] = None) -> str:
+        """Get the IANA timezone string for a user, falling back to settings.TIMEZONE.
+        
+        Args:
+            user_id: User ID
+            user: Pre-fetched user object (optional)
+            
+        Returns:
+            IANA timezone string (e.g. 'America/New_York')
+        """
+        if user and getattr(user, 'timezone', None):
+            return user.timezone
+        fetched = await self.memory.get_user_by_id(user_id)
+        if fetched and getattr(fetched, 'timezone', None):
+            return fetched.timezone
+        return settings.TIMEZONE
+
     async def respond(
         self,
         user_id: int,
@@ -114,8 +131,9 @@ class SoulAgent:
         # Fetch conversation context
         recent_exchanges_text, history_text = await self._build_conversation_context(user_id, conversation_history, user)
         
-        # Build time context
-        now = datetime.now(pytz.timezone(settings.TIMEZONE))
+        # Build time context using user's timezone
+        user_tz_str = await self._get_user_tz(user_id, user)
+        now = datetime.now(pytz.timezone(user_tz_str))
         current_time = now.strftime("%A, %B %d at %I:%M %p")
         hour = now.hour
         if 5 <= hour < 12:
@@ -240,7 +258,11 @@ class SoulAgent:
         Returns:
             Tuple of (recent_exchanges_text, current_conversation_text)
         """
-        tz = pytz.timezone(settings.TIMEZONE)
+        # Resolve user timezone
+        if user is None:
+            user = await self.memory.get_user_by_id(user_id)
+        user_tz_str = await self._get_user_tz(user_id, user)
+        tz = pytz.timezone(user_tz_str)
         
         # Get diary entries to pick from
         diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
@@ -342,17 +364,17 @@ class SoulAgent:
         user_name = user.name if user and user.name else "them"
         
         # Format current conversation
-        current_conversation_text = self._format_history(current_convos, user_name)
+        current_conversation_text = self._format_history(current_convos, user_name, tz_str=user_tz_str)
         
         return recent_exchanges_text, current_conversation_text
 
 
-    def _format_history(self, conversations: List[ConversationSchema], user_name: str = "them") -> str:
+    def _format_history(self, conversations: List[ConversationSchema], user_name: str = "them", tz_str: str = None) -> str:
         """Format conversation history with timestamps converted to local time."""
         if not conversations:
             return "(This is the beginning of your conversation.)"
 
-        tz = pytz.timezone(settings.TIMEZONE)
+        tz = pytz.timezone(tz_str or settings.TIMEZONE)
         lines = []
         for conv in conversations:
             role = user_name if conv.role == "user" else "Aki"
@@ -690,11 +712,11 @@ class SoulAgent:
         """
         logger.info("Running compact summarization", user_id=user_id)
         try:
-            tz = pytz.timezone(settings.TIMEZONE)
-            
-            # Get user name
+            # Get user name and timezone
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "them"
+            user_tz_str = await self._get_user_tz(user_id, user)
+            tz = pytz.timezone(user_tz_str)
             
             # Use pre-fetched conversations if available, otherwise fetch
             if conversation_history is None:
@@ -820,11 +842,11 @@ class SoulAgent:
         """
         logger.info("Running memory entry creation", user_id=user_id)
         try:
-            tz = pytz.timezone(settings.TIMEZONE)
-            
-            # Get user name
+            # Get user name and timezone
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "them"
+            user_tz_str = await self._get_user_tz(user_id, user)
+            tz = pytz.timezone(user_tz_str)
             
             # Use pre-fetched conversations if available, otherwise fetch
             if conversation_history is None:
@@ -971,7 +993,8 @@ class SoulAgent:
             # Use the single most recent summary or memory
             best_entry = summaries[0] if summaries else (memories[0] if memories else None)
             
-            tz = pytz.timezone(settings.TIMEZONE)
+            user_tz_str = await self._get_user_tz(user_id, user)
+            tz = pytz.timezone(user_tz_str)
             context_text = "(No previous exchanges remembered yet)"
             if best_entry:
                 ts = best_entry.timestamp.replace(tzinfo=pytz.utc).astimezone(tz).strftime("%b %d")
@@ -979,7 +1002,7 @@ class SoulAgent:
             
             # Last 5 messages
             recent_convos = await self.memory.db.get_recent_conversations(user_id, limit=5)
-            history_text = self._format_history(recent_convos, user_name)
+            history_text = self._format_history(recent_convos, user_name, tz_str=user_tz_str)
             
             # 2. Check if we have any meaningful context
             if not recent_convos and context_text == "(No previous exchanges remembered yet)":
