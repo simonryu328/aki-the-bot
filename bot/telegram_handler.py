@@ -13,7 +13,7 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 from collections import deque
 import pytz
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, MenuButtonWebApp, WebAppInfo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, MenuButtonWebApp, WebAppInfo
 from telegram.constants import ChatAction
 from telegram.ext import (
     Application,
@@ -337,40 +337,45 @@ class TelegramBot:
                 for msg in messages:
                     await self._send_with_typing(chat_id, msg)
             else:
-                # New user - neutral system setup (NOT Aki speaking)
+                # New user — create account and direct to mini app
                 logger.info(f"New user {telegram_id} starting onboarding")
                 
                 # Create user with onboarding state
                 await memory_manager.db.create_user_with_state(
                     telegram_id=telegram_id,
-                    name=None,  # Will be set after user chooses
+                    name=None,  # Will be set in mini app
                     username=username,
-                    onboarding_state="awaiting_name"
+                    onboarding_state="awaiting_setup"
                 )
                 
-                # System message: neutral setup tone
-                setup_msg = "Before you meet Aki, there's one small thing to set up.\n\n"
-                setup_msg += "What should Aki call you?"
-                
-                # Build reply keyboard with name options
-                keyboard_buttons = []
-                if first_name and first_name != "there":
-                    keyboard_buttons.append([first_name])
-                if username:
-                    keyboard_buttons.append([username])
-                keyboard_buttons.append(["Type a different name"])
-                
-                reply_markup = ReplyKeyboardMarkup(
-                    keyboard_buttons,
-                    one_time_keyboard=True,
-                    resize_keyboard=True,
-                    input_field_placeholder="Choose or type your name"
-                )
-                
-                await update.message.reply_text(
-                    setup_msg,
-                    reply_markup=reply_markup
-                )
+                # Also setup the menu button for them
+                if settings.WEBHOOK_URL:
+                    import time
+                    v = int(time.time())
+                    web_app_url = f"{settings.WEBHOOK_URL}?v={v}"
+                    if not web_app_url.startswith("https://"):
+                        web_app_url = f"https://{web_app_url.lstrip('http://')}"
+                    
+                    # Set menu button
+                    await context.bot.set_chat_menu_button(
+                        chat_id=chat_id,
+                        menu_button=MenuButtonWebApp(text="✨", web_app=WebAppInfo(url=web_app_url))
+                    )
+                    
+                    # Send welcome with inline button to open mini app
+                    keyboard = InlineKeyboardMarkup([[                        InlineKeyboardButton(
+                            "Open Setup ✨",
+                            web_app=WebAppInfo(url=web_app_url)
+                        )
+                    ]])
+                    await update.message.reply_text(
+                        "Welcome! Tap below to get started.",
+                        reply_markup=keyboard
+                    )
+                else:
+                    await update.message.reply_text(
+                        "Welcome! Please run /app first to set up your menu button, then open the App to get started."
+                    )
                 
 
 
@@ -521,65 +526,10 @@ class TelegramBot:
         try:
             existing_user = await memory_manager.db.get_user_by_telegram_id(telegram_id)
             
-            if existing_user and existing_user.onboarding_state == "awaiting_name":
-                # User is in name selection phase (system setup, not Aki)
-                logger.info(f"User {telegram_id} responding to name selection")
-                
-                # Parse the response - handle keyboard buttons or typed name
-                chosen_name = None
-                
-                # Check if they selected from keyboard or typed custom name
-                if message_text == first_name and first_name != "there":
-                    chosen_name = first_name
-                elif message_text == username:
-                    chosen_name = username
-                elif message_text == "Type a different name":
-                    # They want to type a custom name
-                    await update.message.reply_text(
-                        "Please type the name you'd like Aki to call you:",
-                        reply_markup=ReplyKeyboardRemove()
-                    )
-                    return
-                else:
-                    # They typed a custom name directly
-                    chosen_name = message_text.strip()
-                
-                if chosen_name and len(chosen_name) > 0:
-                    # Update user with chosen name, set to awaiting_setup (mini app completes it)
-                    await memory_manager.db.get_or_create_user(
-                        telegram_id=telegram_id,
-                        name=chosen_name,
-                        username=username
-                    )
-                    await memory_manager.db.update_user_onboarding_state(
-                        telegram_id=telegram_id,
-                        onboarding_state="awaiting_setup"  # Mini app will complete this
-                    )
-                    
-                    logger.info(f"User {telegram_id} chose name '{chosen_name}', awaiting mini app setup")
-                    
-                    # Tell user to open the mini app to finish setup
-                    completion_msg = f"Great, {chosen_name}! 👋\n\n"
-                    completion_msg += "Now tap the **App** button at the bottom of this chat to finish setting up."
-                    completion_msg += "\n\n_This takes just a second — it detects your timezone automatically._"
-                    
-                    await update.message.reply_text(
-                        completion_msg,
-                        reply_markup=ReplyKeyboardRemove(),
-                        parse_mode="Markdown"
-                    )
-                else:
-                    # Invalid name, ask again
-                    await update.message.reply_text(
-                        "Please enter a valid name:",
-                        reply_markup=ReplyKeyboardRemove()
-                    )
-                return
-            
-            elif existing_user and existing_user.onboarding_state in ("awaiting_setup", "awaiting_timezone"):
+            if existing_user and existing_user.onboarding_state in ("awaiting_setup", "awaiting_name", "awaiting_timezone"):
                 # User hasn't finished mini app setup — remind them
                 await update.message.reply_text(
-                    "Almost there! Tap the **App** button at the bottom of this chat to finish setting up. 👇",
+                    "Almost there! Tap the **App** button to finish setting up. 👇",
                     parse_mode="Markdown"
                 )
                 return

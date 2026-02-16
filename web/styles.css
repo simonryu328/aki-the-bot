@@ -661,7 +661,7 @@ body {
 
 .welcome-slides {
     display: flex;
-    width: 300%;
+    width: 400%;
     height: 100%;
     transition: transform var(--transition-smooth);
     will-change: transform;
@@ -669,7 +669,7 @@ body {
 }
 
 .welcome-slide {
-    width: 33.3333%;
+    width: 25%;
     height: 100%;
     display: flex;
     align-items: center;
@@ -839,6 +839,49 @@ body {
 }
 
 /* ── Finish Button ── */
+
+.welcome-name-input-group {
+    width: 100%;
+    margin: 20px 0;
+}
+
+.welcome-name-input {
+    width: 100%;
+    background: var(--secondary-bg);
+    border: 2px solid transparent;
+    border-radius: 16px;
+    padding: 16px;
+    color: var(--text);
+    font-size: 1.1rem;
+    font-family: inherit;
+    text-align: center;
+    transition: all 0.3s ease;
+    outline: none;
+}
+
+.welcome-name-input:focus {
+    border-color: var(--link);
+    background: var(--bg);
+}
+
+.welcome-continue-btn {
+    width: 100%;
+    background: var(--link);
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    padding: 16px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 10px;
+}
+
+.welcome-continue-btn:disabled {
+    opacity: 0.5;
+    cursor: not_allowed;
+}
 
 .welcome-finish-btn {
     display: flex;

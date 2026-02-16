@@ -76,6 +76,7 @@ class UserProfileResponse(BaseModel):
 
 class SetupRequest(BaseModel):
     timezone: str
+    name: Optional[str] = None
 
 @app.get("/api/user/{telegram_id}", response_model=UserProfileResponse)
 async def get_user_profile(telegram_id: int):
@@ -98,7 +99,7 @@ async def get_user_profile(telegram_id: int):
 async def complete_user_setup(telegram_id: int, req: SetupRequest):
     """
     Called by the mini app to complete onboarding.
-    Sets the user's timezone (auto-detected by JS) and marks onboarding as complete.
+    Sets the user's name, timezone (auto-detected by JS), and marks onboarding as complete.
     """
     try:
         import pytz
@@ -110,8 +111,12 @@ async def complete_user_setup(telegram_id: int, req: SetupRequest):
 
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
 
-        # Update timezone
-        await db.update_user_profile(user_id=user.id, timezone=req.timezone)
+        # Update name and timezone
+        await db.update_user_profile(
+            user_id=user.id,
+            name=req.name or user.name,
+            timezone=req.timezone,
+        )
 
         # Mark onboarding complete
         await db.update_user_onboarding_state(telegram_id=telegram_id, onboarding_state=None)
@@ -120,8 +125,8 @@ async def complete_user_setup(telegram_id: int, req: SetupRequest):
         if user.id in memory_manager._user_cache:
             del memory_manager._user_cache[user.id]
 
-        logger.info(f"User {telegram_id} completed setup via mini app (tz={req.timezone})")
-        return {"status": "ok", "timezone": req.timezone}
+        logger.info(f"User {telegram_id} completed setup via mini app (name={req.name}, tz={req.timezone})")
+        return {"status": "ok", "name": req.name, "timezone": req.timezone}
     except HTTPException:
         raise
     except Exception as e:

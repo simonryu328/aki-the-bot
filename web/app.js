@@ -319,15 +319,25 @@
     const welcomeFinishBtn = document.getElementById('welcomeFinishBtn');
     const welcomeTzValue = document.getElementById('welcomeTzValue');
     const welcomeTzTime = document.getElementById('welcomeTzTime');
+    const welcomeNameInput = document.getElementById('welcomeNameInput');
+    const welcomeNameContinue = document.getElementById('welcomeNameContinue');
 
     let welcomeSlide = 0;
-    const totalWelcomeSlides = 3;
+    const totalWelcomeSlides = 4;
     let detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
     function goToWelcomeSlide(index) {
         if (index < 0 || index >= totalWelcomeSlides) return;
+
+        // Prevent swiping past name if name is empty
+        if (index > 1 && welcomeSlide === 1 && !welcomeNameInput.value.trim()) {
+            welcomeNameInput.focus();
+            if (tg) tg.HapticFeedback.notificationOccurred('error');
+            return;
+        }
+
         welcomeSlide = index;
-        const offset = -(index * 33.3333);
+        const offset = -(index * 25);
         welcomeSlides.style.transform = `translateX(${offset}%)`;
 
         welcomeDots.forEach((dot, i) => {
@@ -336,6 +346,26 @@
 
         // Haptic feedback
         if (tg) tg.HapticFeedback.impactOccurred('light');
+    }
+
+    // Name input validation
+    if (welcomeNameInput) {
+        welcomeNameInput.addEventListener('input', () => {
+            const val = welcomeNameInput.value.trim();
+            welcomeNameContinue.disabled = val.length < 2;
+        });
+
+        welcomeNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !welcomeNameContinue.disabled) {
+                goToWelcomeSlide(2);
+            }
+        });
+    }
+
+    if (welcomeNameContinue) {
+        welcomeNameContinue.addEventListener('click', () => {
+            goToWelcomeSlide(2);
+        });
     }
 
     // Welcome dot clicks
@@ -387,7 +417,7 @@
     });
 
     function showDetectedTimezone() {
-        // Display auto-detected timezone on slide 3
+        // Display auto-detected timezone on the final slide
         if (welcomeTzValue) {
             welcomeTzValue.textContent = detectedTimezone.replace(/_/g, ' ');
         }
@@ -406,6 +436,8 @@
         const userId = getUserId();
         if (!userId) return;
 
+        const chosenName = welcomeNameInput ? welcomeNameInput.value.trim() : null;
+
         welcomeFinishBtn.disabled = true;
         welcomeFinishBtn.querySelector('span').textContent = 'Setting up...';
 
@@ -413,7 +445,10 @@
             const res = await fetch(`/api/user/${userId}/setup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ timezone: detectedTimezone }),
+                body: JSON.stringify({
+                    timezone: detectedTimezone,
+                    name: chosenName
+                }),
             });
 
             if (!res.ok) throw new Error(`Setup failed (${res.status})`);
@@ -453,6 +488,10 @@
 
                     if (profile.onboarding_state !== null && profile.onboarding_state !== undefined) {
                         // User hasn't completed onboarding — show welcome flow
+                        if (profile.name && welcomeNameInput) {
+                            welcomeNameInput.value = profile.name;
+                            welcomeNameContinue.disabled = false;
+                        }
                         showDetectedTimezone();
                         welcomeOverlay.classList.remove('hidden');
                     } else {
