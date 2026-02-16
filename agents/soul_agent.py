@@ -32,6 +32,8 @@ from prompts import (
     REFLECTION_PROMPT,
     COMPACT_PROMPT,
     MEMORY_PROMPT,
+    DAILY_MESSAGE_PROMPT,
+    FALLBACK_QUOTES,
 )
 from prompts.system_frame import SYSTEM_FRAME
 from prompts.personas import COMPANION_PERSONA
@@ -946,8 +948,64 @@ class SoulAgent:
             logger.error("Failed to create memory entry", user_id=user_id, error=str(e))
         except Exception as e:
             logger.error("Failed to create compact summary", user_id=user_id, error=str(e))
-
-
+    async def generate_daily_message(
+        self,
+        user_id: int,
+    ) -> tuple[str, bool]:
+        """
+        Generate a personal, motivational daily message for the user.
+        
+        Returns:
+            Tuple of (message_content, is_fallback)
+        """
+        try:
+            # 1. Get user context (similar to build_conversation_context)
+            user = await self.memory.get_user_by_id(user_id)
+            user_name = user.name if user and user.name else "friend"
+            
+            # Use build_conversation_context to get the same high-quality context we use for chat
+            # We fetch 50 recent messages just to be safe for context
+            convos = await self.memory.db.get_recent_conversations(user_id, limit=50)
+            context_text, history_text = await self._build_conversation_context(user_id, convos, user)
+            
+            # 2. Check if we have any meaningful context
+            # If no context at all (new user), use fallback
+            if not convos and context_text == "(No previous exchanges remembered yet)":
+                import random
+                return random.choice(FALLBACK_QUOTES), True
+            
+            # 3. Generate via LLM
+            prompt = DAILY_MESSAGE_PROMPT.format(
+                user_name=user_name,
+                context=context_text,
+                recent_history=history_text,
+            )
+            
+            logger.info("Generating daily message", user_id=user_id)
+            
+            message = await llm_client.chat(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.8,
+                max_tokens=200,
+            )
+            
+            if isinstance(message, str):
+                final_message = message.strip()
+            else:
+                final_message = message.content.strip()
+            
+            # Handle potential empty response
+            if not final_message:
+                import random
+                return random.choice(FALLBACK_QUOTES), True
+                
+            return final_message, False
+            
+        except Exception as e:
+            logger.error("Failed to generate daily message", user_id=user_id, error=str(e))
+            import random
+            return random.choice(FALLBACK_QUOTES), True
 
     @classmethod
     def get_last_thinking(cls, user_id: int) -> Optional[str]:

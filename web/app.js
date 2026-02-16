@@ -27,6 +27,8 @@
     const navTabs = document.querySelectorAll('.nav-tab');
     const dots = document.querySelectorAll('.dot');
     const todayDate = document.getElementById('todayDate');
+    const dailyQuoteText = document.getElementById('dailyQuoteText');
+    const dailyCard = document.getElementById('dailyCard');
     const journalList = document.getElementById('journalList');
     const searchInput = document.getElementById('searchInput');
     const searchBar = document.getElementById('searchBar');
@@ -288,7 +290,29 @@
         renderEntries(filtered);
     });
 
+    // ── Daily Message ─────────────────────────────────────
+    async function fetchDailyMessage() {
+        const userId = getUserId();
+        if (!userId || !dailyQuoteText) return;
+
+        try {
+            const res = await fetch(`/api/daily-message/${userId}`);
+            if (!res.ok) throw new Error('Failed to fetch daily message');
+
+            const data = await res.json();
+            dailyQuoteText.textContent = data.content;
+            dailyCard.classList.remove('loading');
+        } catch (err) {
+            console.error('Daily message fetch failed:', err);
+            if (dailyQuoteText) {
+                dailyQuoteText.textContent = "Every day is a fresh start. Aki is here to witness your journey.";
+                dailyCard.classList.remove('loading');
+            }
+        }
+    }
+
     // ── Init ──
     fetchEntries();
+    fetchDailyMessage();
 
 })();

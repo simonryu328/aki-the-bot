@@ -42,3 +42,11 @@ class DiaryEntrySchema(DiaryEntryBaseSchema):
     timestamp: datetime = Field(..., description="Entry timestamp")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DailyMessageSchema(BaseModel):
+    """Schema for the daily message response."""
+
+    content: str = Field(..., description="The generated daily message")
+    timestamp: datetime = Field(..., description="When the message was generated")
+    is_fallback: bool = Field(False, description="Whether this is a fallback quote")

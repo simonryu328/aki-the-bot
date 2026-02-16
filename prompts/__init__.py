@@ -15,6 +15,7 @@ from prompts.compact import COMPACT_PROMPT
 from prompts.reach_out import REACH_OUT_PROMPT
 from prompts.memory import MEMORY_PROMPT
 from prompts.surface import SURFACE_PROMPT
+from prompts.daily_message import DAILY_MESSAGE_PROMPT, FALLBACK_QUOTES
 
 __all__ = [
     "SYSTEM_FRAME",
@@ -24,4 +25,6 @@ __all__ = [
     "REACH_OUT_PROMPT",
     "MEMORY_PROMPT",
     "SURFACE_PROMPT",
+    "DAILY_MESSAGE_PROMPT",
+    "FALLBACK_QUOTES",
 ]

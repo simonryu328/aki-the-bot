@@ -15,7 +15,8 @@ from bot.telegram_handler import bot
 from memory.memory_manager_async import memory_manager
 from memory.database_async import db
 from memory.models import CalendarEvent
-from schemas import DiaryEntrySchema, CalendarEventSchema, CalendarEventCreate
+from agents.soul_agent import soul_agent
+from schemas import DiaryEntrySchema, CalendarEventSchema, CalendarEventCreate, DailyMessageSchema
 from telegram import Update
 from sqlalchemy import select, delete as sa_delete
 
@@ -87,6 +88,72 @@ async def get_memories(telegram_id: int):
 
 
 # ── Calendar Endpoints ──────────────────────────────────────────────
+
+@app.get("/api/daily-message/{telegram_id}", response_model=DailyMessageSchema)
+async def get_daily_message(telegram_id: int):
+    """
+    Get Aki's daily message for the user.
+    Uses Caching (Strategy C): Checks if a message was already generated for today.
+    If not, generates a new personalized message and stores it.
+    """
+    try:
+        import pytz
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        user_tz = pytz.timezone(user.timezone or settings.TIMEZONE)
+        now_user = datetime.now(user_tz)
+        today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Check for cached message generated today
+        # We store daily messages as DiaryEntry with entry_type="daily_message"
+        entries = await memory_manager.get_diary_entries(
+            user_id=user.id,
+            limit=1,
+            entry_type="daily_message"
+        )
+        
+        if entries:
+            last_msg = entries[0]
+            # Convert last_msg.timestamp (UTC) to user local time to check day
+            last_msg_local = last_msg.timestamp.replace(tzinfo=pytz.utc).astimezone(user_tz)
+            
+            if last_msg_local >= today_start_user:
+                logger.info(f"Daily message CACHE HIT for user {telegram_id}")
+                return DailyMessageSchema(
+                    content=last_msg.content,
+                    timestamp=last_msg.timestamp,
+                    is_fallback="Fallback" in last_msg.title # We'll mark fallbacks in the title
+                )
+
+        # Cache MISS: Generate new message
+        logger.info(f"Daily message CACHE MISS for user {telegram_id}. Generating...")
+        content, is_fallback = await soul_agent.generate_daily_message(user.id)
+        
+        # Store in database as a diary entry for caching
+        await memory_manager.add_diary_entry(
+            user_id=user.id,
+            entry_type="daily_message",
+            title="Daily Message" if not is_fallback else "Daily Message (Fallback)",
+            content=content,
+            importance=10 if not is_fallback else 5
+        )
+        
+        return DailyMessageSchema(
+            content=content,
+            timestamp=datetime.utcnow(),
+            is_fallback=is_fallback
+        )
+        
+    except Exception as e:
+        logger.error(f"Error serving daily message: {e}")
+        # Extreme fallback if even generation fails
+        from prompts import FALLBACK_QUOTES
+        import random
+        return DailyMessageSchema(
+            content=random.choice(FALLBACK_QUOTES),
+            timestamp=datetime.utcnow(),
+            is_fallback=True
+        )
+
 
 @app.get("/api/calendar/{telegram_id}", response_model=list[CalendarEventSchema])
 async def get_calendar_events(
