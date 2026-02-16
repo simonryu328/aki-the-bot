@@ -101,6 +101,7 @@ const loadingState = document.getElementById('loadingState') as HTMLElement;
 const errorState = document.getElementById('errorState') as HTMLElement;
 const errorText = document.getElementById('errorText') as HTMLElement;
 const emptyState = document.getElementById('emptyState') as HTMLElement;
+const splashScreen = document.getElementById('splashScreen') as HTMLElement;
 
 const welcomeOverlay = document.getElementById('welcomeOverlay') as HTMLElement;
 const welcomeSlides = document.getElementById('welcomeSlides') as HTMLElement;
@@ -543,6 +544,11 @@ async function init() {
   fetchEntries();
   fetchDailyMessage();
   goToPanel(1); // Initialize UI to Today
+
+  // ── Final Transition: Hide Splash Screen ──
+  setTimeout(() => {
+    splashScreen?.classList.add('fade-out');
+  }, 200);
 }
 
 init();
