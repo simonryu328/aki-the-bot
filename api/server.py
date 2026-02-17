@@ -203,15 +203,41 @@ async def spotify_disconnect(telegram_id: int):
     """Disconnect user's Spotify account."""
     try:
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        
+        # 1. Clear tokens in DB
         await db.update_user_spotify_tokens(
             user_id=user.id,
             access_token=None,
             refresh_token=None,
             expires_at=None
         )
-        # Evict from cache
+        
+        # 2. Delete today's soundtrack entry if it exists (for the clean slate)
+        import pytz
+        user_tz = pytz.timezone(user.timezone or settings.TIMEZONE)
+        now_user = datetime.now(user_tz)
+        today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Delete any soundtrack entries from today
+        async with db.get_session() as session:
+            from sqlalchemy import delete
+            from memory.models import DiaryEntry
+            # We convert the cutoff back to UTC for the query
+            cutoff_utc = today_start_user.astimezone(pytz.utc).replace(tzinfo=None)
+            
+            stmt = delete(DiaryEntry).where(
+                DiaryEntry.user_id == user.id,
+                DiaryEntry.entry_type == "daily_soundtrack",
+                DiaryEntry.timestamp >= cutoff_utc
+            )
+            await session.execute(stmt)
+            await session.commit()
+
+        # 3. Evict from memory cache
         if user.id in memory_manager._user_cache:
             del memory_manager._user_cache[user.id]
+            
+        logger.info(f"Disconnected Spotify and cleared cache for user {telegram_id}")
         return {"status": "success"}
     except Exception as e:
         logger.error(f"Error disconnecting Spotify: {e}")
@@ -336,6 +362,11 @@ async def get_daily_soundtrack(telegram_id: int):
         user_tz = pytz.timezone(user.timezone or settings.TIMEZONE)
         now_user = datetime.now(user_tz)
         today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # 0. Check connection status first
+        if not user.spotify_refresh_token:
+            logger.info(f"User {telegram_id} not connected to Spotify. Skipping soundtrack.")
+            return {"connected": False}
 
         # 1. Check for cached soundtrack from today
         entries = await memory_manager.get_diary_entries(
