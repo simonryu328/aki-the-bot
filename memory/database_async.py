@@ -32,6 +32,7 @@ from memory.models import (
     Conversation,
     DiaryEntry,
     TokenUsage,
+    FutureEntry,
 )
 from schemas import (
     UserSchema,
@@ -41,6 +42,7 @@ from schemas import (
     DiaryEntrySchema,
     DiaryEntryCreateSchema,
     TokenUsageSchema,
+    FutureEntrySchema,
 )
 
 logger = get_logger(__name__)
@@ -696,6 +698,117 @@ class AsyncDatabase:
         except SQLAlchemyError as e:
             logger.error("Failed to get token usage", user_id=user_id, error=str(e))
             return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+    # ==================== Future Entry Operations ====================
+
+    async def add_future_entry(
+        self,
+        user_id: int,
+        entry_type: str,
+        title: str,
+        content: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        is_all_day: bool = False,
+        source: str = "manual",
+    ) -> FutureEntrySchema:
+        """Add a future entry (plan or note)."""
+        try:
+            async with self.get_session() as session:
+                entry = FutureEntry(
+                    user_id=user_id,
+                    entry_type=entry_type,
+                    title=title,
+                    content=content,
+                    start_time=start_time,
+                    end_time=end_time,
+                    is_all_day=is_all_day,
+                    source=source,
+                    created_at=datetime.utcnow(),
+                )
+                session.add(entry)
+                await session.flush()
+                logger.debug("Added future entry", user_id=user_id, type=entry_type, title=title)
+                return FutureEntrySchema.model_validate(entry)
+        except SQLAlchemyError as e:
+            logger.error("Failed to add future entry", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to add future entry: {e}")
+
+    async def get_future_entries(
+        self, 
+        user_id: int, 
+        limit: int = 50, 
+        entry_type: Optional[str] = None,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+    ) -> List[FutureEntrySchema]:
+        """Get future entries for a user."""
+        try:
+            async with self.get_session() as session:
+                query = select(FutureEntry).where(FutureEntry.user_id == user_id)
+                if entry_type:
+                    query = query.where(FutureEntry.entry_type == entry_type)
+                if from_date:
+                    query = query.where(FutureEntry.start_time >= from_date)
+                if to_date:
+                    query = query.where(FutureEntry.start_time <= to_date)
+                
+                query = query.order_by(FutureEntry.start_time.asc().nulls_last(), FutureEntry.created_at.desc())
+                query = query.limit(limit)
+                
+                result = await session.execute(query)
+                entries = result.scalars().all()
+                return [FutureEntrySchema.model_validate(e) for e in entries]
+        except SQLAlchemyError as e:
+            logger.error("Failed to get future entries", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to get future entries: {e}")
+
+    async def update_future_entry(
+        self,
+        entry_id: int,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        is_completed: Optional[bool] = None,
+        start_time: Optional[datetime] = None,
+    ) -> FutureEntrySchema:
+        """Update an existing future entry."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(FutureEntry).where(FutureEntry.id == entry_id))
+                entry = result.scalar_one_or_none()
+                if not entry:
+                    raise RecordNotFoundError(f"Future entry {entry_id} not found")
+                
+                if title is not None:
+                    entry.title = title
+                if content is not None:
+                    entry.content = content
+                if is_completed is not None:
+                    entry.is_completed = is_completed
+                if start_time is not None:
+                    entry.start_time = start_time
+                
+                session.add(entry)
+                await session.flush()
+                return FutureEntrySchema.model_validate(entry)
+        except SQLAlchemyError as e:
+            logger.error("Failed to update future entry", entry_id=entry_id, error=str(e))
+            raise DatabaseException(f"Failed to update future entry: {e}")
+
+    async def delete_future_entry(self, user_id: int, entry_id: int) -> bool:
+        """Delete a future entry."""
+        try:
+            async with self.get_session() as session:
+                from sqlalchemy import delete
+                stmt = delete(FutureEntry).where(
+                    FutureEntry.id == entry_id,
+                    FutureEntry.user_id == user_id
+                )
+                result = await session.execute(stmt)
+                return result.rowcount > 0
+        except SQLAlchemyError as e:
+            logger.error("Failed to delete future entry", entry_id=entry_id, error=str(e))
+            raise DatabaseException(f"Failed to delete future entry: {e}")
 
 
 # Singleton instance

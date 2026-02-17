@@ -130,26 +130,28 @@ class TokenUsage(Base):
         return f"<TokenUsage(user_id={self.user_id}, model='{self.model}', total={self.total_tokens}, type='{self.call_type}')>"
 
 
-class CalendarEvent(Base):
-    """Calendar events - user schedule items for reach-out awareness."""
+class FutureEntry(Base):
+    """Future entries - goals, plans, and notes for the Future tab."""
 
-    __tablename__ = "calendar_events"
+    __tablename__ = "future_entries"
     __table_args__ = (
-        Index("idx_calendar_events_user_start", "user_id", "event_start"),
+        Index("idx_future_entries_user_time", "user_id", "start_time"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    entry_type = Column(String(50), nullable=False)  # "plan" or "note"
     title = Column(String(500), nullable=False)
-    description = Column(Text, nullable=True)
-    event_start = Column(DateTime, nullable=False, index=True)
-    event_end = Column(DateTime, nullable=True)
+    content = Column(Text, nullable=True)
+    start_time = Column(DateTime, nullable=True, index=True) # Optional for notes
+    end_time = Column(DateTime, nullable=True)
     is_all_day = Column(Boolean, default=False, nullable=False)
+    is_completed = Column(Boolean, default=False, nullable=False)
     source = Column(String(50), default="manual", nullable=False)  # "manual", "bot", "google"
     created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
 
     # Relationships
-    user = relationship("User", backref="calendar_events")
+    user = relationship("User", backref="future_entries")
 
     def __repr__(self):
-        return f"<CalendarEvent(user_id={self.user_id}, title='{self.title}', start={self.event_start})>"
+        return f"<FutureEntry(user_id={self.user_id}, type='{self.entry_type}', title='{self.title}')>"

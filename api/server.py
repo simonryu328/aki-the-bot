@@ -14,9 +14,9 @@ from config.settings import settings
 from bot.telegram_handler import bot
 from memory.memory_manager_async import memory_manager
 from memory.database_async import db
-from memory.models import CalendarEvent
+from memory.models import FutureEntry
 from agents.soul_agent import soul_agent
-from schemas import DiaryEntrySchema, CalendarEventSchema, CalendarEventCreate, DailyMessageSchema
+from schemas import DiaryEntrySchema, FutureEntrySchema, FutureEntryCreate, DailyMessageSchema
 from telegram import Update, Message
 from sqlalchemy import select, delete as sa_delete
 from utils.spotify_manager import spotify_manager
@@ -551,97 +551,98 @@ async def ask_question(telegram_id: int, payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/calendar/{telegram_id}", response_model=list[CalendarEventSchema])
-async def get_calendar_events(
+@app.get("/api/future/{telegram_id}", response_model=list[FutureEntrySchema])
+async def get_future_entries(
     telegram_id: int,
     from_date: Optional[datetime] = Query(None, alias="from"),
     to_date: Optional[datetime] = Query(None, alias="to"),
+    entry_type: Optional[str] = Query(None),
 ):
-    """List calendar events, optionally filtered by date range."""
+    """List future entries (plans and notes), optionally filtered."""
     try:
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
-        async with db.get_session() as session:
-            stmt = select(CalendarEvent).where(CalendarEvent.user_id == user.id)
-            if from_date:
-                stmt = stmt.where(CalendarEvent.event_start >= from_date)
-            if to_date:
-                stmt = stmt.where(CalendarEvent.event_start <= to_date)
-            stmt = stmt.order_by(CalendarEvent.event_start)
-            result = await session.execute(stmt)
-            events = result.scalars().all()
-            return [CalendarEventSchema.model_validate(e) for e in events]
+        entries = await memory_manager.get_future_entries(
+            user_id=user.id,
+            from_date=from_date,
+            to_date=to_date,
+            entry_type=entry_type
+        )
+        return entries
     except Exception as e:
-        logger.error(f"Error fetching calendar events: {e}")
+        logger.error(f"Error fetching future entries: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/calendar/{telegram_id}", response_model=CalendarEventSchema, status_code=201)
-async def create_calendar_event(telegram_id: int, event: CalendarEventCreate):
-    """Create a new calendar event."""
+@app.post("/api/future/{telegram_id}", response_model=FutureEntrySchema, status_code=201)
+async def create_future_entry(telegram_id: int, entry: FutureEntryCreate):
+    """Create a new future entry (plan or note)."""
     try:
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
-        async with db.get_session() as session:
-            db_event = CalendarEvent(
-                user_id=user.id,
-                title=event.title,
-                description=event.description,
-                event_start=event.event_start,
-                event_end=event.event_end,
-                is_all_day=event.is_all_day,
-                source="manual",
-            )
-            session.add(db_event)
-            await session.commit()
-            await session.refresh(db_event)
-            return CalendarEventSchema.model_validate(db_event)
+        db_entry = await memory_manager.add_future_entry(
+            user_id=user.id,
+            entry_type=entry.entry_type,
+            title=entry.title,
+            content=entry.content,
+            start_time=entry.start_time,
+            end_time=entry.end_time,
+            is_all_day=entry.is_all_day,
+            source="manual"
+        )
+        return db_entry
     except Exception as e:
-        logger.error(f"Error creating calendar event: {e}")
+        logger.error(f"Error creating future entry: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/calendar/{telegram_id}/{event_id}", status_code=204)
-async def delete_calendar_event(telegram_id: int, event_id: int):
-    """Delete a calendar event."""
+@app.patch("/api/future/{telegram_id}/{entry_id}", response_model=FutureEntrySchema)
+async def update_future_entry(telegram_id: int, entry_id: int, payload: dict):
+    """Update a future entry (e.g. mark as completed)."""
     try:
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
-        async with db.get_session() as session:
-            stmt = sa_delete(CalendarEvent).where(
-                CalendarEvent.id == event_id,
-                CalendarEvent.user_id == user.id,
-            )
-            result = await session.execute(stmt)
-            await session.commit()
-            if result.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Event not found")
+        updated = await memory_manager.update_future_entry(
+            entry_id=entry_id,
+            title=payload.get("title"),
+            content=payload.get("content"),
+            is_completed=payload.get("is_completed"),
+            start_time=payload.get("start_time")
+        )
+        return updated
+    except Exception as e:
+        logger.error(f"Error updating future entry: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/future/{telegram_id}/{entry_id}", status_code=204)
+async def delete_future_entry(telegram_id: int, entry_id: int):
+    """Delete a future entry."""
+    try:
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        success = await memory_manager.delete_future_entry(user_id=user.id, entry_id=entry_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Entry not found")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting calendar event: {e}")
+        logger.error(f"Error deleting future entry: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/calendar/{telegram_id}/upcoming", response_model=list[CalendarEventSchema])
-async def get_upcoming_events(telegram_id: int):
-    """Get events in the next 48 hours — used by reach-out scheduler."""
+@app.get("/api/future/{telegram_id}/upcoming", response_model=list[FutureEntrySchema])
+async def get_upcoming_plans(telegram_id: int):
+    """Get plans in the next 48 hours."""
     try:
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
         now = datetime.utcnow()
         cutoff = now + timedelta(hours=48)
-        async with db.get_session() as session:
-            stmt = (
-                select(CalendarEvent)
-                .where(
-                    CalendarEvent.user_id == user.id,
-                    CalendarEvent.event_start >= now,
-                    CalendarEvent.event_start <= cutoff,
-                )
-                .order_by(CalendarEvent.event_start)
-            )
-            result = await session.execute(stmt)
-            events = result.scalars().all()
-            return [CalendarEventSchema.model_validate(e) for e in events]
+        entries = await memory_manager.get_future_entries(
+            user_id=user.id,
+            from_date=now,
+            to_date=cutoff,
+            entry_type="plan"
+        )
+        return entries
     except Exception as e:
-        logger.error(f"Error fetching upcoming events: {e}")
+        logger.error(f"Error fetching upcoming plans: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

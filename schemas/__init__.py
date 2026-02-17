@@ -7,7 +7,7 @@ from schemas.conversation import ConversationSchema, ConversationCreateSchema
 from schemas.diary import DiaryEntrySchema, DiaryEntryCreateSchema, DailyMessageSchema
 from schemas.context import UserContextSchema
 from schemas.token_usage import TokenUsageSchema, TokenUsageCreateSchema
-from schemas.calendar import CalendarEventSchema, CalendarEventCreate
+from schemas.future import FutureEntrySchema, FutureEntryCreate
 
 __all__ = [
     "UserSchema",
@@ -21,7 +21,7 @@ __all__ = [
     "UserContextSchema",
     "TokenUsageSchema",
     "TokenUsageCreateSchema",
-    "CalendarEventSchema",
-    "CalendarEventCreate",
+    "FutureEntrySchema",
+    "FutureEntryCreate",
 ]
 

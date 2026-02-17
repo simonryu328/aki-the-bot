@@ -22,6 +22,8 @@ from schemas import (
     ConversationSchema,
     TokenUsageSchema,
     UserContextSchema,
+    FutureEntrySchema,
+    FutureEntryCreate,
 )
 
 from cachetools import TTLCache
@@ -345,6 +347,49 @@ class AsyncMemoryManager:
         """
         return await self.db.get_user_token_usage_today(user_id)
 
+    # ==================== Future Entry Management ====================
+
+    async def add_future_entry(
+        self,
+        user_id: int,
+        entry_type: str,
+        title: str,
+        content: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        is_all_day: bool = False,
+        source: str = "manual",
+    ) -> FutureEntrySchema:
+        """Add a future entry (plan or note)."""
+        return await self.db.add_future_entry(
+            user_id, entry_type, title, content, start_time, end_time, is_all_day, source
+        )
+
+    async def get_future_entries(
+        self, 
+        user_id: int, 
+        limit: int = 50, 
+        entry_type: Optional[str] = None,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+    ) -> List[FutureEntrySchema]:
+        """Get future entries for a user."""
+        return await self.db.get_future_entries(user_id, limit, entry_type, from_date, to_date)
+
+    async def update_future_entry(
+        self,
+        entry_id: int,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        is_completed: Optional[bool] = None,
+        start_time: Optional[datetime] = None,
+    ) -> FutureEntrySchema:
+        """Update an existing future entry."""
+        return await self.db.update_future_entry(entry_id, title, content, is_completed, start_time)
+
+    async def delete_future_entry(self, user_id: int, entry_id: int) -> bool:
+        """Delete a future entry."""
+        return await self.db.delete_future_entry(user_id, entry_id)
 
 
 # Singleton instance
