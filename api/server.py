@@ -285,6 +285,56 @@ async def get_daily_message(telegram_id: int):
         )
 
 
+@app.get("/api/spotify/daily-soundtrack/{telegram_id}")
+async def get_daily_soundtrack(telegram_id: int):
+    """
+    Get Aki's daily song recommendation for the user.
+    Uses 'Daily' Caching: Only generates one track per calendar day.
+    """
+    try:
+        import pytz
+        import json
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        user_tz = pytz.timezone(user.timezone or settings.TIMEZONE)
+        now_user = datetime.now(user_tz)
+        today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # 1. Check for cached soundtrack from today
+        entries = await memory_manager.get_diary_entries(
+            user_id=user.id,
+            limit=1,
+            entry_type="daily_soundtrack"
+        )
+        
+        if entries:
+            last_entry = entries[0]
+            last_entry_local = last_entry.timestamp.replace(tzinfo=pytz.utc).astimezone(user_tz)
+            
+            if last_entry_local >= today_start_user:
+                logger.info(f"Soundtrack CACHE HIT for user {telegram_id}")
+                return json.loads(last_entry.content)
+
+        # 2. Cache MISS: Generate fresh if connected
+        logger.info(f"Soundtrack CACHE MISS for user {telegram_id}. Generating...")
+        data = await soul_agent.generate_daily_soundtrack(user.id)
+        
+        if data.get("connected") and not data.get("error"):
+            # Store in DB
+            await memory_manager.add_diary_entry(
+                user_id=user.id,
+                entry_type="daily_soundtrack",
+                title="Daily Soundtrack",
+                content=json.dumps(data),
+                importance=7
+            )
+            
+        return data
+
+    except Exception as e:
+        logger.error(f"Error serving daily soundtrack: {e}")
+        return {"connected": False, "error": str(e)}
+
+
 @app.get("/api/personalized-insights/{telegram_id}")
 async def get_personalized_insights(telegram_id: int):
     """

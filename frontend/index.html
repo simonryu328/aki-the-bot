@@ -213,6 +213,50 @@
         </div>
       </div>
 
+      <!-- Spotify Daily Soundtrack -->
+      <div id="soundtrackContainer" class="soundtrack-container hidden">
+        <h2 class="section-heading">Your Daily Soundtrack</h2>
+
+        <!-- Loading State -->
+        <div id="soundtrackLoading" class="soundtrack-card loading">
+          <div class="soundtrack-spinner"></div>
+          <p>Aki is picking a song for you...</p>
+        </div>
+
+        <!-- Connect Spotify State -->
+        <div id="soundtrackConnect" class="soundtrack-card connect hidden">
+          <div class="spotify-logo">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.49 17.306c-.215.353-.675.463-1.025.247-2.868-1.753-6.48-2.15-10.732-1.177-.4.092-.8-.158-.89-.558-.092-.4.158-.8.558-.89 4.654-1.064 8.64-.61 11.84 1.345.353.216.463.676.248 1.025zm1.465-3.264c-.27.44-.847.58-1.287.31-3.282-2.016-8.286-2.597-12.164-1.42-.495.15-1.02-.13-1.17-.625-.15-.495.13-1.02.625-1.17 4.434-1.343 9.94-.684 13.702 1.623.44.27.58.847.31 1.287zm.126-3.414C15.24 8.356 8.85 8.144 5.122 9.276c-.59.18-1.21-.154-1.39-.745-.18-.59.154-1.21.745-1.39C8.79 5.86 15.863 6.103 20.088 8.61c.53.315.706 1.004.39 1.534-.314.53-1.003.706-1.534.39l-.126-.11z" />
+            </svg>
+          </div>
+          <h3>Connect Spotify</h3>
+          <p>Let Aki pick the perfect soundtrack for your day based on your taste.</p>
+          <button id="connectSpotifyBtn" class="connect-spotify-btn">Connect</button>
+        </div>
+
+        <!-- Track Card -->
+        <div id="soundtrackCard" class="soundtrack-card hidden">
+          <div class="track-info-row">
+            <div class="track-artwork">
+              <img id="trackArt" src="" alt="Album Art">
+            </div>
+            <div class="track-details">
+              <div id="trackVibe" class="track-vibe"></div>
+              <div id="trackName" class="track-name"></div>
+              <div id="trackArtist" class="track-artist"></div>
+            </div>
+          </div>
+          <div id="trackExplanation" class="track-explanation"></div>
+          <div class="track-actions">
+            <a id="playSpotifyBtn" href="#" target="_blank" class="play-spotify-btn">
+              <span class="btn-icon">▶</span> Play on Spotify
+            </a>
+          </div>
+        </div>
+      </div>
+
       <!-- Personalized Insights Section -->
       <div id="personalizedInsights" class="insights-container hidden">
         <h2 class="section-heading">Personalized for You</h2>

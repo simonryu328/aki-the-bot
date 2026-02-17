@@ -132,6 +132,34 @@ const welcomeTzTime = document.getElementById('welcomeTzTime') as HTMLElement;
 const welcomeNameInput = document.getElementById('welcomeNameInput') as HTMLInputElement;
 const welcomeNameContinue = document.getElementById('welcomeNameContinue') as HTMLButtonElement;
 
+// ── Soundtrack Refs ────────────────────────────────
+const soundtrackContainer = document.getElementById('soundtrackContainer') as HTMLElement;
+const soundtrackLoading = document.getElementById('soundtrackLoading') as HTMLElement;
+const soundtrackConnect = document.getElementById('soundtrackConnect') as HTMLElement;
+const soundtrackCard = document.getElementById('soundtrackCard') as HTMLElement;
+const connectSpotifyBtn = document.getElementById('connectSpotifyBtn') as HTMLButtonElement;
+const trackArt = document.getElementById('trackArt') as HTMLImageElement;
+const trackVibe = document.getElementById('trackVibe') as HTMLElement;
+const trackName = document.getElementById('trackName') as HTMLElement;
+const trackArtist = document.getElementById('trackArtist') as HTMLElement;
+const trackExplanation = document.getElementById('trackExplanation') as HTMLElement;
+const playSpotifyBtn = document.getElementById('playSpotifyBtn') as HTMLAnchorElement;
+
+interface DailySoundtrack {
+  connected: boolean;
+  vibe?: string;
+  explanation?: string;
+  track?: {
+    name: string;
+    artist: string;
+    album_art: string;
+    spotify_url: string;
+    uri: string;
+    preview_url?: string;
+  };
+  error?: string;
+}
+
 // Personalized Insights References
 const personalizedInsightsContainer = document.getElementById('personalizedInsights') as HTMLElement;
 const statVibe = document.getElementById('statVibe') as HTMLElement;
@@ -143,7 +171,62 @@ const observationsList = document.getElementById('observationsList') as HTMLElem
 const questionsList = document.getElementById('questionsList') as HTMLElement;
 const todayComingSoon = document.getElementById('todayComingSoon') as HTMLElement;
 
-// ── Navigation ──────────────────────────────────────
+// ── Soundtrack Logic ────────────────────────────────
+
+async function fetchDailySoundtrack() {
+  const userId = getUserId();
+  if (!userId || !soundtrackContainer) return;
+
+  try {
+    const res = await fetch(`/api/spotify/daily-soundtrack/${userId}`);
+    if (!res.ok) throw new Error('Failed to fetch soundtrack');
+    const data: DailySoundtrack = await res.json();
+
+    renderSoundtrack(data);
+  } catch (err) {
+    console.error('Soundtrack fetch failed:', err);
+    soundtrackLoading?.classList.add('hidden');
+  }
+}
+
+function renderSoundtrack(data: DailySoundtrack) {
+  if (!soundtrackContainer) return;
+  soundtrackContainer.classList.remove('hidden');
+
+  soundtrackLoading?.classList.add('hidden');
+  soundtrackConnect?.classList.add('hidden');
+  soundtrackCard?.classList.add('hidden');
+
+  if (!data.connected) {
+    soundtrackConnect?.classList.remove('hidden');
+    return;
+  }
+
+  if (data.track) {
+    if (trackArt) trackArt.src = data.track.album_art;
+    if (trackVibe) trackVibe.textContent = data.vibe || 'Today\'s Vibe';
+    if (trackName) trackName.textContent = data.track.name;
+    if (trackArtist) trackArtist.textContent = data.track.artist;
+    if (trackExplanation) trackExplanation.textContent = data.explanation || '';
+    if (playSpotifyBtn) playSpotifyBtn.href = data.track.spotify_url;
+
+    soundtrackCard?.classList.remove('hidden');
+  }
+}
+
+connectSpotifyBtn?.addEventListener('click', () => {
+  const userId = getUserId();
+  if (userId) {
+    fetch(`/api/spotify/login/${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      })
+      .catch(err => console.error('Spotify login failed:', err));
+  }
+});
 
 function goToPanel(index: number) {
   if (index < 0 || index >= totalPanels) return;
@@ -684,6 +767,7 @@ async function init() {
   fetchEntries();
   fetchDailyMessage();
   fetchPersonalizedInsights();
+  fetchDailySoundtrack();
   goToPanel(1); // Initialize UI to Today
 
   // ── Final Transition: Hide Splash Screen ──

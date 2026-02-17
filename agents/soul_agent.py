@@ -34,8 +34,10 @@ from prompts import (
     MEMORY_PROMPT,
     DAILY_MESSAGE_PROMPT,
     FALLBACK_QUOTES,
-    PERSONALIZED_INSIGHTS_PROMPT,
 )
+from prompts.personalized_insights import PERSONALIZED_INSIGHTS_PROMPT
+from prompts.spotify_dj import SPOTIFY_DJ_PROMPT
+from utils.spotify_manager import spotify_manager
 import json
 from prompts.system_frame import SYSTEM_FRAME
 from prompts.personas import COMPANION_PERSONA
@@ -1271,6 +1273,105 @@ class SoulAgent:
                 
         except Exception as e:
             logger.error("Failed to generate personalized insights", user_id=user_id, error=str(e))
+            return {"error": str(e)}
+
+    async def generate_daily_soundtrack(self, user_id: int) -> Dict:
+        """
+        Generates a personalized song recommendation based on user mood and music taste.
+        """
+        try:
+            # 1. Get user and validate Spotify connection
+            user = await self.memory.get_user_by_id(user_id)
+            if not user or not user.spotify_refresh_token:
+                return {"connected": False}
+
+            access_token = await spotify_manager.get_valid_token(user)
+            if not access_token:
+                return {"connected": False}
+
+            # 2. Gather Context
+            # Step A: Get music context
+            top_tracks = await spotify_manager.get_top_tracks(access_token, limit=5)
+            recent_tracks = await spotify_manager.get_recently_played(access_token, limit=5)
+            
+            top_tracks_text = "\n".join([f"- {t['name']} by {t['artists'][0]['name']}" for t in top_tracks])
+            recent_tracks_text = "\n".join([f"- {t['track']['name']} by {t['track']['artists'][0]['name']}" for t in recent_tracks])
+
+            # Step B: Get conversational context (using smart slicing/deduplication)
+            # Fetch more history to allow slicing
+            full_history = await self.memory.db.get_recent_conversations(user_id, limit=30)
+            context_text, history_text = await self._build_conversation_context(user_id, full_history, user)
+
+            # 3. Ask Aki to pick a vibe/song
+            prompt = SPOTIFY_DJ_PROMPT.format(
+                user_name=user.name or "friend",
+                context=context_text or "No specific milestones recently.",
+                recent_history=history_text or "We haven't talked much lately.",
+                top_tracks=top_tracks_text or "Taste not yet known.",
+                recently_played=recent_tracks_text or "No recent history."
+            )
+
+            response = await llm_client.chat(
+                model=settings.MODEL_INSIGHTS, # Use Sonnet for better taste
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.8,
+                max_tokens=600,
+            )
+            
+            content = response.content if hasattr(response, 'content') else str(response)
+            
+            # Parse JSON
+            json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+            dj_data = json.loads(json_match.group(1)) if json_match else {}
+            
+            if not dj_data:
+                return {"error": "Failed to generate DJ data"}
+
+            # 4. Find the song on Spotify (or get recommendations based on the vibe)
+            search_query = dj_data.get("search_query")
+            sp = spotify_manager.get_client(access_token)
+            
+            # Try to find the specific song Aki recommended
+            search_results = sp.search(q=search_query, limit=1, type='track')
+            tracks = search_results.get('tracks', {}).get('items', [])
+            
+            if not tracks:
+                # If Aki's specific pick isn't found, use Spotify Recommendations as fallback
+                # with Aki's target params
+                params = dj_data.get("target_params", {})
+                seed_artists = [t['id'] for t in top_tracks[:2]] if top_tracks else []
+                
+                rec_tracks = sp.recommendations(
+                    seed_artists=seed_artists,
+                    limit=1,
+                    target_energy=params.get("energy", 0.5),
+                    target_valence=params.get("valence", 0.5)
+                ).get('tracks', [])
+                
+                if rec_tracks:
+                    tracks = rec_tracks
+
+            if not tracks:
+                return {"error": "Could not find a matching track on Spotify"}
+
+            track = tracks[0]
+            
+            return {
+                "connected": True,
+                "vibe": dj_data.get("vibe_description"),
+                "explanation": dj_data.get("explanation"),
+                "track": {
+                    "name": track["name"],
+                    "artist": track["artists"][0]["name"],
+                    "album_art": track["album"]["images"][0]["url"] if track["album"]["images"] else None,
+                    "spotify_url": track["external_urls"]["spotify"],
+                    "uri": track["uri"],
+                    "preview_url": track.get("preview_url")
+                }
+            }
+
+        except Exception as e:
+            logger.error("Failed to generate daily soundtrack", user_id=user_id, error=str(e))
             return {"error": str(e)}
 
 # Singleton instance
