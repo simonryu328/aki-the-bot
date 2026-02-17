@@ -17,6 +17,9 @@ env/
 .env.local
 .env.*.local
 
+# Spotify cache
+.cache
+
 # IDE
 .vscode/
 .idea/
