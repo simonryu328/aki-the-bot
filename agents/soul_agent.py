@@ -1290,15 +1290,57 @@ class SoulAgent:
                 return {"connected": False}
 
             # 2. Gather Context
-            # Step A: Get music context
-            top_tracks = await spotify_manager.get_top_tracks(access_token, limit=5)
-            recent_tracks = await spotify_manager.get_recently_played(access_token, limit=5)
+            # Step A: Get music context (High-Fidelity Sample)
+            top_tracks = await spotify_manager.get_top_tracks(access_token, limit=50)
+            recent_tracks = await spotify_manager.get_recently_played(access_token, limit=50)
             
-            top_tracks_text = "\n".join([f"- {t['name']} by {t['artists'][0]['name']}" for t in top_tracks])
-            recent_tracks_text = "\n".join([f"- {t['track']['name']} by {t['track']['artists'][0]['name']}" for t in recent_tracks])
+            # Extract IDs for enrichment
+            all_track_ids = [t['id'] for t in top_tracks] + [t['track']['id'] for t in recent_tracks]
+            all_artist_ids = [t['artists'][0]['id'] for t in top_tracks]
+            
+            # Batch fetch audio features and artists (genres)
+            audio_features_map = await spotify_manager.get_audio_features(access_token, all_track_ids)
+            artists_map = await spotify_manager.get_artists(access_token, all_artist_ids)
+            
+            # --- AGGREGATE STATS (The "Sonic Profile") ---
+            valences = []
+            energies = []
+            bpms = []
+            all_genres = []
+            
+            for tid in all_track_ids:
+                feat = audio_features_map.get(tid)
+                if feat:
+                    valences.append(feat.get('valence', 0.5))
+                    energies.append(feat.get('energy', 0.5))
+                    if feat.get('tempo'): bpms.append(feat['tempo'])
+            
+            for aid in all_artist_ids:
+                artist = artists_map.get(aid)
+                if artist and artist.get('genres'):
+                    all_genres.extend(artist['genres'])
+            
+            # Calculate Averages and Top Genres
+            from collections import Counter
+            avg_valence = sum(valences) / len(valences) if valences else 0.5
+            avg_energy = sum(energies) / len(energies) if energies else 0.5
+            avg_bpm = int(sum(bpms) / len(bpms)) if bpms else 100
+            top_genres = [g[0] for g in Counter(all_genres).most_common(5)]
+            
+            # Prepare Text Summaries
+            sonic_profile = (
+                f"**Sonic DNA (Average):**\n"
+                f"- Valence (Positiveness): {avg_valence:.2f}/1.0\n"
+                f"- Energy (Intensity): {avg_energy:.2f}/1.0\n"
+                f"- Tempo: ~{avg_bpm} BPM\n"
+                f"- Top Genres: {', '.join(top_genres)}"
+            )
+            
+            # For the prompt, we still show the Top 10 specific names for context (not all 50)
+            top_tracks_text = "\n".join([f"- {t['name']} by {t['artists'][0]['name']}" for t in top_tracks[:10]])
+            recent_tracks_text = "\n".join([f"- {t['track']['name']} by {t['track']['artists'][0]['name']}" for t in recent_tracks[:10]])
 
-            # Step B: Get conversational context (using smart slicing/deduplication)
-            # Fetch more history to allow slicing
+            # Step B: Get conversational context
             full_history = await self.memory.db.get_recent_conversations(user_id, limit=30)
             context_text, history_text = await self._build_conversation_context(user_id, full_history, user)
 
@@ -1307,6 +1349,7 @@ class SoulAgent:
                 user_name=user.name or "friend",
                 context=context_text or "No specific milestones recently.",
                 recent_history=history_text or "We haven't talked much lately.",
+                sonic_profile=sonic_profile,
                 top_tracks=top_tracks_text or "Taste not yet known.",
                 recently_played=recent_tracks_text or "No recent history."
             )

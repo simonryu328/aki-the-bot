@@ -1,79 +1,114 @@
-# Technical Documentation: Aki Spotify DJ Integration
+# Technical Documentation: Aki "Deep Listening" Spotify Engine
 
-This document outlines the AI Engineering architecture for Aki's "Daily Soundtrack" feature, covering data ingestion, prompt engineering, cost analysis, and scalability.
+This document provides a deep-dive into the technical architecture behind Aki's Spotify integration, specifically focusing on the 2.0 "Deep Listening" engine which uses quantitative musical analysis rather than just text-based association.
 
-## 1. AI Data Strategy: The Context Triad
-Aki uses a "Triad" of context to generate personalized music recommendations. This ensures the choice is technically accurate (user taste) but emotionally resonant (recent life events).
+## 1. Data Ingestion: The Payload
+Aki fetches data from three primary Spotify endpoints. For efficiency, she batches 100 items into single requests where possible.
 
-### A. Music Preference Context (Spotify API)
-*   **Top Tracks:** Last 5 most-played tracks (sampled from multiple time ranges).
-*   **Recent History:** Last 5 tracks actually played by the user.
-*   **Raw Fields Ingested:** `track_name`, `artist_name`, `genres` (inferred).
-
-### B. Life Milestone Context (Aki Memory)
-*   **Conversational Memories:** The 3 most recent diary entries (summaries of multi-day themes).
-*   **Smart Slicing (Deduplication):** Aki automatically detects the "timestamp cutoff" of the last summary. Any raw messages already captured in that summary are excluded from the `recent_history` block, leaving only the "delta" (what happened since the last reflection). 
-*   **Immediate Context:** Last ~3-5 messages of raw text for "conversational glue."
-
-### C. Behavioral Context (Time/Day)
-*   The current day of the week and hour (e.g., Sunday morning vs. Tuesday late night).
-
----
-
-## 2. The LLM Pipeline
-### Model Selection
-*   **Primary:** `Claude 3.5 Sonnet` (via `settings.MODEL_INSIGHTS`).
-*   **Role:** Acts as a "Music Psychologist."
-
-### Token Cost Analysis (Approximate)
-| Component | Tokens (In) | Tokens (Out) |
-| :--- | :--- | :--- |
-| Systemic Prompt | 250 | - |
-| Spotify Data (10 tracks) | 150 | - |
-| Conversations (5 msgs) | 300 | - |
-| AI Memories (3 entries) | 600 | - |
-| **Total per Generation** | **~1,300** | **~150** |
-
-**Cost per User:** At current pricing, one generation costs approximately **$0.005 (0.5 cents)**.
-
----
-
-## 3. Trigger & Caching Logic
-### "Daily Caching" Mechanism
-The implementation uses a **Diary-based Cache** rather than a volatile memory cache (Redis).
-1.  **Request:** User opens the "Today" tab.
-2.  **DB Check:** Backend queries `diary_entries` for `entry_type = 'daily_soundtrack'` within the user's current calendar day.
-3.  **Efficiency:**
-    *   **Cache Hit:** Returns the stored JSON (0 LLM cost).
-    *   **Cache Miss:** Triggers the SoulAgent generation, stores the result, and returns it.
-
-### Scalability
-*   **Database:** High. Using Indexed SQLAlchemy queries on `user_id` and `timestamp`.
-*   **API Usage:** Low. Rate-limited at the application level to 1 generation per 24 hours.
-*   **Fault Tolerance:** If Spotify API is down or tokens are expired, Aki falls back to "Connect Spotify" UI or generic inspirational quotes.
-
----
-
-## 4. Spotify Data Structure (Reference)
-The backend interacts with the Spotify Web API (via `spotipy`). 
-
-### Example Internal Track Payload:
+### A. Track Metadata (`/me/top/tracks` & `/me/player/recently-played`)
+Aki fetches **50 Top Tracks** (Short Term: 4 weeks) and **50 Recently Played Tracks**.
+**Sample Item JSON:**
 ```json
 {
-  "name": "The Night We Met",
-  "artist": "Lord Huron",
-  "album_art": "https://i.scdn.co/image/ab67616d0000b273...",
-  "spotify_url": "https://open.spotify.com/track/...",
-  "uri": "spotify:track:09mEisA99966pAtvM9S9sy",
-  "preview_url": "https://p.scdn.co/mp3-preview/..."
+  "id": "2gpS9fs7qhYVv7vln9m9S9",
+  "name": "Song Title",
+  "popularity": 82,
+  "explicit": true,
+  "artists": [{ "name": "Artist Name", "id": "4zG..." }],
+  "album": { 
+    "name": "Album Name", 
+    "images": [{ "url": "https://i.scdn.co/..." }] 
+  }
 }
 ```
 
-### LLM Output Schema:
-The LLM is constrained to a strict JSON schema to ensure Aki's "Vibe" labels (e.g., "Manic Creation") and target parameters (Energy/Valence) can be used for fallback searches if the primary pick is unavailable.
+### B. Audio Features DNA (`/audio-features`)
+Aki takes the 100 Track IDs and fetches their mathematical fingerprints in a single batch call.
+**Full Object Structure:**
+| Key | Type | Description |
+| :--- | :--- | :--- |
+| `valence` | float | Musical positiveness (0.0 to 1.0). High = Happy, Low = Sad/Dark. |
+| `energy` | float | Intensity and activity level (0.0 to 1.0). High = Fast/Loud. |
+| `danceability` | float | Rhythm stability and beat strength. |
+| `tempo` | float | The estimated tracks per minute (BPM). |
+| `acousticness` | float | Confidence score for purely acoustic sound. |
+| `instrumentalness` | float | Predicts whether a track contains no vocals. |
+| `mode` | int | Modality (1 = Major, 0 = Minor). |
+
+### C. Artist & Genre Data (`/artists`)
+Aki extracts unique Artist IDs and fetches their profile data to access **Genres**, which are not available on the track object itself.
+**Sample Artist JSON:**
+```json
+{
+  "name": "Artist Name",
+  "genres": ["indie pop", "lo-fi", "chillwave"],
+  "popularity": 75
+}
+```
 
 ---
 
-## 5. Potential Improvements
-*   **Genre Vectors:** Ingesting the user's top genres to further refine the "Aki Psychologist" persona.
-*   **Playback Integration:** Triggering the Spotify Web Playback SDK to play the song immediately upon opening the app.
+## 2. Statistical Aggregation (The "Sonic DNA")
+Instead of overwhelming the LLM with 100 raw JSON objects, the backend performs **Lossless Aggregation**.
+
+1.  **Averaging:** Calculates the `mean()` of Valence, Energy, and Tempo across the entire 100-song sample.
+2.  **Genre Counting:** Uses a `Counter` to find the most frequent genres appearing in the user's history.
+3.  **Synthesis:** Produces a condensed string that the LLM can easily parse.
+
+**Example Sonic DNA Output for Prompt:**
+```text
+**Sonic DNA (Average):**
+- Valence (Positiveness): 0.32/1.0
+- Energy (Intensity): 0.45/1.0
+- Tempo: ~92 BPM
+- Top Genres: indie soul, neo-psychedelic, jazz fusion, lo-fi
+```
+
+---
+
+## 3. The LLM Prompt (The "Psychologist" Logic)
+
+The LLM receives a prompt that forces it to cross-reference your **Life Events** with your **Sonic DNA**. 
+
+### Exact Prompt Structure (Abridged):
+```text
+You are Aki, picking a "Daily Theme Song" for {user_name}.
+
+INPUT DATA:
+1. RECENT CONTEXT (Memories): {context}
+2. RECENT CONVERSATION: {recent_history}
+3. SONIC PROFILE (Deep Data): {sonic_profile}
+4. REPRESENTATIVE TRACKS: {top_tracks}
+
+TASK:
+Choose a song that perfectly mirrors {user_name}'s current "Life Chapter". 
+If their Average Valence is low (< 0.4) but they are acting "happy" in chat, 
+call out the discrepancy. Match the numbers, or "prescribe" a shift.
+
+REQUIRED JSON:
+{
+  "thought": "Internal reasoning referencing the stats...",
+  "vibe_description": "Rainy Window Reflection",
+  "explanation": "Cheeky 1-2 sentence text-style comment.",
+  "search_query": "Artist - Track",
+  "target_params": { "energy": 0.4, "valence": 0.2 }
+}
+```
+
+---
+
+## 4. Fallback & Search Pipeline
+If the LLM recommends a song that is unavailable on Spotify, the engine uses the `target_params` generated by the AI to find a "Mathematical Twin."
+
+1.  **Direct Search:** `sp.search(q="Artist - Song")`
+2.  **Fallback Trigger:** If results are empty:
+    -   Seed: User's Top 2 Artists.
+    -   Targets: Uses the AI-generated `target_energy` and `target_valence`.
+    -   Call: `sp.recommendations(seed_artists=..., target_energy=..., limit=1)`
+
+---
+
+## 5. Performance Metrics
+*   **Total API Calls:** 4 (Top Tracks, Recent Tracks, Audio Features Batch, Artist Batch).
+*   **Total Latency:** ~800ms to 1.5s (excluding LLM time).
+*   **Prompt Tokens:** ~1,400 tokens (High fidelity, low cost).

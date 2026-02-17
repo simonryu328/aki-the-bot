@@ -13,10 +13,13 @@ INPUT DATA:
 2. RECENT CONVERSATION:
 {recent_history}
 
-3. USER'S MUSIC TASTE (Top tracks/artists):
+3. SONIC PROFILE (User's Mathematical Mood):
+{sonic_profile}
+
+4. USER'S MUSIC TASTE (Representative Tracks):
 {top_tracks}
 
-4. RECENTLY PLAYED:
+5. RECENTLY PLAYED:
 {recently_played}
 
 ---
@@ -44,4 +47,6 @@ RULES:
 2. Be specific to {user_name}.
 3. The explanation should feel like a late-night text from a friend.
 4. If they seem stressed, give them something to "prescribe" a mood shift or lean into the chaos.
+5. USE THE SONIC DATA: If their Average Valence is low (< 0.4), acknowledge their melancholic taste. If Energy is high (> 0.7), match that intensity.
+6. The song choice should balance their "Sonic DNA" with their current life context.
 """

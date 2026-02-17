@@ -65,7 +65,7 @@ class SpotifyManager:
             logger.error(f"Error fetching Spotify recommendations: {e}")
             return []
 
-    async def get_top_tracks(self, access_token: str, limit: int = 5) -> List[Dict[str, Any]]:
+    async def get_top_tracks(self, access_token: str, limit: int = 50) -> List[Dict[str, Any]]:
         """Fetches user's top tracks."""
         sp = self.get_client(access_token)
         try:
@@ -75,7 +75,7 @@ class SpotifyManager:
             logger.error(f"Error fetching Spotify top tracks: {e}")
             return []
 
-    async def get_recently_played(self, access_token: str, limit: int = 5) -> List[Dict[str, Any]]:
+    async def get_recently_played(self, access_token: str, limit: int = 50) -> List[Dict[str, Any]]:
         """Fetches user's recently played tracks."""
         sp = self.get_client(access_token)
         try:
@@ -84,6 +84,56 @@ class SpotifyManager:
         except Exception as e:
             logger.error(f"Error fetching Spotify recent history: {e}")
             return []
+
+    async def get_audio_features(self, access_token: str, track_ids: List[str]) -> Dict[str, Any]:
+        """
+        Fetches audio features for a list of track IDs in batches.
+        Spotify API allows up to 100 IDs per request.
+        """
+        sp = self.get_client(access_token)
+        features_map = {}
+        
+        # Deduplicate IDs and filter out empty ones
+        unique_ids = list(set([tid for tid in track_ids if tid]))
+        
+        # Process in chunks of 100
+        chunk_size = 100
+        for i in range(0, len(unique_ids), chunk_size):
+            chunk = unique_ids[i:i + chunk_size]
+            try:
+                results = sp.audio_features(tracks=chunk)
+                for feature in results:
+                    if feature:
+                        features_map[feature['id']] = feature
+            except Exception as e:
+                logger.error(f"Error fetching audio features for chunk: {e}")
+                
+        return features_map
+
+    async def get_artists(self, access_token: str, artist_ids: List[str]) -> Dict[str, Any]:
+        """
+        Fetches artist details (including genres) for a list of artist IDs.
+        Spotify API allows up to 50 IDs per request.
+        """
+        sp = self.get_client(access_token)
+        artists_map = {}
+        
+        # Deduplicate IDs
+        unique_ids = list(set([aid for aid in artist_ids if aid]))
+        
+        # Process in chunks of 50
+        chunk_size = 50
+        for i in range(0, len(unique_ids), chunk_size):
+            chunk = unique_ids[i:i + chunk_size]
+            try:
+                results = sp.artists(artists=chunk)
+                for artist in results.get('artists', []):
+                    if artist:
+                        artists_map[artist['id']] = artist
+            except Exception as e:
+                logger.error(f"Error fetching artist details for chunk: {e}")
+                
+        return artists_map
 
     async def refresh_user_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
         """Refreshes the access token using the refresh token."""
