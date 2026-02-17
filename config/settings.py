@@ -287,6 +287,11 @@ class Settings(BaseSettings):
         default="",
         description="Spotify Redirect URI for OAuth flow",
     )
+    
+    MINIAPP_URL: str = Field(
+        default="",
+        description="Public URL for the Telegram Mini App (e.g., https://aki-miniapp.up.railway.app)",
+    )
 
     @field_validator("DATABASE_URL")
     @classmethod

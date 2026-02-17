@@ -148,18 +148,36 @@ async def spotify_login(telegram_id: int):
 
 
 @app.get("/api/spotify/callback")
-async def spotify_callback(code: str, state: str):
+async def spotify_callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
     """Handle Spotify OAuth callback."""
+    if error:
+        logger.error(f"Spotify returned an error in callback: {error}")
+        return RedirectResponse(url=f"{settings.MINIAPP_URL or ''}/?spotify=error&reason={error}")
+
+    if not code or not state:
+        logger.error("Spotify callback missing code or state")
+        return RedirectResponse(url=f"{settings.MINIAPP_URL or ''}/?spotify=error&reason=missing_data")
+
     try:
-        telegram_id = int(state)
+        # State should be the telegram_id string
+        try:
+            telegram_id = int(state)
+        except ValueError:
+            logger.error(f"Invalid state (not an int): {state}")
+            return RedirectResponse(url=f"{settings.MINIAPP_URL or ''}/?spotify=error&reason=invalid_state")
+
         token_info = await spotify_manager.get_token_from_code(code)
         
         if not token_info:
-            raise HTTPException(status_code=400, detail="Failed to retrieve token from Spotify.")
+            logger.error(f"Failed to retrieve token from Spotify for user {telegram_id}")
+            return RedirectResponse(url=f"{settings.MINIAPP_URL or ''}/?spotify=error&reason=token_failure")
             
         # Store tokens in DB
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
-        expires_at = datetime.utcnow() + timedelta(seconds=token_info['expires_in'])
+        
+        # Calculate expiry
+        expires_in = token_info.get('expires_in', 3600)
+        expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
         
         await db.update_user_spotify_tokens(
             user_id=user.id,
@@ -168,16 +186,16 @@ async def spotify_callback(code: str, state: str):
             expires_at=expires_at
         )
         
-        # Evict from cache
-        if user.id in memory_manager._user_cache:
-            del memory_manager._user_cache[user.id]
-
+        logger.info(f"Successfully connected Spotify for user {telegram_id}")
+        
         # Redirect back to the mini app
-        return RedirectResponse(url=f"{settings.MINIAPP_URL}/?spotify=success")
+        redirect_base = settings.MINIAPP_URL if settings.MINIAPP_URL else ""
+        return RedirectResponse(url=f"{redirect_base}/?spotify=success")
         
     except Exception as e:
-        logger.error(f"Error in Spotify callback: {e}")
-        return RedirectResponse(url=f"{settings.MINIAPP_URL}/?spotify=error")
+        logger.error(f"Critical error in Spotify callback: {e}", exc_info=True)
+        redirect_base = settings.MINIAPP_URL if settings.MINIAPP_URL else ""
+        return RedirectResponse(url=f"{redirect_base}/?spotify=error")
 
 
 @app.post("/api/spotify/disconnect/{telegram_id}")
