@@ -1414,8 +1414,13 @@ class SoulAgent:
             }
 
         except Exception as e:
-            logger.error("Failed to generate daily soundtrack", user_id=user_id, error=str(e))
-            return {"error": str(e)}
+            err_msg = str(e)
+            if "not be registered" in err_msg or "403" in err_msg:
+                logger.error(f"User {user_id} not registered in Spotify Dashboard", error=err_msg)
+                return {"error": "unregistered", "message": "You aren't a registered tester for this app yet."}
+                
+            logger.error("Failed to generate daily soundtrack", user_id=user_id, error=err_msg)
+            return {"error": err_msg}
 
 # Singleton instance
 soul_agent = SoulAgent()

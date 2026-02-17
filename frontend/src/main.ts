@@ -209,6 +209,12 @@ function renderSoundtrack(data: DailySoundtrack) {
   if (data.error) {
     soundtrackLoading?.classList.remove('hidden');
     const p = soundtrackLoading.querySelector('p');
+
+    if (data.error === 'unregistered') {
+      if (p) p.innerHTML = 'Aki doesn\'t recognize you as a beta tester yet. <br><small>Ask Simon to add your email to the Spotify Dashboard.</small>';
+      return; // STOP RETRYING
+    }
+
     if (p) p.textContent = 'Aki is still thinking about your music. One sec...';
 
     // Auto-retry once after 3 seconds if it's a "still thinking" state
