@@ -180,6 +180,11 @@ async function fetchDailySoundtrack() {
   const userId = getUserId();
   if (!userId || !soundtrackContainer) return;
 
+  // Show loading state while fetching
+  soundtrackLoading?.classList.remove('hidden');
+  soundtrackConnect?.classList.add('hidden');
+  soundtrackCard?.classList.add('hidden');
+
   try {
     const res = await fetch(`/api/spotify/daily-soundtrack/${userId}?t=${Date.now()}`);
     if (!res.ok) throw new Error('Failed to fetch soundtrack');
@@ -204,7 +209,10 @@ function renderSoundtrack(data: DailySoundtrack) {
   if (data.error) {
     soundtrackLoading?.classList.remove('hidden');
     const p = soundtrackLoading.querySelector('p');
-    if (p) p.textContent = 'Aki couldn\'t reach Spotify. Try again?';
+    if (p) p.textContent = 'Aki is still thinking about your music. One sec...';
+
+    // Auto-retry once after 3 seconds if it's a "still thinking" state
+    setTimeout(fetchDailySoundtrack, 3000);
     return;
   }
 
@@ -222,8 +230,21 @@ function renderSoundtrack(data: DailySoundtrack) {
     if (playSpotifyBtn) playSpotifyBtn.href = data.track.spotify_url;
 
     soundtrackCard?.classList.remove('hidden');
+  } else if (data.connected) {
+    // We are connected but don't have a track yet (Generation in progress)
+    soundtrackLoading?.classList.remove('hidden');
+    const p = soundtrackLoading.querySelector('p');
+    if (p) p.textContent = 'Aki is choosing your song...';
+    setTimeout(fetchDailySoundtrack, 3000);
   }
 }
+
+// Refresh soundtrack when coming back to the app
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    fetchDailySoundtrack();
+  }
+});
 
 connectSpotifyBtn?.addEventListener('click', () => {
   const userId = getUserId();

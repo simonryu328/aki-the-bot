@@ -185,6 +185,11 @@ async def spotify_callback(code: Optional[str] = None, state: Optional[str] = No
             refresh_token=token_info['refresh_token'],
             expires_at=expires_at
         )
+
+        # CRITICAL: Evict from memory manager cache to ensure fresh state
+        if user.id in memory_manager._user_cache:
+            del memory_manager._user_cache[user.id]
+            logger.info(f"Evicted user {user.id} from cache post-Spotify connect")
         
         logger.info(f"Successfully connected Spotify for user {telegram_id}")
         
@@ -209,7 +214,7 @@ async def spotify_callback(code: Optional[str] = None, state: Optional[str] = No
                     <h1>Aki is Connected!</h1>
                     <p>I can now hear the music in your head. 🎵</p>
                     <p>You can close this window and go back to Telegram.</p>
-                    <a href="tg://resolve" class="btn">Back to Aki</a>
+                    <a href="https://t.me/aki_the_bot/app?startapp=spotify_success" class="btn">Back to Aki</a>
                 </div>
             </body>
             </html>
