@@ -21,6 +21,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
     ContextTypes,
+    CallbackQueryHandler,
 )
 
 from config.settings import settings
@@ -1309,6 +1310,8 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("app", self.app_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("memory", self.memory_command))
+        self.application.add_handler(CommandHandler("note", self.note_command))
+        self.application.add_handler(CommandHandler("plan", self.plan_command))
         
         # User Settings & Data
         self.application.add_handler(CommandHandler("reset", self.reset_command))
@@ -1335,14 +1338,200 @@ class TelegramBot:
         self.application.add_handler(
             MessageHandler(filters.Sticker.ALL, self.handle_sticker_message)
         )
+        # Callback query handler for interactive cards
+        self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
         logger.info("Telegram bot handlers configured")
+
+    async def note_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /note command."""
+        if not update.message:
+            return
+
+        user_id = update.effective_user.id
+        message_text = " ".join(context.args).strip()
+
+        if message_text:
+            # Direct note capture
+            await self._show_note_preview(update, context, message_text)
+        else:
+            # Contextual note extraction
+            await update.message.reply_chat_action(ChatAction.TYPING)
+            from agents.orchestrator import orchestrator
+            note_suggestion = await orchestrator.suggest_note(user_id)
+            
+            if note_suggestion:
+                await self._show_note_preview(update, context, note_suggestion, is_suggestion=True)
+            else:
+                await update.message.reply_text(
+                    "I'm not sure what to save just yet! 🌸\n\n"
+                    "Tell me something you want to remember, like:\n"
+                    "`/note I want to start reading more poetry`",
+                    parse_mode="Markdown"
+                )
+
+    async def _show_note_preview(
+        self, 
+        update: Update, 
+        context: ContextTypes.DEFAULT_TYPE, 
+        content: str, 
+        is_suggestion: bool = False
+    ) -> None:
+        """Show a preview of the note with save/discard options."""
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Save to Future", callback_data="note_save"),
+                InlineKeyboardButton("❌ Discard", callback_data="note_discard")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Store draft content in user_data
+        context.user_data['note_draft'] = content
+        
+        prefix = "✨ *Aki's Suggestion:*\n\n" if is_suggestion else "📝 *Draft Note:*\n\n"
+        await update.message.reply_text(
+            f"{prefix}{content}\n\nShould I save this to your Future tab?",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+
+    async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle callback queries from inline keyboards."""
+        query = update.callback_query
+        if not query:
+            return
+
+        await query.answer()
+        data = query.data
+
+        if data == "note_save":
+            content = context.user_data.get('note_draft')
+            if content:
+                # Save to DB
+                from memory.memory_manager_async import memory_manager
+                user = await memory_manager.get_user_by_telegram_id(query.from_user.id)
+                if user:
+                    # For notes, title can be just "Note" or a short snippet
+                    title = content[:50] + ("..." if len(content) > 50 else "")
+                    await memory_manager.add_future_entry(
+                        user_id=user.id,
+                        entry_type='note',
+                        title=title,
+                        content=content,
+                        source="bot"
+                    )
+                    await query.edit_message_text(
+                        f"✅ *Saved to your Future tab!*\n\n{content}", 
+                        parse_mode="Markdown"
+                    )
+                else:
+                    await query.edit_message_text("I couldn't find your profile to save this. Try talking to me first!")
+                
+                context.user_data.pop('note_draft', None)
+            else:
+                await query.edit_message_text("Oops, I lost that draft. Try sending the /note again!")
+        
+        elif data == "note_discard":
+            await query.edit_message_text("Discarded! No problem. ✨")
+            context.user_data.pop('note_draft', None)
+
+        elif data == "plan_save":
+            draft = context.user_data.get('plan_draft')
+            if draft:
+                from memory.memory_manager_async import memory_manager
+                user = await memory_manager.get_user_by_telegram_id(query.from_user.id)
+                if user:
+                    await memory_manager.add_future_entry(
+                        user_id=user.id,
+                        entry_type='plan',
+                        title=draft['activity'],
+                        content=f"Planned for: {draft['when'].strftime('%Y-%m-%d %H:%M')}" if draft['when'] else "Time TBD",
+                        event_start=draft['when'],
+                        source="bot"
+                    )
+                    await query.edit_message_text(
+                        f"✅ *Plan added to your Future!*\n\n*Activity:* {draft['activity']}", 
+                        parse_mode="Markdown"
+                    )
+                else:
+                    await query.edit_message_text("I couldn't find your profile. Try talking to me first!")
+                context.user_data.pop('plan_draft', None)
+            else:
+                await query.edit_message_text("Oops, I lost that draft. Try sending the /plan again!")
+
+        elif data == "plan_discard":
+            await query.edit_message_text("Discarded! I'll keep an eye out for other plans. ✨")
+            context.user_data.pop('plan_draft', None)
+
+    async def plan_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /plan command."""
+        if not update.message:
+            return
+
+        user_id = update.effective_user.id
+        message_text = " ".join(context.args).strip()
+
+        if message_text:
+            # For simplicity, we assume the whole text is the activity for now.
+            # In a more advanced version, we could parse "at 5pm" etc.
+            await self._show_plan_preview(update, context, message_text, None)
+        else:
+            # Contextual plan extraction
+            await update.message.reply_chat_action(ChatAction.TYPING)
+            from agents.orchestrator import orchestrator
+            plan_suggestion = await orchestrator.suggest_plan(user_id)
+            
+            if plan_suggestion:
+                activity, when = plan_suggestion
+                await self._show_plan_preview(update, context, activity, when, is_suggestion=True)
+            else:
+                await update.message.reply_text(
+                    "I don't see any plans in our recent talk! 🌸\n\n"
+                    "Tell me what you're thinking of doing, like:\n"
+                    "`/plan Yoga tomorrow morning`",
+                    parse_mode="Markdown"
+                )
+
+    async def _show_plan_preview(
+        self, 
+        update: Update, 
+        context: ContextTypes.DEFAULT_TYPE, 
+        activity: str, 
+        when: Optional[datetime],
+        is_suggestion: bool = False
+    ) -> None:
+        """Show a preview of the plan with save/discard options."""
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Add to Plans", callback_data="plan_save"),
+                InlineKeyboardButton("❌ Discard", callback_data="plan_discard")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Store draft info
+        context.user_data['plan_draft'] = {
+            'activity': activity,
+            'when': when
+        }
+        
+        prefix = "✨ *Aki's Suggestion:*\n\n" if is_suggestion else "🎯 *New Plan:*\n\n"
+        time_str = f"Time: {when.strftime('%Y-%m-%d %H:%M')}" if when else "Time: TBD"
+        
+        await update.message.reply_text(
+            f"{prefix}*Activity:* {activity}\n*Time:* {time_str}\n\nShould I add this to your Future tab?",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
     async def _register_commands(self) -> None:
         """Register commands with Telegram to show in the menu."""
         from telegram import BotCommand
         commands = [
             BotCommand("help", "See list of commands"),
+            BotCommand("plan", "Schedule a goal or event"),
+            BotCommand("note", "Save a memo or idea"),
             BotCommand("memory", "Browse our shared memories"),
             BotCommand("app", "Open the dashboard"),
             BotCommand("timezone", "Change your timezone"),

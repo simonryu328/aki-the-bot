@@ -34,6 +34,8 @@ from prompts import (
     MEMORY_PROMPT,
     DAILY_MESSAGE_PROMPT,
     FALLBACK_QUOTES,
+    NOTE_SYNTHESIS_PROMPT,
+    PLAN_SYNTHESIS_PROMPT,
 )
 from prompts.personalized_insights import PERSONALIZED_INSIGHTS_PROMPT
 from prompts.spotify_dj import SPOTIFY_DJ_PROMPT
@@ -1059,6 +1061,79 @@ class SoulAgent:
             logger.error("Failed to generate daily message", user_id=user_id, error=str(e))
             import random
             return random.choice(FALLBACK_QUOTES), True
+
+    async def synthesize_note(
+        self,
+        user: UserSchema,
+        history: List[ConversationSchema],
+    ) -> Optional[str]:
+        """Synthesize a meaningful note from recent conversation history."""
+        try:
+            user_name = user.name or "friend"
+            user_tz_str = await self._get_user_tz(user.id, user)
+            history_text = self._format_history(history, user_name, tz_str=user_tz_str)
+
+            prompt = NOTE_SYNTHESIS_PROMPT.format(
+                user_name=user_name,
+                recent_history=history_text,
+            )
+
+            logger.info(f"Synthesizing note for user {user.id}")
+            response = await llm_client.chat(
+                model=settings.MODEL_CONVERSATION,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+
+            content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
+            
+            if content == "NONE" or not content:
+                # Basic check if it's too short or just a refusal
+                return None
+                
+            return content
+        except Exception as e:
+            logger.error(f"Failed to synthesize note: {e}")
+            return None
+
+    async def synthesize_plan(
+        self,
+        user: UserSchema,
+        history: List[ConversationSchema],
+    ) -> Optional[tuple[str, Optional[datetime]]]:
+        """Synthesize a meaningful plan from recent conversation history."""
+        try:
+            user_name = user.name or "friend"
+            user_tz_str = await self._get_user_tz(user.id, user)
+            history_text = self._format_history(history, user_name, tz_str=user_tz_str)
+
+            prompt = PLAN_SYNTHESIS_PROMPT.format(
+                user_name=user_name,
+                recent_history=history_text,
+            )
+
+            logger.info(f"Synthesizing plan for user {user.id}")
+            response = await llm_client.chat(
+                model=settings.MODEL_CONVERSATION,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+
+            raw = response.content.strip() if hasattr(response, 'content') else str(response).strip()
+            
+            if raw == "NONE" or not raw or "|" not in raw:
+                return None
+            
+            activity, when_str = [x.strip() for x in raw.split("|", 1)]
+            
+            parsed_time = None
+            if when_str != "TBD":
+                parsed_time = self._parse_when_to_datetime(when_str)
+                
+            return activity, parsed_time
+        except Exception as e:
+            logger.error(f"Failed to synthesize plan: {e}")
+            return None
 
     @staticmethod
     def _sanitize_daily_message(raw: str) -> str:

@@ -17,6 +17,8 @@ from prompts.memory import MEMORY_PROMPT
 from prompts.surface import SURFACE_PROMPT
 from prompts.daily_message import DAILY_MESSAGE_PROMPT, FALLBACK_QUOTES
 from prompts.personalized_insights import PERSONALIZED_INSIGHTS_PROMPT
+from prompts.note_synthesis import NOTE_SYNTHESIS_PROMPT
+from prompts.plan_synthesis import PLAN_SYNTHESIS_PROMPT
 
 __all__ = [
     "SYSTEM_FRAME",
@@ -29,4 +31,6 @@ __all__ = [
     "DAILY_MESSAGE_PROMPT",
     "FALLBACK_QUOTES",
     "PERSONALIZED_INSIGHTS_PROMPT",
+    "NOTE_SYNTHESIS_PROMPT",
+    "PLAN_SYNTHESIS_PROMPT",
 ]

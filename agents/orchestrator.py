@@ -4,7 +4,8 @@ Agent Orchestrator - Routes messages to the companion agent.
 Simplified: No phases, no onboarding state. Just a deepening relationship.
 """
 
-from typing import Optional, List
+from datetime import datetime
+from typing import Optional, List, Tuple
 
 from memory.memory_manager_async import memory_manager
 from agents.soul_agent import soul_agent
@@ -132,6 +133,32 @@ class AgentOrchestrator:
             )
 
         return result.messages, result.emoji
+
+    async def suggest_note(self, telegram_id: int) -> Optional[str]:
+        """Synthesize a note from recent conversation context."""
+        user = await self.memory.db.get_user_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        
+        # Fetch recent history
+        history = await self.memory.db.get_recent_conversations(user.id, limit=10)
+        if not history:
+            return None
+            
+        return await self.agent.synthesize_note(user, history)
+
+    async def suggest_plan(self, telegram_id: int) -> Optional[tuple[str, Optional[datetime]]]:
+        """Synthesize a plan from recent conversation context."""
+        user = await self.memory.db.get_user_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        
+        # Fetch recent history
+        history = await self.memory.db.get_recent_conversations(user.id, limit=10)
+        if not history:
+            return None
+            
+        return await self.agent.synthesize_plan(user, history)
 
 
 # Singleton instance
