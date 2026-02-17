@@ -188,14 +188,12 @@ async def spotify_callback(code: Optional[str] = None, state: Optional[str] = No
         
         logger.info(f"Successfully connected Spotify for user {telegram_id}")
         
-        # Redirect back to the mini app
-        redirect_base = settings.MINIAPP_URL if settings.MINIAPP_URL else ""
-        return RedirectResponse(url=f"{redirect_base}/?spotify=success")
+        # Redirect back to the root of the current domain
+        return RedirectResponse(url="/?spotify=success")
         
     except Exception as e:
         logger.error(f"Critical error in Spotify callback: {e}", exc_info=True)
-        redirect_base = settings.MINIAPP_URL if settings.MINIAPP_URL else ""
-        return RedirectResponse(url=f"{redirect_base}/?spotify=error")
+        return RedirectResponse(url="/?spotify=error")
 
 
 @app.post("/api/spotify/disconnect/{telegram_id}")
