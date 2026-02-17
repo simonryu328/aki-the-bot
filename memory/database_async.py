@@ -589,9 +589,9 @@ class AsyncDatabase:
     async def update_user_spotify_tokens(
         self,
         user_id: int,
-        access_token: str,
-        refresh_token: str,
-        expires_at: datetime,
+        access_token: Optional[str] = None,
+        refresh_token: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
     ) -> None:
         """Update user's Spotify tokens."""
         try:

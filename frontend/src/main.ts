@@ -181,7 +181,7 @@ async function fetchDailySoundtrack() {
   if (!userId || !soundtrackContainer) return;
 
   try {
-    const res = await fetch(`/api/spotify/daily-soundtrack/${userId}`);
+    const res = await fetch(`/api/spotify/daily-soundtrack/${userId}?t=${Date.now()}`);
     if (!res.ok) throw new Error('Failed to fetch soundtrack');
     const data: DailySoundtrack = await res.json();
 

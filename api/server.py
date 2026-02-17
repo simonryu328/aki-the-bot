@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi import FastAPI, HTTPException, Request, Query, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -350,22 +350,31 @@ async def get_daily_message(telegram_id: int):
 
 
 @app.get("/api/spotify/daily-soundtrack/{telegram_id}")
-async def get_daily_soundtrack(telegram_id: int):
+async def get_daily_soundtrack(telegram_id: int, response: Optional[Response] = None):
     """
     Get Aki's daily song recommendation for the user.
     Uses 'Daily' Caching: Only generates one track per calendar day.
     """
+    if response:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
     try:
         import pytz
         import json
-        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        # Use a fresh fetch to avoid any cache issues
+        user = await memory_manager.db.get_or_create_user(telegram_id=telegram_id)
+        
+        logger.info(f"Checking soundtrack for user {telegram_id}. Spotify Connected: {user.spotify_refresh_token is not None}")
+        
         user_tz = pytz.timezone(user.timezone or settings.TIMEZONE)
         now_user = datetime.now(user_tz)
         today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # 0. Check connection status first
         if not user.spotify_refresh_token:
-            logger.info(f"User {telegram_id} not connected to Spotify. Skipping soundtrack.")
+            logger.info(f"User {telegram_id} NOT connected to Spotify. Returning False.")
             return {"connected": False}
 
         # 1. Check for cached soundtrack from today
