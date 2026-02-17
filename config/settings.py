@@ -274,6 +274,20 @@ class Settings(BaseSettings):
                     "When False, raw responses are logged at DEBUG level.",
     )
 
+    # Spotify Configuration
+    SPOTIFY_CLIENT_ID: str = Field(
+        default="",
+        description="Spotify Client ID from the Developer Dashboard",
+    )
+    SPOTIFY_CLIENT_SECRET: str = Field(
+        default="",
+        description="Spotify Client Secret from the Developer Dashboard",
+    )
+    SPOTIFY_REDIRECT_URI: str = Field(
+        default="",
+        description="Spotify Redirect URI for OAuth flow",
+    )
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:

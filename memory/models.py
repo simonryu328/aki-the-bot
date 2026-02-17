@@ -48,6 +48,11 @@ class User(Base):
     reach_out_min_silence_hours = Column(Integer, default=6, nullable=False)
     reach_out_max_silence_days = Column(Integer, default=3, nullable=False)
     last_reach_out_at = Column(DateTime, nullable=True)
+    
+    # Spotify Integration
+    spotify_access_token = Column(Text, nullable=True)
+    spotify_refresh_token = Column(Text, nullable=True)
+    spotify_token_expires_at = Column(DateTime, nullable=True)
 
     # Relationships
     diary_entries = relationship("DiaryEntry", back_populates="user", cascade="all, delete-orphan")

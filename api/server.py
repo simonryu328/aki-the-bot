@@ -19,6 +19,8 @@ from agents.soul_agent import soul_agent
 from schemas import DiaryEntrySchema, CalendarEventSchema, CalendarEventCreate, DailyMessageSchema
 from telegram import Update, Message
 from sqlalchemy import select, delete as sa_delete
+from utils.spotify_manager import spotify_manager
+from fastapi.responses import RedirectResponse
 
 # Configure logging
 logging.basicConfig(
@@ -132,6 +134,64 @@ async def complete_user_setup(telegram_id: int, req: SetupRequest):
     except Exception as e:
         logger.error(f"Error completing user setup: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Spotify Integration Endpoints ─────────────────────────────────────
+
+@app.get("/api/spotify/login/{telegram_id}")
+async def spotify_login(telegram_id: int):
+    """Initiate Spotify OAuth flow."""
+    auth_url = spotify_manager.get_auth_url(state=str(telegram_id))
+    if not auth_url:
+        raise HTTPException(status_code=500, detail="Spotify integration not configured.")
+    return {"url": auth_url}
+
+
+@app.get("/api/spotify/callback")
+async def spotify_callback(code: str, state: str):
+    """Handle Spotify OAuth callback."""
+    try:
+        telegram_id = int(state)
+        token_info = await spotify_manager.get_token_from_code(code)
+        
+        if not token_info:
+            raise HTTPException(status_code=400, detail="Failed to retrieve token from Spotify.")
+            
+        # Store tokens in DB
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        expires_at = datetime.utcnow() + timedelta(seconds=token_info['expires_in'])
+        
+        await db.update_user_spotify_tokens(
+            user_id=user.id,
+            access_token=token_info['access_token'],
+            refresh_token=token_info['refresh_token'],
+            expires_at=expires_at
+        )
+        
+        # Evict from cache
+        if user.id in memory_manager._user_cache:
+            del memory_manager._user_cache[user.id]
+
+        # Redirect back to the mini app
+        return RedirectResponse(url=f"{settings.MINIAPP_URL}/?spotify=success")
+        
+    except Exception as e:
+        logger.error(f"Error in Spotify callback: {e}")
+        return RedirectResponse(url=f"{settings.MINIAPP_URL}/?spotify=error")
+
+
+@app.get("/api/spotify/status/{telegram_id}")
+async def get_spotify_status(telegram_id: int):
+    """Check if user has connected Spotify."""
+    try:
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        return {
+            "connected": user.spotify_refresh_token is not None,
+            "expires_at": user.spotify_token_expires_at
+        }
+    except Exception as e:
+        logger.error(f"Error checking Spotify status: {e}")
+        return {"connected": False}
 
 
 @app.get("/api/memories/{telegram_id}", response_model=list[DiaryEntrySchema])

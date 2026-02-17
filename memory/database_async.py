@@ -586,6 +586,28 @@ class AsyncDatabase:
             logger.error("Failed to update user profile", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to update user profile: {e}")
 
+    async def update_user_spotify_tokens(
+        self,
+        user_id: int,
+        access_token: str,
+        refresh_token: str,
+        expires_at: datetime,
+    ) -> None:
+        """Update user's Spotify tokens."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                if user:
+                    user.spotify_access_token = access_token
+                    user.spotify_refresh_token = refresh_token
+                    user.spotify_token_expires_at = expires_at
+                    session.add(user)
+                    logger.info("Updated Spotify tokens", user_id=user_id)
+        except SQLAlchemyError as e:
+            logger.error("Failed to update Spotify tokens", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to update Spotify tokens: {e}")
+
     # ==================== Token Usage Operations ====================
 
     async def record_token_usage(

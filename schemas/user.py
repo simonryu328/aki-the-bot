@@ -52,5 +52,10 @@ class UserSchema(UserBaseSchema):
     reach_out_min_silence_hours: int = Field(6, description="Minimum hours of silence before reaching out")
     reach_out_max_silence_days: int = Field(3, description="Maximum days to keep trying reach-outs")
     last_reach_out_at: Optional[datetime] = Field(None, description="When bot last reached out")
+    
+    # Spotify Integration
+    spotify_access_token: Optional[str] = Field(None)
+    spotify_refresh_token: Optional[str] = Field(None)
+    spotify_token_expires_at: Optional[datetime] = Field(None)
 
     model_config = ConfigDict(from_attributes=True)
