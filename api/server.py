@@ -20,7 +20,7 @@ from schemas import DiaryEntrySchema, CalendarEventSchema, CalendarEventCreate, 
 from telegram import Update, Message
 from sqlalchemy import select, delete as sa_delete
 from utils.spotify_manager import spotify_manager
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 
 # Configure logging
 logging.basicConfig(
@@ -188,12 +188,36 @@ async def spotify_callback(code: Optional[str] = None, state: Optional[str] = No
         
         logger.info(f"Successfully connected Spotify for user {telegram_id}")
         
-        # Redirect back to the root of the current domain
-        return RedirectResponse(url="/?spotify=success")
+        # Return a success HTML page instead of a raw redirect. 
+        # This prevents the "App in Safari" issue and gives user a clear path back.
+        return HTMLResponse(content=f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Aki Connected!</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body {{ font-family: -apple-system, system-ui; text-align: center; padding: 40px; background: #000; color: white; }}
+                    .card {{ background: #111; padding: 30px; border-radius: 20px; border: 1px solid #333; }}
+                    .btn {{ display: inline-block; background: #1DB954; color: white; text-decoration: none; 
+                           padding: 15px 30px; border-radius: 30px; font-weight: bold; margin-top: 20px; }}
+                    h1 {{ color: #1DB954; }}
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h1>Aki is Connected!</h1>
+                    <p>I can now hear the music in your head. 🎵</p>
+                    <p>You can close this window and go back to Telegram.</p>
+                    <a href="tg://resolve" class="btn">Back to Aki</a>
+                </div>
+            </body>
+            </html>
+        """)
         
     except Exception as e:
         logger.error(f"Critical error in Spotify callback: {e}", exc_info=True)
-        return RedirectResponse(url="/?spotify=error")
+        return HTMLResponse(content="<h1>Connection Failed</h1><p>Something went wrong. Please try again from the app.</p>", status_code=500)
 
 
 @app.post("/api/spotify/disconnect/{telegram_id}")
