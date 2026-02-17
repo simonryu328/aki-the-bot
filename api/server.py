@@ -180,6 +180,26 @@ async def spotify_callback(code: str, state: str):
         return RedirectResponse(url=f"{settings.MINIAPP_URL}/?spotify=error")
 
 
+@app.post("/api/spotify/disconnect/{telegram_id}")
+async def spotify_disconnect(telegram_id: int):
+    """Disconnect user's Spotify account."""
+    try:
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        await db.update_user_spotify_tokens(
+            user_id=user.id,
+            access_token=None,
+            refresh_token=None,
+            expires_at=None
+        )
+        # Evict from cache
+        if user.id in memory_manager._user_cache:
+            del memory_manager._user_cache[user.id]
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error disconnecting Spotify: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/spotify/status/{telegram_id}")
 async def get_spotify_status(telegram_id: int):
     """Check if user has connected Spotify."""

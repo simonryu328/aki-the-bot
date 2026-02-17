@@ -17,6 +17,7 @@ interface TelegramUser {
 interface TelegramWebApp {
   ready: () => void;
   expand: () => void;
+  openLink: (url: string) => void;
   disableVerticalSwipes: () => void;
   setHeaderColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
@@ -173,6 +174,8 @@ const todayComingSoon = document.getElementById('todayComingSoon') as HTMLElemen
 
 // ── Soundtrack Logic ────────────────────────────────
 
+const disconnectSpotifyBtn = document.getElementById('disconnectSpotifyBtn') as HTMLButtonElement;
+
 async function fetchDailySoundtrack() {
   const userId = getUserId();
   if (!userId || !soundtrackContainer) return;
@@ -197,6 +200,14 @@ function renderSoundtrack(data: DailySoundtrack) {
   soundtrackConnect?.classList.add('hidden');
   soundtrackCard?.classList.add('hidden');
 
+  // Handle Error State
+  if (data.error) {
+    soundtrackLoading?.classList.remove('hidden');
+    const p = soundtrackLoading.querySelector('p');
+    if (p) p.textContent = 'Aki couldn\'t reach Spotify. Try again?';
+    return;
+  }
+
   if (!data.connected) {
     soundtrackConnect?.classList.remove('hidden');
     return;
@@ -217,14 +228,42 @@ function renderSoundtrack(data: DailySoundtrack) {
 connectSpotifyBtn?.addEventListener('click', () => {
   const userId = getUserId();
   if (userId) {
+    if (tg) tg.HapticFeedback.impactOccurred('medium');
+
     fetch(`/api/spotify/login/${userId}`)
       .then(res => res.json())
       .then(data => {
         if (data.url) {
-          window.location.href = data.url;
+          // IMPORTANT: openLink is required for Desktop Web to avoid iframe blocks
+          if (tg) {
+            tg.openLink(data.url);
+          } else {
+            window.location.href = data.url;
+          }
         }
       })
-      .catch(err => console.error('Spotify login failed:', err));
+      .catch(err => {
+        console.error('Spotify login failed:', err);
+        alert("Couldn't start Spotify connection. Please check your network.");
+      });
+  }
+});
+
+disconnectSpotifyBtn?.addEventListener('click', async () => {
+  const userId = getUserId();
+  if (!userId) return;
+
+  if (!confirm('Disconnect your Spotify account from Aki?')) return;
+
+  try {
+    const res = await fetch(`/api/spotify/disconnect/${userId}`, { method: 'POST' });
+    if (res.ok) {
+      if (tg) tg.HapticFeedback.notificationOccurred('success');
+      // Update UI state immediately
+      renderSoundtrack({ connected: false });
+    }
+  } catch (err) {
+    console.error('Failed to disconnect Spotify:', err);
   }
 });
 
