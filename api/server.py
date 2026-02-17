@@ -214,7 +214,7 @@ async def spotify_callback(code: Optional[str] = None, state: Optional[str] = No
                     <h1>Aki is Connected!</h1>
                     <p>I can now hear the music in your head. 🎵</p>
                     <p>You can close this window and go back to Telegram.</p>
-                    <a href="https://t.me/aki_the_bot/app?startapp=spotify_success" class="btn">Back to Aki</a>
+                    <a href="https://t.me/aki_the_bot/aki?startapp=spotify_success" class="btn">Back to Aki</a>
                 </div>
             </body>
             </html>
