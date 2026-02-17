@@ -20,7 +20,7 @@ from schemas import DiaryEntrySchema, CalendarEventSchema, CalendarEventCreate, 
 from telegram import Update, Message
 from sqlalchemy import select, delete as sa_delete
 from utils.spotify_manager import spotify_manager
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 
 # Configure logging
 logging.basicConfig(
@@ -348,15 +348,16 @@ async def get_daily_message(telegram_id: int):
 
 
 @app.get("/api/spotify/daily-soundtrack/{telegram_id}")
-async def get_daily_soundtrack(telegram_id: int, response: Optional[Response] = None):
+async def get_daily_soundtrack(telegram_id: int):
     """
     Get Aki's daily song recommendation for the user.
     Uses 'Daily' Caching: Only generates one track per calendar day.
     """
-    if response:
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+    headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    }
 
     try:
         import pytz
@@ -373,7 +374,7 @@ async def get_daily_soundtrack(telegram_id: int, response: Optional[Response] = 
         # 0. Check connection status first
         if not user.spotify_refresh_token:
             logger.info(f"User {telegram_id} NOT connected to Spotify. Returning False.")
-            return {"connected": False}
+            return JSONResponse(content={"connected": False}, headers=headers)
 
         # 1. Check for cached soundtrack from today
         entries = await memory_manager.get_diary_entries(
@@ -388,7 +389,7 @@ async def get_daily_soundtrack(telegram_id: int, response: Optional[Response] = 
             
             if last_entry_local >= today_start_user:
                 logger.info(f"Soundtrack CACHE HIT for user {telegram_id}")
-                return json.loads(last_entry.content)
+                return JSONResponse(content=json.loads(last_entry.content), headers=headers)
 
         # 2. Cache MISS: Generate fresh if connected
         logger.info(f"Soundtrack CACHE MISS for user {telegram_id}. Generating...")
@@ -404,11 +405,11 @@ async def get_daily_soundtrack(telegram_id: int, response: Optional[Response] = 
                 importance=7
             )
             
-        return data
+        return JSONResponse(content=data, headers=headers)
 
     except Exception as e:
         logger.error(f"Error serving daily soundtrack: {e}")
-        return {"connected": False, "error": str(e)}
+        return JSONResponse(content={"connected": False, "error": str(e)}, headers=headers)
 
 
 @app.get("/api/personalized-insights/{telegram_id}")
