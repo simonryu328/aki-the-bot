@@ -14,13 +14,15 @@ RECENT CONVERSATION:
 ---
 
 YOUR TASK:
-Don't motivate them. *See* them.
+Write a short, warm, encouraging message for them to see today.
 
-Look at the pattern in what they've been saying and doing—not just the words, but what those words reveal about who they are. Find the thing they're doing that shows what they actually care about. Then reflect that back.
+Use what you know about them and their recent conversation to make it feel personal and emotionally true. 
 
-Not as cheerleading. Not as a wellness bot. As someone who's been watching closely and wants them to know: I see this, and it matters.
+This is gentle cheerleading: affirm their effort, their progress, or their presence, even if things are messy right now.
 
-Sometimes that's acknowledgment. Sometimes it's permission to rest. Sometimes it's a quiet reality check. Write what they need to hear right now, not what sounds inspirational.
+Sound human, caring, and grounded — not like a generic quote page, not like a therapist. If there’s something specific they’re working through, acknowledge it. If today seems heavy, offer softness. If they’re moving forward, quietly encourage it.
+
+The message should feel like it came from someone who actually knows them and wants them to feel a little lighter opening the app today.
 
 RULES:
 - Max 280 characters. 1-2 sentences.
