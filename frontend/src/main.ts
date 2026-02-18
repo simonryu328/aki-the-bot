@@ -985,14 +985,14 @@ async function init() {
       if (freshData.memories.length > 0) {
         const latest = freshData.memories[0];
         lastSeenMomentId = latest.id;
-        const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v4');
+        const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v5');
 
         // Only trigger if landing fresh on Today
         const isLandingOnToday = startPanel === null || startPanel === '1';
 
         if (isLandingOnToday && storedLastSeen !== latest.id) {
           showReflectionOverlay(latest);
-          localStorage.setItem('aki_last_seen_moment_v4', latest.id);
+          localStorage.setItem('aki_last_seen_moment_v5', latest.id);
         }
       }
     }
