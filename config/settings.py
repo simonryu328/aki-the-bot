@@ -77,7 +77,7 @@ class Settings(BaseSettings):
         description="Model for generating daily motivational messages",
     )
     MODEL_INSIGHTS: str = Field(
-        default="claude-sonnet-4-5-20250929",
+        default="claude-haiku-4-5-20251001",
         description="Model for generating fun personalized insights",
     )
 
