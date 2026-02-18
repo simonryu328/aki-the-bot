@@ -1140,7 +1140,6 @@ class SoulAgent:
                     output_tokens=response.output_tokens,
                     total_tokens=response.total_tokens,
                     call_type="synthesize_plan",
-                    call_type="synthesize_plan",
                 )
 
             raw = response.content.strip() if hasattr(response, 'content') else str(response).strip()
