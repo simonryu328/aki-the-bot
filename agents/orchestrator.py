@@ -129,6 +129,7 @@ class AgentOrchestrator:
                     cache_read_tokens=result.usage.cache_read_tokens,
                     cache_creation_tokens=result.usage.cache_creation_tokens,
                     call_type="conversation",
+                    cost=result.usage.cost,
                 )
             )
 

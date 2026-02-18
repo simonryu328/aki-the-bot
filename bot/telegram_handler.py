@@ -1209,14 +1209,28 @@ class TelegramBot:
             # Log the full prompt for debugging
             logger.info(f"\n{'='*80}\nREACH-OUT PROMPT FOR USER {user_id} ({user_name}):\n{'='*80}\n{prompt}\n{'='*80}\n")
 
-            message = await llm_client.chat(
+            llm_response = await llm_client.chat_with_usage(
                 model=settings.MODEL_PROACTIVE,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.9,
                 max_tokens=200,
             )
 
-            message = message.strip()
+            message = llm_response.content.strip()
+
+            # Record token usage for reach-out
+            if llm_response.total_tokens > 0:
+                await memory_manager.record_token_usage(
+                    user_id=user_id,
+                    model=llm_response.model,
+                    input_tokens=llm_response.input_tokens,
+                    output_tokens=llm_response.output_tokens,
+                    total_tokens=llm_response.total_tokens,
+                    cache_read_tokens=llm_response.cache_read_tokens,
+                    cache_creation_tokens=llm_response.cache_creation_tokens,
+                    call_type="reach_out",
+                    cost=llm_response.cost,
+                )
 
             # Log the LLM response
             logger.info(f"\n{'='*80}\nREACH-OUT RESPONSE FOR USER {user_id} ({user_name}):\n{'='*80}\n{message}\n{'='*80}\n")

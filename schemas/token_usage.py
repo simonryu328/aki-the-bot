@@ -17,6 +17,7 @@ class TokenUsageCreateSchema(BaseModel):
     cache_read_tokens: int = Field(default=0, ge=0, description="Tokens read from cache")
     cache_creation_tokens: int = Field(default=0, ge=0, description="Tokens written to cache")
     call_type: str = Field(..., description="Type of LLM call (conversation, compact, observation, proactive, reach_out)")
+    cost: Optional[float] = Field(None, description="Estimated cost in USD")
 
 
 class TokenUsageSchema(TokenUsageCreateSchema):

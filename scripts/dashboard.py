@@ -183,6 +183,7 @@ def load_token_usage(user_id: int):
         from sqlalchemy import inspect
         inst = inspect(TokenUsage)
         has_cache_cols = "cache_read_tokens" in [c.key for c in inst.mapper.column_attrs]
+        has_cost_col = "cost" in [c.key for c in inst.mapper.column_attrs]
         
         # Get usage grouped by date and model
         cols = [
@@ -197,6 +198,9 @@ def load_token_usage(user_id: int):
             cols.append(func.sum(TokenUsage.cache_read_tokens).label("cache_read"))
             cols.append(func.sum(TokenUsage.cache_creation_tokens).label("cache_creation"))
             
+        if has_cost_col:
+            cols.append(func.sum(TokenUsage.cost).label("cost"))
+            
         usage = session.execute(
             select(*cols)
             .where(TokenUsage.user_id == user_id)
@@ -205,13 +209,17 @@ def load_token_usage(user_id: int):
         ).all()
 
         # Get usage breakdown by call_type
+        by_type_cols = [TokenUsage.call_type, func.sum(TokenUsage.total_tokens)]
+        if has_cost_col:
+            by_type_cols.append(func.sum(TokenUsage.cost))
+
         by_type = session.execute(
-            select(TokenUsage.call_type, func.sum(TokenUsage.total_tokens))
+            select(*by_type_cols)
             .where(TokenUsage.user_id == user_id)
             .group_by(TokenUsage.call_type)
         ).all()
 
-        return usage, {t: count for t, count in by_type}
+        return usage, by_type
     finally:
         session.close()
 
@@ -633,7 +641,7 @@ with tab_usage:
 
         # 3. Model & Cost Breakdown
         st.subheader("Model Breakdown & Est. Cost")
-        # Pricing per 1M tokens (ballpark estimates)
+        # Pricing per 1M tokens (ballpark estimates for legacy records)
         PRICING = {
             "gpt-4o": {"in": 2.50, "out": 10.00},
             "gpt-4o-mini": {"in": 0.15, "out": 0.60},
@@ -648,31 +656,36 @@ with tab_usage:
         total_est_cost = 0
         total_saved = 0
         
-        # Anthropic Prompt Caching Pricing (per 1M tokens)
-        # Write (Creation): $3.75 (Sonnet) / $0.30 (Haiku) -> ~1.25x base price?
-        # Read (Hit): $0.30 (Sonnet) / $0.03 (Haiku) -> ~0.1x base price
-        # For simplicity, we compare (Cache Read * Input Price) vs (Cache Read * 0.1 * Input Price)
-        
         for u in usage_data:
-            # Try to match pricing
-            m_name = u.model.split("/")[-1]
-            price = PRICING.get(m_name, PRICING.get("default", {"in": 0, "out": 0}))
+            # Check if we have recorded cost
+            recorded_cost = getattr(u, "cost", None)
             
-            # Base cost of standard tokens
-            base_input = u.input - getattr(u, "cache_read", 0) - getattr(u, "cache_creation", 0)
-            cost_base = (base_input / 1_000_000 * price["in"]) + (u.output / 1_000_000 * price["out"])
+            if recorded_cost is not None:
+                day_cost = recorded_cost
+                # We can't easily calculate savings from recorded cost alone without the full breakdown,
+                # but for Gemini/LiteLLM we might not even have cache savings anyway.
+                saved = 0 
+            else:
+                # Fallback to legacy estimation
+                m_name = u.model.split("/")[-1]
+                price = PRICING.get(m_name, PRICING.get("default", {"in": 0, "out": 0}))
+                
+                # Base cost of standard tokens
+                base_input = u.input - getattr(u, "cache_read", 0) - getattr(u, "cache_creation", 0)
+                cost_base = (base_input / 1_000_000 * price["in"]) + (u.output / 1_000_000 * price["out"])
+                
+                # Cache creation (usually 1.25x price)
+                cost_creation = (getattr(u, "cache_creation", 0) / 1_000_000 * price["in"] * 1.25)
+                
+                # Cache read (usually 0.1x price)
+                cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"] * 0.1)
+                
+                # Savings: What it WOULD have cost minus what it DID cost
+                would_have_cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"])
+                saved = would_have_cost_read - cost_read
+                
+                day_cost = cost_base + cost_creation + cost_read
             
-            # Cache creation (usually 1.25x price)
-            cost_creation = (getattr(u, "cache_creation", 0) / 1_000_000 * price["in"] * 1.25)
-            
-            # Cache read (usually 0.1x price)
-            cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"] * 0.1)
-            
-            # Savings: What it WOULD have cost minus what it DID cost
-            would_have_cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"])
-            saved = would_have_cost_read - cost_read
-            
-            day_cost = cost_base + cost_creation + cost_read
             total_est_cost += day_cost
             total_saved += saved
             
@@ -681,6 +694,7 @@ with tab_usage:
                 "Model": u.model,
                 "Total Tokens": u.total,
                 "Cache Hits": getattr(u, "cache_read", 0),
+                "Recorded Cost": "✅" if recorded_cost is not None else "❌ (Est)",
                 "Est. Cost ($)": f"${day_cost:.4f}"
             })
         
@@ -696,10 +710,23 @@ with tab_usage:
         # 4. Call Type Distribution
         st.subheader("Call Type Distribution")
         if type_breakdown:
-            df_type = pd.DataFrame([
-                {"Call Type": k, "Tokens": v} for k, v in type_breakdown.items()
-            ])
-            st.bar_chart(df_type.set_index("Call Type"))
+            type_data = []
+            for item in type_breakdown:
+                call_type = item[0]
+                tokens = item[1]
+                cost = item[2] if len(item) > 2 else None
+                
+                row = {"Call Type": call_type, "Tokens": tokens}
+                if cost is not None:
+                    row["Cost ($)"] = round(cost, 4)
+                type_data.append(row)
+                
+            df_type = pd.DataFrame(type_data)
+            st.bar_chart(df_type.set_index("Call Type")["Tokens"])
+            
+            if "Cost ($)" in df_type.columns:
+                st.markdown("**Cost by Call Type:**")
+                st.dataframe(df_type[["Call Type", "Cost ($)"]].sort_values("Cost ($)", ascending=False))
 
     usage_content(selected_user_id)
 

@@ -622,6 +622,7 @@ class AsyncDatabase:
         cache_read_tokens: int = 0,
         cache_creation_tokens: int = 0,
         call_type: str = "conversation",
+        cost: Optional[float] = None,
     ) -> TokenUsageSchema:
         """Record an LLM token usage event."""
         try:
@@ -635,6 +636,7 @@ class AsyncDatabase:
                     cache_read_tokens=cache_read_tokens,
                     cache_creation_tokens=cache_creation_tokens,
                     call_type=call_type,
+                    cost=cost,
                     timestamp=datetime.utcnow(),
                 )
                 session.add(usage)

@@ -318,6 +318,7 @@ class AsyncMemoryManager:
         cache_read_tokens: int = 0,
         cache_creation_tokens: int = 0,
         call_type: str = "conversation",
+        cost: Optional[float] = None,
     ) -> None:
         """
         Record token usage for an LLM call.
@@ -329,10 +330,11 @@ class AsyncMemoryManager:
             output_tokens: Output/completion token count
             total_tokens: Total token count
             call_type: Type of call (conversation, compact, observation, proactive, reach_out)
+            cost: Estimated cost in USD
         """
         await self.db.record_token_usage(
             user_id, model, input_tokens, output_tokens, total_tokens, 
-            cache_read_tokens, cache_creation_tokens, call_type
+            cache_read_tokens, cache_creation_tokens, call_type, cost
         )
 
     async def get_user_token_usage_today(self, user_id: int) -> int:
