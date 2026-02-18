@@ -630,6 +630,18 @@ class AsyncDatabase:
                 
                 # Delete Conversations (even if cascade exists, explicit delete is safer for bulk)
                 await session.execute(delete(Conversation).where(Conversation.user_id == user_id))
+
+                # Handle legacy table 'memorable_quotes' which causes FK violations
+                # It references diary_entries via source_diary_id (based on constraint name)
+                from sqlalchemy import text
+                try:
+                    await session.execute(
+                        text("DELETE FROM memorable_quotes WHERE source_diary_id IN (SELECT id FROM diary_entries WHERE user_id = :uid)"), 
+                        {"uid": user_id}
+                    )
+                except Exception as e:
+                    # Ignore if table doesn't exist, but log warning
+                    logger.warning(f"Cleanup of memorable_quotes failed (ignoring): {e}")
                 
                 # Delete Diary Entries
                 await session.execute(delete(DiaryEntry).where(DiaryEntry.user_id == user_id))
