@@ -1456,9 +1456,10 @@ body {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(var(--tg-theme-bg-color-rgb, 255, 255, 255), 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(0, 0, 0, 0.4);
+  /* Darker, more transparent tint */
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1467,7 +1468,7 @@ body {
   text-align: center;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.5s ease;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
 }
 
 .reflection-overlay.show {
@@ -1479,8 +1480,8 @@ body {
   background: var(--section-bg);
   border-radius: var(--radius-xl);
   padding: 32px;
-  border: 1px solid var(--separator);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
   max-width: 320px;
   width: 100%;
   transform: scale(0.9) translateY(20px);

@@ -843,20 +843,23 @@ function showReflectionOverlay(entry: JournalEntry) {
   if (!reflectionOverlay || !reflectionTitle || !reflectionPeek || !reflectionBtn) return;
 
   reflectionTitle.textContent = entry.title || 'Recent Reflection';
-  // EXPANDED TEXT: Show full content in the overlay now
-  reflectionPeek.textContent = entry.content;
+  // TRUNCATED TEXT: User requested truncation again
+  reflectionPeek.textContent = truncateText(entry.content, 180);
   reflectionOverlay.classList.remove('hidden');
 
-  // TRIGGER CONFETTI
-  if (window.confetti) {
-    window.confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead'],
-      disableForReducedMotion: true
-    });
-  }
+  // TRIGGER CONFETTI (with a slight delay to ensure it's seen after transition)
+  setTimeout(() => {
+    if (window.confetti) {
+      window.confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead'],
+        disableForReducedMotion: true,
+        zIndex: 3000 // Ensure it's above the overlay
+      });
+    }
+  }, 300);
 
   // Minimal delay for transition
   setTimeout(() => reflectionOverlay.classList.add('show'), 50);
@@ -942,6 +945,14 @@ async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   const startPanel = urlParams.get('start_panel');
 
+  // 2. Early Positioning: Default to Today (panel 1) immediately
+  if (startPanel !== null) {
+    const pIdx = parseInt(startPanel);
+    if (!isNaN(pIdx)) goToPanel(pIdx);
+  } else {
+    goToPanel(1);
+  }
+
   if (!userId) {
     splashScreen?.classList.add('fade-out');
     alert("Please open this app from within Telegram.");
@@ -975,7 +986,11 @@ async function init() {
         const latest = freshData.memories[0];
         lastSeenMomentId = latest.id;
         const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v4');
-        if (startPanel === null && storedLastSeen !== latest.id) {
+
+        // Only trigger if landing fresh on Today
+        const isLandingOnToday = startPanel === null || startPanel === '1';
+
+        if (isLandingOnToday && storedLastSeen !== latest.id) {
           showReflectionOverlay(latest);
           localStorage.setItem('aki_last_seen_moment_v4', latest.id);
         }
@@ -983,19 +998,6 @@ async function init() {
     }
   } catch (err) {
     console.error('Failed to fetch dashboard:', err);
-  }
-
-  // 4. Handle Deep Linking / Specific Panels
-  if (startPanel !== null) {
-    const panelIndex = parseInt(startPanel);
-    if (!isNaN(panelIndex)) {
-      setTimeout(() => goToPanel(panelIndex), 300);
-    }
-    if (allEntries.length > 0) {
-      localStorage.setItem('aki_last_seen_moment_v4', allEntries[0].id);
-    }
-  } else if (!cachedData) {
-    goToPanel(1); // Default to Today if no cache
   }
 
   // 5. Start Real-time polling
