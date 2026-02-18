@@ -526,12 +526,9 @@ async def ask_question(telegram_id: int, payload: dict):
         user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
         
         # 1. Send the question back to the chat so there's context
-        # We format it slightly so it's clear it's the "Ask Aki" prompt
-        await bot.application.bot.send_message(
-            chat_id=telegram_id, 
-            text=f"Prompt: {question}",
-            parse_mode=None
-        )
+        # Format as an italicized quote to distinguish from the response
+        prompt_text = f"_You asked:_ *{question}*"
+        await bot._send_with_typing(chat_id=telegram_id, text=prompt_text)
 
         # 2. Let the bot "think" it received this message
         messages, emoji = await orchestrator.process_message(
@@ -541,9 +538,9 @@ async def ask_question(telegram_id: int, payload: dict):
             username=user.username,
         )
 
-        # 3. Send the responses
+        # 3. Send the responses with typing animation
         for msg in messages:
-            await bot.application.bot.send_message(chat_id=telegram_id, text=msg)
+            await bot._send_with_typing(chat_id=telegram_id, text=msg)
         
         return {"status": "success"}
     except Exception as e:

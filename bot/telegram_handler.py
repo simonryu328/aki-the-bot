@@ -297,7 +297,7 @@ class TelegramBot:
             elapsed += sleep_time
         
         try:
-            await self.application.bot.send_message(chat_id=chat_id, text=text)
+            await self.application.bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown")
         except (TimedOut, NetworkError, httpx.ReadError) as e:
             logger.error(f"Failed to send message due to timeout/network error: {e}")
             # Retry once after a brief delay

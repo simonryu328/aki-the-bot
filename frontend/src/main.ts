@@ -633,7 +633,9 @@ function renderPersonalizedInsights(data: PersonalizedInsights) {
               tg.HapticFeedback.notificationOccurred('success');
               // Close immediately or with tiny delay
               console.log("Closing WebApp...");
-              tg.close();
+              setTimeout(() => {
+                tg.close();
+              }, 100);
             }
           } else {
             throw new Error("Failed to send");
