@@ -651,12 +651,12 @@ class SoulAgent:
             conversation_history: Pre-fetched conversation history (optional, will fetch if not provided)
         """
         try:
-            # 1. Get last compact timestamp
+            # 1. Get last compact or memory timestamp
             diary_entries = await self.memory.get_diary_entries(user_id, limit=settings.DIARY_FETCH_LIMIT)
-            last_compact = None
+            last_anchor = None
             for entry in diary_entries:
-                if entry.entry_type == 'compact_summary':
-                    last_compact = entry.timestamp
+                if entry.entry_type in ['compact_summary', 'conversation_memory']:
+                    last_anchor = entry.timestamp
                     break
             
             # 2. Fetch conversations to check threshold - ignore passed history for checking
@@ -664,13 +664,13 @@ class SoulAgent:
             # lower than COMPACT_INTERVAL (30), causing triggers to never fire.
             threshold = max(settings.COMPACT_INTERVAL, settings.MEMORY_ENTRY_INTERVAL)
             
-            if last_compact:
-                # Fetch messages after last compact with enough limit to hit threshold
+            if last_anchor:
+                # Fetch messages after last anchor with enough limit to hit threshold
                 all_convos = await self.memory.db.get_conversations_after(
-                    user_id, last_compact, limit=max(100, threshold + 10)
+                    user_id, last_anchor, limit=max(100, threshold + 10)
                 )
             else:
-                # No compact exists, fetch recent history
+                # No anchor exists, fetch recent history
                 all_convos = await self.memory.db.get_recent_conversations(
                     user_id, limit=max(100, threshold + 10)
                 )
@@ -892,25 +892,27 @@ class SoulAgent:
             )
             
             # Generate memory entry
-            result = await llm_client.chat(
+            result = await llm_client.chat_with_usage(
                 model=settings.MODEL_MEMORY,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.5,  # Slightly higher temperature for more natural, personal writing
                 max_tokens=settings.MEMORY_MAX_TOKENS,
             )
             
+            memory_text = result.content
+            
             logger.debug(
                 "Memory entry generated", 
                 user_id=user_id, 
-                memory_length=len(result),
-                memory=result[:100]
+                memory_length=len(memory_text),
+                memory=memory_text[:100]
             )
             
             # Store memory as a diary entry with type "conversation_memory"
-            if result and result.strip():
+            if memory_text and memory_text.strip():
                 # Parse title and content from tags
-                title_match = re.search(r'<title>(.*?)</title>', result, re.DOTALL)
-                memory_match = re.search(r'<memory>(.*?)</memory>', result, re.DOTALL)
+                title_match = re.search(r'<title>(.*?)</title>', memory_text, re.DOTALL)
+                memory_match = re.search(r'<memory>(.*?)</memory>', memory_text, re.DOTALL)
                 
                 if title_match and memory_match:
                     title = title_match.group(1).strip()
@@ -918,7 +920,7 @@ class SoulAgent:
                 else:
                     # Fallback for old format or if parsing fails
                     title = "Conversation Memory"
-                    memory_content = result.strip()
+                    memory_content = memory_text.strip()
                     # Remove any stray tags if present
                     memory_content = re.sub(r'</?memory>', '', memory_content).strip()
                     memory_content = re.sub(r'</?title>', '', memory_content).strip()
@@ -932,15 +934,15 @@ class SoulAgent:
                     exchange_end_dt = last_conv.timestamp  # Store as UTC
                 
                 # Record token usage for memory entry
-                if result.usage and result.usage.total_tokens > 0:
+                if result.total_tokens > 0:
                     await self.memory.record_token_usage(
                         user_id=user_id,
-                        model=result.usage.model,
-                        input_tokens=result.usage.input_tokens,
-                        output_tokens=result.usage.output_tokens,
-                        total_tokens=result.usage.total_tokens,
-                        cache_read_tokens=result.usage.cache_read_tokens,
-                        cache_creation_tokens=result.usage.cache_creation_tokens,
+                        model=result.model,
+                        input_tokens=result.input_tokens,
+                        output_tokens=result.output_tokens,
+                        total_tokens=result.total_tokens,
+                        cache_read_tokens=result.cache_read_tokens,
+                        cache_creation_tokens=result.cache_creation_tokens,
                         call_type="memory",
                     )
                 
