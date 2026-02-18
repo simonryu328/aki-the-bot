@@ -242,7 +242,7 @@ class SoulAgent:
             usage=llm_response,
         )
 
-        # Background: Create compact summary logic
+        # Background: Create diary entries (memories)
         asyncio.create_task(
             self._maybe_create_compact_summary(
                 user_id=user_id,
@@ -286,26 +286,10 @@ class SoulAgent:
         
         # Filter into pools (diary_entries is newest first)
         all_memories = [e for e in diary_entries if e.entry_type == 'conversation_memory']
-        all_summaries = [e for e in diary_entries if e.entry_type == 'compact_summary']
         
-        # 1. Take up to 2 most recent summaries (Ranges 1 and 2)
-        summary_entries = all_summaries[:settings.COMPACT_SUMMARY_LIMIT]
+        # Use memories for recent exchanges
+        memory_entries = all_memories[:settings.MEMORY_ENTRY_LIMIT] 
         
-        # 2. Determine cutoff: the earliest point covered by selected summaries
-        cutoff = None
-        if summary_entries:
-            oldest_summary = summary_entries[-1]
-            cutoff = oldest_summary.exchange_start or oldest_summary.timestamp
-            
-        # 3. Take up to 2 most recent memories that are OLDER than the summaries (Ranges 3 and 4)
-        if cutoff:
-            # We look for memories where the entire exchange ended before our cutoff
-            memory_entries = [m for m in all_memories if (m.exchange_end or m.timestamp) <= cutoff][:settings.MEMORY_ENTRY_LIMIT]
-        else:
-            # Fallback if no summaries are found
-            memory_entries = all_memories[:settings.MEMORY_ENTRY_LIMIT]
-        
-        # We want prompt order: [Oldest Memory, Newer Memory, Oldest Summary, Newer Summary] (Ranges 4, 3, 2, 1)
         context_items = []
         
         def format_recent_entry(entry):
@@ -327,13 +311,9 @@ class SoulAgent:
                 ts_str = entry_local.strftime("%b %d, %I:%M %p")
                 return f"[{ts_str}] {entry.content}"
 
-        # Add memory entries first (ordered oldest to newest)
+        # Add memory entries (ordered oldest to newest)
         for memory in reversed(memory_entries):
             context_items.append(format_recent_entry(memory))
-            
-        # Add summary entries next (ordered oldest to newest)
-        for summary in reversed(summary_entries):
-            context_items.append(format_recent_entry(summary))
         
         if context_items:
             recent_exchanges_text = "\n".join(context_items)
@@ -342,37 +322,37 @@ class SoulAgent:
             recent_exchanges_text = "(No previous exchanges remembered yet)"
         
         # 4. Optimized History Slicing (Current Conversation)
-        # We only want to show raw messages that aren't already covered by a summary.
-        if summary_entries:
-            latest_summary = summary_entries[0]
-            # summary_end is the timestamp of the last message included in that summary
-            summary_end = latest_summary.exchange_end or latest_summary.timestamp
+        # We only want to show raw messages that aren't already covered by a memory.
+        if memory_entries:
+            latest_memory = memory_entries[0]
+            # memory_end is the timestamp of the last message included in that memory
+            memory_end = latest_memory.exchange_end or latest_memory.timestamp
             
-            # Filter history: 1. Everything after summary + 2. Small "glue" overlap (3 msgs)
-            after_summary = []
+            # Filter history: 1. Everything after memory + 2. Small "glue" overlap (3 msgs)
+            after_memory = []
             overlap = []
             
             # conversation_history is chronological (oldest to newest)
             # We iterate backwards to pick newest first
             for conv in reversed(conversation_history):
                 conv_ts = conv.timestamp.replace(tzinfo=None) if conv.timestamp else datetime.utcnow()
-                sum_ts = summary_end.replace(tzinfo=None)
+                mem_ts = memory_end.replace(tzinfo=None)
                 
-                if conv_ts > sum_ts:
-                    after_summary.append(conv)
+                if conv_ts > mem_ts:
+                    after_memory.append(conv)
                 elif len(overlap) < 3: # Keep 3 messages for conversational "glue"
                     overlap.append(conv)
                 else:
                     break
             
             # Combine and restore chronological order
-            current_convos = list(reversed(after_summary + overlap))
+            current_convos = list(reversed(after_memory + overlap))
             
             # Safety: if for some reason the above returns nothing, fallback
             if not current_convos:
                 current_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
         else:
-            # Fallback for new users with no summaries yet
+            # Fallback for new users with no memories yet
             current_convos = conversation_history[:settings.CONVERSATION_CONTEXT_LIMIT]
         
         # Get user name for formatting - use pre-fetched user if available
@@ -700,15 +680,12 @@ class SoulAgent:
             # Bundle background tasks
             tasks = []
             
-            # Trigger compact summary if we have enough messages
-            if message_count >= settings.COMPACT_INTERVAL:
-                logger.info("Triggering compact summary", user_id=user_id, message_count=message_count)
-                tasks.append(self._create_compact_summary(user_id=user_id, conversation_history=all_convos))
-            
-            # Trigger memory entry if we have enough messages (can be different threshold)
+            # Trigger memory entry if we have enough messages
             if message_count >= settings.MEMORY_ENTRY_INTERVAL:
                 logger.info("Triggering memory entry", user_id=user_id, message_count=message_count)
                 tasks.append(self._create_memory_entry(user_id=user_id, conversation_history=all_convos))
+            
+            # Note: _create_compact_summary is deprecated and no longer triggered
             
             if tasks:
                 await asyncio.gather(*tasks)
@@ -1002,13 +979,12 @@ class SoulAgent:
             user = await self.memory.get_user_by_id(user_id)
             user_name = user.name if user and user.name else "friend"
             
-            # Fetch minimal context for daily message: 1 summary and last 5 messages
+            # Fetch minimal context for daily message: prefer memories
             diary_entries = await self.memory.get_diary_entries(user_id, limit=10)
-            summaries = [e for e in diary_entries if e.entry_type == 'compact_summary']
             memories = [e for e in diary_entries if e.entry_type == 'conversation_memory']
             
-            # Use the single most recent summary or memory
-            best_entry = summaries[0] if summaries else (memories[0] if memories else None)
+            # Use the single most recent memory
+            best_entry = memories[0] if memories else None
             
             user_tz_str = await self._get_user_tz(user_id, user)
             tz = pytz.timezone(user_tz_str)

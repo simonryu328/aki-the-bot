@@ -384,7 +384,7 @@ with tab_diary:
                 with cols[idx]:
                     # Emoji mapping
                     emoji_map = {
-                        "compact_summary": "📝",
+                        "compact_summary": "📝 (Legacy)",
                         "conversation_memory": "🧠",
                         "achievement": "🏆",
                         "milestone": "⭐",
@@ -432,7 +432,7 @@ with tab_diary:
                 # Display entries grouped by type
                 for entry_type, entries in sorted(entries_by_type.items()):
                     emoji_map = {
-                        "compact_summary": "📝",
+                        "compact_summary": "📝 (Legacy)",
                         "conversation_memory": "🧠",
                         "achievement": "🏆",
                         "milestone": "⭐",
@@ -510,7 +510,7 @@ with tab_database:
             if diary_by_type:
                 for entry_type, count in diary_by_type:
                     emoji_map = {
-                        "compact_summary": "📝",
+                        "compact_summary": "📝 (Legacy)",
                         "conversation_memory": "🧠",
                         "achievement": "🏆",
                         "milestone": "⭐",

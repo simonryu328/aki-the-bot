@@ -69,13 +69,13 @@ async def send_reach_out(user_id: int, hours_since: int = 24):
         else:
             conversation_history = "(No recent conversation)"
         
-        # Get compact summaries
-        diary_entries = await memory_manager.get_diary_entries(user_id, limit=3)
-        compact_summaries = []
+        # Get conversation memories
+        diary_entries = await memory_manager.get_diary_entries(user_id, limit=5)
+        memories = []
         for entry in diary_entries:
-            if entry.entry_type == "compact_summary":
-                compact_summaries.append(entry.content)
-        compact_text = "\n\n".join(compact_summaries) if compact_summaries else "(No summaries yet)"
+            if entry.entry_type == "conversation_memory":
+                memories.append(entry.content)
+        memory_text = "\n\n".join(memories) if memories else "(No memories yet)"
         
         # Format time since
         if hours_since < 24:
@@ -95,7 +95,7 @@ async def send_reach_out(user_id: int, hours_since: int = 24):
             persona=persona,
             profile_context=profile_context,
             conversation_history=conversation_history,
-            compact_summaries=compact_text,
+            compact_summaries=memory_text,
         )
         
         message = await llm_client.chat(

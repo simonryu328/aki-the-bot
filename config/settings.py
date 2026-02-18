@@ -170,16 +170,16 @@ class Settings(BaseSettings):
     
     COMPACT_SUMMARY_LIMIT: int = Field(
         default=2,
-        description="Number of recent compact summaries to include in RECENT EXCHANGES section. "
-                    "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
-        ge=1,
+        description="DEPRECATED. Used to be number of recent compact summaries. "
+                    "Current system uses MEMORY_ENTRY_LIMIT exclusively.",
+        ge=0,
         le=10,
     )
     
     MEMORY_ENTRY_LIMIT: int = Field(
-        default=2,
+        default=4,
         description="Number of recent memory entries to include in RECENT EXCHANGES section. "
-                    "Used in: soul_agent._build_conversation_context(), telegram_handler reach-out",
+                    "Replaced the dual-core memory with a single-source memory from conversation_memory entries.",
         ge=1,
         le=10,
     )
