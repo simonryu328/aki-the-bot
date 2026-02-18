@@ -2,6 +2,9 @@
 import os
 import logging
 from datetime import datetime, timedelta
+import pytz
+import json
+import random
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Query, Response
@@ -79,6 +82,14 @@ class UserProfileResponse(BaseModel):
 class SetupRequest(BaseModel):
     timezone: str
     name: Optional[str] = None
+
+class DashboardResponse(BaseModel):
+    profile: UserProfileResponse
+    memories: list[DiaryEntrySchema]
+    daily_message: DailyMessageSchema
+    soundtrack: dict
+    insights: dict
+    horizons: list[FutureEntrySchema]
 
 @app.get("/api/user/{telegram_id}", response_model=UserProfileResponse)
 async def get_user_profile(telegram_id: int):
@@ -284,6 +295,170 @@ async def get_spotify_status(telegram_id: int):
         logger.error(f"Error checking Spotify status: {e}")
         return {"connected": False}
 
+# ── Dashboard & Memory Helpers ──────────────────────────────────────────
+
+async def _get_daily_message_data(telegram_id: int, user_schema) -> DailyMessageSchema:
+    """Helper to fetch or generate daily message data."""
+    try:
+        user_tz = pytz.timezone(user_schema.timezone or settings.TIMEZONE)
+        now_user = datetime.now(user_tz)
+        today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        entries = await memory_manager.get_diary_entries(
+            user_id=user_schema.id,
+            limit=1,
+            entry_type="daily_message"
+        )
+        
+        if entries:
+            last_msg = entries[0]
+            last_msg_local = last_msg.timestamp.replace(tzinfo=pytz.utc).astimezone(user_tz)
+            if last_msg_local >= today_start_user:
+                return DailyMessageSchema(
+                    content=last_msg.content,
+                    timestamp=last_msg.timestamp,
+                    is_fallback="Fallback" in last_msg.title
+                )
+
+        content, is_fallback = await soul_agent.generate_daily_message(user_schema.id)
+        await memory_manager.add_diary_entry(
+            user_id=user_schema.id,
+            entry_type="daily_message",
+            title="Daily Message" if not is_fallback else "Daily Message (Fallback)",
+            content=content,
+            importance=10 if not is_fallback else 5
+        )
+        return DailyMessageSchema(
+            content=content,
+            timestamp=datetime.utcnow(),
+            is_fallback=is_fallback
+        )
+    except Exception as e:
+        logger.error(f"Error in _get_daily_message_data: {e}")
+        from prompts import FALLBACK_QUOTES
+        return DailyMessageSchema(
+            content=random.choice(FALLBACK_QUOTES),
+            timestamp=datetime.utcnow(),
+            is_fallback=True
+        )
+
+async def _get_daily_soundtrack_data(telegram_id: int, user_schema) -> dict:
+    """Helper to fetch or generate daily soundtrack data."""
+    try:
+        if not user_schema.spotify_refresh_token:
+            return {"connected": False}
+
+        user_tz = pytz.timezone(user_schema.timezone or settings.TIMEZONE)
+        now_user = datetime.now(user_tz)
+        today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        entries = await memory_manager.get_diary_entries(
+            user_id=user_schema.id,
+            limit=1,
+            entry_type="daily_soundtrack"
+        )
+        
+        if entries:
+            last_entry = entries[0]
+            last_entry_local = last_entry.timestamp.replace(tzinfo=pytz.utc).astimezone(user_tz)
+            if last_entry_local >= today_start_user:
+                return json.loads(last_entry.content)
+
+        data = await soul_agent.generate_daily_soundtrack(user_schema.id)
+        if data.get("connected") and not data.get("error"):
+            await memory_manager.add_diary_entry(
+                user_id=user_schema.id,
+                entry_type="daily_soundtrack",
+                title="Daily Soundtrack",
+                content=json.dumps(data),
+                importance=7
+            )
+        return data
+    except Exception as e:
+        logger.error(f"Error in _get_daily_soundtrack_data: {e}")
+        return {"connected": False, "error": str(e)}
+
+async def _get_personalized_insights_data(telegram_id: int, user_schema) -> dict:
+    """Helper to fetch or generate personalized insights data."""
+    try:
+        entries = await memory_manager.get_diary_entries(
+            user_id=user_schema.id,
+            limit=1,
+            entry_type="personalized_insights"
+        )
+        
+        should_regenerate = False
+        if entries:
+            last_entry = entries[0]
+            try:
+                cached_data = json.loads(last_entry.content)
+                new_msg_count = await memory_manager.db.get_message_count_after(
+                    user_id=user_schema.id,
+                    after=last_entry.timestamp,
+                    role="user"
+                )
+                if new_msg_count >= 50:
+                    should_regenerate = True
+                else:
+                    return cached_data
+            except:
+                should_regenerate = True
+        else:
+            should_regenerate = True
+
+        if should_regenerate:
+            return await soul_agent.generate_personalized_insights(user_schema.id, store=True)
+
+    except Exception as e:
+        logger.error(f"Error in _get_personalized_insights_data: {e}")
+    
+    return {
+        "unhinged_quotes": [],
+        "aki_observations": [{"title": "Thinking...", "description": "Gathering more memories of you.", "emoji": "🤔"}],
+        "fun_questions": ["What's on your mind today?"],
+        "personal_stats": {"current_vibe": "New Friend", "top_topic": "Interests"}
+    }
+
+@app.get("/api/dashboard/{telegram_id}", response_model=DashboardResponse)
+async def get_dashboard(telegram_id: int):
+    """
+    Unified endpoint for the Mini App dashboard.
+    Fetches everything needed for the initial load in one round-trip.
+    Uses sequential fetching for stability.
+    """
+    try:
+        user_schema = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        
+        # Sequential fetching for absolute stability
+        memories = await memory_manager.get_diary_entries(
+            user_id=user_schema.id,
+            limit=50,
+            entry_type="conversation_memory"
+        )
+        
+        daily_msg = await _get_daily_message_data(telegram_id, user_schema)
+        soundtrack = await _get_daily_soundtrack_data(telegram_id, user_schema)
+        insights = await _get_personalized_insights_data(telegram_id, user_schema)
+        horizons = await memory_manager.get_future_entries(user_id=user_schema.id)
+        
+        return DashboardResponse(
+            profile=UserProfileResponse(
+                id=user_schema.id,
+                telegram_id=telegram_id,
+                name=user_schema.name,
+                timezone=user_schema.timezone or settings.TIMEZONE,
+                onboarding_state=user_schema.onboarding_state,
+            ),
+            memories=memories,
+            daily_message=daily_msg,
+            soundtrack=soundtrack,
+            insights=insights,
+            horizons=horizons
+        )
+    except Exception as e:
+        logger.error(f"Error fetching dashboard: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/memories/{telegram_id}", response_model=list[DiaryEntrySchema])
 async def get_memories(telegram_id: int):
@@ -312,200 +487,24 @@ async def get_memories(telegram_id: int):
 
 @app.get("/api/daily-message/{telegram_id}", response_model=DailyMessageSchema)
 async def get_daily_message(telegram_id: int):
-    """
-    Get Aki's daily message for the user.
-    Uses Caching (Strategy C): Checks if a message was already generated for today.
-    If not, generates a new personalized message and stores it.
-    """
-    try:
-        import pytz
-        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
-        user_tz = pytz.timezone(user.timezone or settings.TIMEZONE)
-        now_user = datetime.now(user_tz)
-        today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        # Check for cached message generated today
-        # We store daily messages as DiaryEntry with entry_type="daily_message"
-        entries = await memory_manager.get_diary_entries(
-            user_id=user.id,
-            limit=1,
-            entry_type="daily_message"
-        )
-        
-        if entries:
-            last_msg = entries[0]
-            # Convert last_msg.timestamp (UTC) to user local time to check day
-            last_msg_local = last_msg.timestamp.replace(tzinfo=pytz.utc).astimezone(user_tz)
-            
-            if last_msg_local >= today_start_user:
-                logger.info(f"Daily message CACHE HIT for user {telegram_id}")
-                return DailyMessageSchema(
-                    content=last_msg.content,
-                    timestamp=last_msg.timestamp,
-                    is_fallback="Fallback" in last_msg.title # We'll mark fallbacks in the title
-                )
-
-        # Cache MISS: Generate new message
-        logger.info(f"Daily message CACHE MISS for user {telegram_id}. Generating...")
-        content, is_fallback = await soul_agent.generate_daily_message(user.id)
-        
-        # Store in database as a diary entry for caching
-        await memory_manager.add_diary_entry(
-            user_id=user.id,
-            entry_type="daily_message",
-            title="Daily Message" if not is_fallback else "Daily Message (Fallback)",
-            content=content,
-            importance=10 if not is_fallback else 5
-        )
-        
-        return DailyMessageSchema(
-            content=content,
-            timestamp=datetime.utcnow(),
-            is_fallback=is_fallback
-        )
-        
-    except Exception as e:
-        logger.error(f"Error serving daily message: {e}")
-        # Extreme fallback if even generation fails
-        from prompts import FALLBACK_QUOTES
-        import random
-        return DailyMessageSchema(
-            content=random.choice(FALLBACK_QUOTES),
-            timestamp=datetime.utcnow(),
-            is_fallback=True
-        )
+    """Legacy individual endpoint (now maps to internal helper)."""
+    user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+    return await _get_daily_message_data(telegram_id, user)
 
 
 @app.get("/api/spotify/daily-soundtrack/{telegram_id}")
 async def get_daily_soundtrack(telegram_id: int):
-    """
-    Get Aki's daily song recommendation for the user.
-    Uses 'Daily' Caching: Only generates one track per calendar day.
-    """
-    headers = {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0"
-    }
-
-    try:
-        import pytz
-        import json
-        # Use a fresh fetch to avoid any cache issues
-        user = await memory_manager.db.get_or_create_user(telegram_id=telegram_id)
-        
-        logger.info(f"Checking soundtrack for user {telegram_id}. Spotify Connected: {user.spotify_refresh_token is not None}")
-        
-        user_tz = pytz.timezone(user.timezone or settings.TIMEZONE)
-        now_user = datetime.now(user_tz)
-        today_start_user = now_user.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        # 0. Check connection status first
-        if not user.spotify_refresh_token:
-            logger.info(f"User {telegram_id} NOT connected to Spotify. Returning False.")
-            return JSONResponse(content={"connected": False}, headers=headers)
-
-        # 1. Check for cached soundtrack from today
-        entries = await memory_manager.get_diary_entries(
-            user_id=user.id,
-            limit=1,
-            entry_type="daily_soundtrack"
-        )
-        
-        if entries:
-            last_entry = entries[0]
-            last_entry_local = last_entry.timestamp.replace(tzinfo=pytz.utc).astimezone(user_tz)
-            
-            if last_entry_local >= today_start_user:
-                logger.info(f"Soundtrack CACHE HIT for user {telegram_id}")
-                return JSONResponse(content=json.loads(last_entry.content), headers=headers)
-
-        # 2. Cache MISS: Generate fresh if connected
-        logger.info(f"Soundtrack CACHE MISS for user {telegram_id}. Generating...")
-        data = await soul_agent.generate_daily_soundtrack(user.id)
-        
-        if data.get("connected") and not data.get("error"):
-            # Store in DB
-            await memory_manager.add_diary_entry(
-                user_id=user.id,
-                entry_type="daily_soundtrack",
-                title="Daily Soundtrack",
-                content=json.dumps(data),
-                importance=7
-            )
-            
-        return JSONResponse(content=data, headers=headers)
-
-    except Exception as e:
-        logger.error(f"Error serving daily soundtrack: {e}")
-        return JSONResponse(content={"connected": False, "error": str(e)}, headers=headers)
+    """Legacy individual endpoint (now maps to internal helper)."""
+    user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+    data = await _get_daily_soundtrack_data(telegram_id, user)
+    return JSONResponse(content=data, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/personalized-insights/{telegram_id}")
 async def get_personalized_insights(telegram_id: int):
-    """
-    Get fun, personalized insights (unhinged quotes, observations, etc.) for the user.
-    Uses 'Milestone-based' Caching: 
-    - Checks if 50+ new messages have been sent since the last insight generation.
-    - If YES: Generates fresh insights.
-    - If NO: Returns the cached insights.
-    """
-    try:
-        import pytz
-        import json
-        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
-        
-        # 1. Get the last insights entry
-        entries = await memory_manager.get_diary_entries(
-            user_id=user.id,
-            limit=1,
-            entry_type="personalized_insights"
-        )
-        
-        should_regenerate = False
-        cached_data = None
-        
-        if entries:
-            last_entry = entries[0]
-            try:
-                cached_data = json.loads(last_entry.content)
-                
-                # Check message count since this entry
-                # We specifically count USER messages as they drive the content
-                new_msg_count = await memory_manager.db.get_message_count_after(
-                    user_id=user.id,
-                    after=last_entry.timestamp,
-                    role="user"
-                )
-                
-                logger.info(f"User {user.id}: {new_msg_count} new messages since last insight (Threshold: 50)")
-                
-                if new_msg_count >= 50:
-                    should_regenerate = True
-            except json.JSONDecodeError:
-                should_regenerate = True
-        else:
-            should_regenerate = True
-
-        if should_regenerate:
-            # Generate fresh
-            logger.info(f"Regenerating personalized insights for user {telegram_id}")
-            data = await soul_agent.generate_personalized_insights(user.id, store=True)
-            return data
-        else:
-            # Return cached
-            logger.info(f"Returning cached insights for user {telegram_id}")
-            return cached_data
-
-    except Exception as e:
-        logger.error(f"Error serving personalized insights: {e}")
-        # Build strict fallback structure matching frontend processing
-        return {
-            "unhinged_quotes": [],
-            "aki_observations": [{"title": "Thinking...", "description": "Gathering more memories of you.", "emoji": "🤔"}],
-            "fun_questions": ["What's on your mind today?"],
-            "personal_stats": {"current_vibe": "New Friend", "top_topic": "Interests"}
-        }
+    """Legacy individual endpoint (now maps to internal helper)."""
+    user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+    return await _get_personalized_insights_data(telegram_id, user)
 
 
 @app.post("/api/ask-question/{telegram_id}")

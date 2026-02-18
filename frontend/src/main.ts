@@ -103,6 +103,19 @@ interface FutureEntry {
   created_at: string;
 }
 
+interface DashboardData {
+  profile: UserProfile;
+  memories: JournalEntry[];
+  daily_message: {
+    content: string;
+    timestamp: string;
+    is_fallback: boolean;
+  };
+  soundtrack: DailySoundtrack;
+  insights: PersonalizedInsights;
+  horizons: FutureEntry[];
+}
+
 // ── Initialization ──────────────────────────────────
 
 const tg = window.Telegram?.WebApp;
@@ -134,9 +147,6 @@ const dailyCard = document.getElementById('dailyCard') as HTMLElement;
 const journalList = document.getElementById('journalList') as HTMLElement;
 const searchInput = document.getElementById('searchInput') as HTMLInputElement;
 const searchBar = document.getElementById('searchBar') as HTMLElement;
-const loadingState = document.getElementById('loadingState') as HTMLElement;
-const errorState = document.getElementById('errorState') as HTMLElement;
-const errorText = document.getElementById('errorText') as HTMLElement;
 const emptyState = document.getElementById('emptyState') as HTMLElement;
 const splashScreen = document.getElementById('splashScreen') as HTMLElement;
 
@@ -234,21 +244,6 @@ function renderHorizons(entries: FutureEntry[]) {
     `;
     horizonsList.appendChild(card);
   });
-}
-
-async function fetchHorizons() {
-  const userId = getUserId();
-  if (!userId) return;
-
-  try {
-    const res = await fetch(`/api/future/${userId}`);
-    if (res.ok) {
-      const data: FutureEntry[] = await res.json();
-      renderHorizons(data);
-    }
-  } catch (err) {
-    console.error('Failed to fetch horizons:', err);
-  }
 }
 
 // ── Soundtrack Logic ────────────────────────────────
@@ -556,34 +551,6 @@ function renderEntries(entries: JournalEntry[]) {
   });
 }
 
-async function fetchEntries() {
-  const userId = getUserId();
-  if (!userId) {
-    loadingState?.classList.add('hidden');
-    if (errorState) {
-      errorState.classList.remove('hidden');
-      errorText.textContent = 'Could not identify user. Please open from Telegram.';
-    }
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/memories/${userId}`);
-    if (!res.ok) throw new Error(`Server error (${res.status})`);
-    const data: JournalEntry[] = await res.json();
-    allEntries = data;
-    loadingState?.classList.add('hidden');
-    renderEntries(allEntries);
-  } catch (err: any) {
-    console.error('Fetch failed:', err);
-    loadingState?.classList.add('hidden');
-    if (errorState) {
-      errorState.classList.remove('hidden');
-      errorText.textContent = err.message || 'Failed to load entries.';
-    }
-  }
-}
-
 if (searchInput) {
   searchInput.addEventListener('input', () => {
     const query = searchInput.value.toLowerCase().trim();
@@ -599,43 +566,39 @@ if (searchInput) {
   });
 }
 
-// ── Daily Message ─────────────────────────────────────
+// ── Rendering Logic ──────────────────────────────────
 
-async function fetchDailyMessage() {
-  const userId = getUserId();
-  if (!userId || !dailyQuoteText) return;
-
-  try {
-    const res = await fetch(`/api/daily-message/${userId}`);
-    if (!res.ok) throw new Error('Failed to fetch daily message');
-    const data = await res.json();
-    dailyQuoteText.textContent = data.content;
-    dailyCard?.classList.remove('loading');
-  } catch (err) {
-    console.error('Daily message fetch failed:', err);
-    if (dailyQuoteText) {
-      dailyQuoteText.textContent = "Every day is a fresh start. Aki is here to witness your journey.";
-      dailyCard?.classList.remove('loading');
+function renderAll(data: DashboardData) {
+  // 1. Profile / Onboarding logic
+  if (data.profile.onboarding_state !== null && data.profile.onboarding_state !== undefined) {
+    if (data.profile.name && welcomeNameInput) {
+      welcomeNameInput.value = data.profile.name;
+      if (welcomeNameContinue) welcomeNameContinue.disabled = false;
     }
+    showDetectedTimezone();
+    welcomeOverlay?.classList.remove('hidden');
   }
+
+  // 2. Journal
+  allEntries = data.memories;
+  renderEntries(allEntries);
+
+  // 3. Daily Message
+  if (dailyQuoteText) {
+    dailyQuoteText.textContent = data.daily_message.content;
+    dailyCard?.classList.remove('loading');
+  }
+
+  // 4. Soundtrack
+  renderSoundtrack(data.soundtrack);
+
+  // 5. Insights
+  renderPersonalizedInsights(data.insights);
+
+  // 6. Horizons
+  renderHorizons(data.horizons);
 }
 
-// ── Personalized Insights ─────────────────────────────
-
-async function fetchPersonalizedInsights() {
-  const userId = getUserId();
-  if (!userId) return;
-
-  try {
-    const res = await fetch(`/api/personalized-insights/${userId}`);
-    if (!res.ok) throw new Error('Failed to fetch personalized insights');
-    const data: PersonalizedInsights = await res.json();
-
-    renderPersonalizedInsights(data);
-  } catch (err) {
-    console.error('Personalized insights fetch failed:', err);
-  }
-}
 
 function renderPersonalizedInsights(data: PersonalizedInsights) {
   if (!personalizedInsightsContainer) return;
@@ -966,8 +929,10 @@ function startPolling() {
 
 // ── Init ──────────────────────────────────────────────
 
+// ── Init ──────────────────────────────────────────────
+
 async function init() {
-  // Today's Date
+  // 1. Static UI setup
   if (todayDate) {
     const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
     todayDate.textContent = new Date().toLocaleDateString('en-US', dateOptions);
@@ -977,78 +942,69 @@ async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   const startPanel = urlParams.get('start_panel');
 
-  if (userId) {
-    try {
-      const res = await fetch(`/api/user/${userId}`);
-      if (res.ok) {
-        const profile: UserProfile = await res.json();
+  if (!userId) {
+    splashScreen?.classList.add('fade-out');
+    alert("Please open this app from within Telegram.");
+    return;
+  }
 
-        if (profile.onboarding_state !== null && profile.onboarding_state !== undefined) {
-          if (profile.name && welcomeNameInput) {
-            welcomeNameInput.value = profile.name;
-            if (welcomeNameContinue) welcomeNameContinue.disabled = false;
-          }
-          showDetectedTimezone();
-          welcomeOverlay?.classList.remove('hidden');
-        } else {
-          if (profile.timezone === 'America/Toronto' && detectedTimezone !== 'America/Toronto') {
-            fetch(`/api/user/${userId}/setup`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ timezone: detectedTimezone }),
-            }).catch(() => { });
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Failed to check user profile:', err);
+  // 2. Load from Cache (Instant Load)
+  const CACHE_KEY = `aki_dashboard_v1_${userId}`;
+  const cachedData = localStorage.getItem(CACHE_KEY);
+  if (cachedData) {
+    try {
+      const parsed = JSON.parse(cachedData) as DashboardData;
+      renderAll(parsed);
+      // Hide splash early if we have cache
+      setTimeout(() => splashScreen?.classList.add('fade-out'), 100);
+    } catch (e) {
+      console.error("Failed to parse cached dashboard data", e);
     }
   }
 
-  fetchEntries().then(() => {
-    // Set baseline for polling after first fetch
+  // 3. Fetch Fresh Data (Background Refresh)
+  try {
+    const res = await fetch(`/api/dashboard/${userId}?t=${Date.now()}`);
+    if (res.ok) {
+      const freshData: DashboardData = await res.json();
+      renderAll(freshData);
+      localStorage.setItem(CACHE_KEY, JSON.stringify(freshData));
+
+      // Celebration Flow (Only if landing on main page fresh)
+      if (freshData.memories.length > 0) {
+        const latest = freshData.memories[0];
+        lastSeenMomentId = latest.id;
+        const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v4');
+        if (startPanel === null && storedLastSeen !== latest.id) {
+          showReflectionOverlay(latest);
+          localStorage.setItem('aki_last_seen_moment_v4', latest.id);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch dashboard:', err);
+  }
+
+  // 4. Handle Deep Linking / Specific Panels
+  if (startPanel !== null) {
+    const panelIndex = parseInt(startPanel);
+    if (!isNaN(panelIndex)) {
+      setTimeout(() => goToPanel(panelIndex), 300);
+    }
     if (allEntries.length > 0) {
-      const latest = allEntries[0];
-      lastSeenMomentId = latest.id;
-
-      // Check if user has seen this moment before
-      // Use versioned key so it re-triggers for everyone after this update
-      const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v4');
-
-      // If we land on today (default) AND have a new unseen moment
-      if (startPanel === null && storedLastSeen !== latest.id) {
-        // Show the reveal overlay!
-        showReflectionOverlay(latest);
-        localStorage.setItem('aki_last_seen_moment_v4', latest.id);
-      }
+      localStorage.setItem('aki_last_seen_moment_v4', allEntries[0].id);
     }
-    startPolling();
+  } else if (!cachedData) {
+    goToPanel(1); // Default to Today if no cache
+  }
 
-    // Check if we should land on a specific panel
-    if (startPanel !== null) {
-      const panelIndex = parseInt(startPanel);
-      if (!isNaN(panelIndex)) {
-        setTimeout(() => goToPanel(panelIndex), 300);
-      }
+  // 5. Start Real-time polling
+  startPolling();
 
-      // If they explicitly clicked a deep link, mark the latest as "seen"
-      if (allEntries.length > 0) {
-        localStorage.setItem('aki_last_seen_moment_v4', allEntries[0].id);
-      }
-    } else {
-      goToPanel(1); // Default to Today
-    }
-  });
-
-  fetchDailyMessage();
-  fetchPersonalizedInsights();
-  fetchDailySoundtrack();
-  fetchHorizons();
-
-  // ── Final Transition: Hide Splash Screen ──
+  // 6. Final Transition
   setTimeout(() => {
     splashScreen?.classList.add('fade-out');
-  }, 200);
+  }, 500);
 }
 
 init();
