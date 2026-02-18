@@ -121,7 +121,6 @@ class TokenUsage(Base):
     cache_read_tokens = Column(Integer, nullable=False, default=0)
     cache_creation_tokens = Column(Integer, nullable=False, default=0)
     call_type = Column(String(100), nullable=False)  # "conversation", "compact", "observation", "proactive", "reach_out"
-    cost = Column(Float, nullable=True)  # Estimated cost in USD
     timestamp = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
 
     # Relationships

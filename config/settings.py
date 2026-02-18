@@ -3,7 +3,7 @@ Configuration settings for the AI Companion application.
 Uses Pydantic Settings for type-safe configuration with validation.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,12 +37,6 @@ class Settings(BaseSettings):
         min_length=1,
     )
 
-    # Gemini API
-    GEMINI_API_KEY: Optional[str] = Field(
-        None,
-        description="API key for Gemini models",
-    )
-
     # Database
     DATABASE_URL: str = Field(
         default="postgresql://postgres:password@localhost:5432/ai_companion",
@@ -60,25 +54,30 @@ class Settings(BaseSettings):
         description="Application timezone",
     )
 
-    # Models - changed to Gemini 1.5 Flash
+    # Models - one setting per purpose, all configurable from .env
+    # claude-opus-4-6
+    # claude-opus-4-20250514
+    # claude-haiku-4-5-20251001
+    # claude-sonnet-4-5-20250929
+
     MODEL_CONVERSATION: str = Field(
-        default="gemini/gemini-1.5-flash",
+        default="claude-haiku-4-5-20251001",
         description="Model for main conversation responses",
     )
     MODEL_PROACTIVE: str = Field(
-        default="gemini/gemini-1.5-flash",
+        default="claude-haiku-4-5-20251001",
         description="Model for proactive/scheduled messages",
     )
     MODEL_MEMORY: str = Field(
-        default="gemini/gemini-1.5-flash",
+        default="claude-haiku-4-5-20251001",
         description="Model for memories and summaries",
     )
     MODEL_DAILY_MESSAGE: str = Field(
-        default="gemini/gemini-1.5-flash",
+        default="claude-haiku-4-5-20251001",
         description="Model for generating daily motivational messages",
     )
     MODEL_INSIGHTS: str = Field(
-        default="gemini/gemini-1.5-flash",
+        default="claude-haiku-4-5-20251001",
         description="Model for generating fun personalized insights",
     )
 

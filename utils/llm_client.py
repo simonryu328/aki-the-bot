@@ -34,7 +34,6 @@ class LLMResponse:
     total_tokens: int = 0
     cache_read_tokens: int = 0
     cache_creation_tokens: int = 0
-    cost: float = 0.0
 
 
 class LLMClient:
@@ -212,12 +211,6 @@ class LLMClient:
             # Caching metadata
             cache_read = getattr(usage, "cache_read_input_tokens", 0)
             cache_creation = getattr(usage, "cache_creation_input_tokens", 0)
-            
-            # Calculate cost
-            try:
-                cost = litellm.completion_cost(completion_response=response)
-            except Exception:
-                cost = 0.0
 
             logger.debug(
                 "LLM response (with usage)",
@@ -227,7 +220,6 @@ class LLMClient:
                 total_tokens=total_tokens,
                 cache_read=cache_read,
                 cache_creation=cache_creation,
-                cost=cost,
                 finish_reason=finish_reason,
             )
 
@@ -251,7 +243,6 @@ class LLMClient:
                 total_tokens=total_tokens,
                 cache_read_tokens=cache_read,
                 cache_creation_tokens=cache_creation,
-                cost=cost,
             )
 
         except Exception as e:

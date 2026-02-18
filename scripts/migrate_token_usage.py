@@ -20,9 +20,6 @@ async def migrate():
             print("Adding cache_creation_tokens to token_usage...")
             await conn.execute(text("ALTER TABLE token_usage ADD COLUMN IF NOT EXISTS cache_creation_tokens INTEGER DEFAULT 0"))
             
-            print("Adding cost to token_usage...")
-            await conn.execute(text("ALTER TABLE token_usage ADD COLUMN IF NOT EXISTS cost FLOAT"))
-            
             print("Migration successful!")
         except Exception as e:
             print(f"Migration failed: {e}")

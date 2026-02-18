@@ -802,7 +802,6 @@ class SoulAgent:
                         cache_read_tokens=result.usage.cache_read_tokens,
                         cache_creation_tokens=result.usage.cache_creation_tokens,
                         call_type="compact",
-                        cost=result.usage.cost,
                     )
                 
                 # Store in diary entries with exchange timestamps
@@ -945,7 +944,6 @@ class SoulAgent:
                         cache_read_tokens=result.cache_read_tokens,
                         cache_creation_tokens=result.cache_creation_tokens,
                         call_type="memory",
-                        cost=result.cost,
                     )
                 
                 # Store in diary entries with exchange timestamps
@@ -1025,28 +1023,17 @@ class SoulAgent:
             
             logger.info("Generating daily message", user_id=user_id, model=settings.MODEL_DAILY_MESSAGE)
             
-            llm_response = await llm_client.chat_with_usage(
+            message = await llm_client.chat(
                 model=settings.MODEL_DAILY_MESSAGE,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
                 max_tokens=150,
             )
             
-            # Record token usage for daily message
-            if llm_response.total_tokens > 0:
-                await self.memory.record_token_usage(
-                    user_id=user_id,
-                    model=llm_response.model,
-                    input_tokens=llm_response.input_tokens,
-                    output_tokens=llm_response.output_tokens,
-                    total_tokens=llm_response.total_tokens,
-                    cache_read_tokens=llm_response.cache_read_tokens,
-                    cache_creation_tokens=llm_response.cache_creation_tokens,
-                    call_type="daily_message",
-                    cost=llm_response.cost,
-                )
-
-            raw = llm_response.content.strip()
+            if isinstance(message, str):
+                raw = message.strip()
+            else:
+                raw = message.content.strip()
             
             # 4. Sanitize: strip markdown, headers, and commentary
             final_message = self._sanitize_daily_message(raw)
@@ -1080,27 +1067,13 @@ class SoulAgent:
             )
 
             logger.info(f"Synthesizing note for user {user.id}")
-            llm_response = await llm_client.chat_with_usage(
+            response = await llm_client.chat(
                 model=settings.MODEL_CONVERSATION,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
             )
 
-            # Record token usage for note synthesis
-            if llm_response.total_tokens > 0:
-                await self.memory.record_token_usage(
-                    user_id=user.id,
-                    model=llm_response.model,
-                    input_tokens=llm_response.input_tokens,
-                    output_tokens=llm_response.output_tokens,
-                    total_tokens=llm_response.total_tokens,
-                    cache_read_tokens=llm_response.cache_read_tokens,
-                    cache_creation_tokens=llm_response.cache_creation_tokens,
-                    call_type="note_synthesis",
-                    cost=llm_response.cost,
-                )
-
-            content = llm_response.content.strip()
+            content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             
             if content == "NONE" or not content:
                 # Basic check if it's too short or just a refusal
@@ -1128,27 +1101,13 @@ class SoulAgent:
             )
 
             logger.info(f"Synthesizing plan for user {user.id}")
-            llm_response = await llm_client.chat_with_usage(
+            response = await llm_client.chat(
                 model=settings.MODEL_CONVERSATION,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
             )
 
-            # Record token usage for plan synthesis
-            if llm_response.total_tokens > 0:
-                await self.memory.record_token_usage(
-                    user_id=user.id,
-                    model=llm_response.model,
-                    input_tokens=llm_response.input_tokens,
-                    output_tokens=llm_response.output_tokens,
-                    total_tokens=llm_response.total_tokens,
-                    cache_read_tokens=llm_response.cache_read_tokens,
-                    cache_creation_tokens=llm_response.cache_creation_tokens,
-                    call_type="plan_synthesis",
-                    cost=llm_response.cost,
-                )
-
-            raw = llm_response.content.strip()
+            raw = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             
             if raw == "NONE" or not raw or "|" not in raw:
                 return None
@@ -1334,28 +1293,14 @@ class SoulAgent:
             
             logger.info("Generating personalized insights", user_id=user_id, model=settings.MODEL_INSIGHTS)
             
-            llm_response = await llm_client.chat_with_usage(
+            response = await llm_client.chat(
                 model=settings.MODEL_INSIGHTS,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
                 max_tokens=1000,
             )
             
-            # Record token usage for personalized insights
-            if llm_response.total_tokens > 0:
-                await self.memory.record_token_usage(
-                    user_id=user_id,
-                    model=llm_response.model,
-                    input_tokens=llm_response.input_tokens,
-                    output_tokens=llm_response.output_tokens,
-                    total_tokens=llm_response.total_tokens,
-                    cache_read_tokens=llm_response.cache_read_tokens,
-                    cache_creation_tokens=llm_response.cache_creation_tokens,
-                    call_type="insights",
-                    cost=llm_response.cost,
-                )
-
-            content = llm_response.content
+            content = response.content if hasattr(response, 'content') else str(response)
             
             # Parse JSON
             try:
@@ -1472,28 +1417,14 @@ class SoulAgent:
                 recently_played=recent_tracks_text or "No recent history."
             )
 
-            llm_response = await llm_client.chat_with_usage(
-                model=settings.MODEL_INSIGHTS, # Use Gemini 1.5 Flash
+            response = await llm_client.chat(
+                model=settings.MODEL_INSIGHTS, # Use Sonnet for better taste
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
                 max_tokens=600,
             )
-
-            # Record token usage for Spotify DJ
-            if llm_response.total_tokens > 0:
-                await self.memory.record_token_usage(
-                    user_id=user_id,
-                    model=llm_response.model,
-                    input_tokens=llm_response.input_tokens,
-                    output_tokens=llm_response.output_tokens,
-                    total_tokens=llm_response.total_tokens,
-                    cache_read_tokens=llm_response.cache_read_tokens,
-                    cache_creation_tokens=llm_response.cache_creation_tokens,
-                    call_type="spotify_dj",
-                    cost=llm_response.cost,
-                )
-
-            content = llm_response.content
+            
+            content = response.content if hasattr(response, 'content') else str(response)
             
             # Parse JSON
             json_match = re.search(r'(\{.*\})', content, re.DOTALL)
