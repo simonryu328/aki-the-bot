@@ -803,19 +803,17 @@ class TelegramBot:
             user_id = db_user.id
 
             # Clear all user data
-            async with memory_manager.db.get_session() as session:
-                from memory.models import Conversation, DiaryEntry
-                from sqlalchemy import delete
-
-                # Delete conversations
-                await session.execute(
-                    delete(Conversation).where(Conversation.user_id == user_id)
-                )
-                # Delete diary entries
-                await session.execute(
-                    delete(DiaryEntry).where(DiaryEntry.user_id == user_id)
-                )
-                await session.commit()
+            # Clear all user data via memory manager (deletes user and all related records)
+            await memory_manager.reset_user(user_id)
+            
+            # Reset rate limiter
+            self.rate_limiter.reset_user(telegram_id)
+            
+            # Clear internal buffers
+            if telegram_id in self._reaction_counter:
+                del self._reaction_counter[telegram_id]
+            if telegram_id in self._sticker_counter:
+                del self._sticker_counter[telegram_id]
 
             logger.info(f"Reset complete for user {user_id}")
             await update.message.reply_text(

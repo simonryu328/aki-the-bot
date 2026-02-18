@@ -23,11 +23,15 @@ from sqlalchemy.orm import Session, sessionmaker
 import importlib
 import memory.models
 import config.settings
+import config.pricing
+
 importlib.reload(memory.models)
 importlib.reload(config.settings)
+importlib.reload(config.pricing)
 
 from memory.models import Base, User, Conversation, DiaryEntry, TokenUsage
 from config.settings import settings
+from config.pricing import calculate_cost
 
 TZ = pytz.timezone(settings.TIMEZONE)
 
@@ -215,6 +219,47 @@ def load_token_usage(user_id: int):
     finally:
         session.close()
 
+@st.cache_data(ttl=60)
+def load_global_stats():
+    """Load aggregated statistics for the Home tab."""
+    session = get_session()
+    try:
+        # Total Users
+        user_count = session.execute(select(func.count(User.id))).scalar()
+        
+        # Total Messages
+        msg_count = session.execute(select(func.count(Conversation.id))).scalar()
+        
+        # Total Tokens
+        token_count = session.execute(select(func.sum(TokenUsage.total_tokens))).scalar() or 0
+        
+        # Total Cost Calculation (Rough estimate based on recorded usage)
+        # We fetch all usage records to apply pricing logic precisely
+        # Note: For very large datasets, this should be done in SQL with pricing tables
+        all_usage = session.execute(select(TokenUsage)).scalars().all()
+        
+        total_cost = 0.0
+        cost_by_model = defaultdict(float)
+        
+        for u in all_usage:
+            # Handle potential None values for cache columns
+            cr = u.cache_read_tokens or 0
+            cc = u.cache_creation_tokens or 0
+            
+            cost = calculate_cost(u.model, u.input_tokens, u.output_tokens, cr, cc)
+            total_cost += cost
+            cost_by_model[u.model] += cost
+            
+        return {
+            "users": user_count,
+            "messages": msg_count,
+            "tokens": token_count,
+            "cost": total_cost,
+            "top_cost_model": max(cost_by_model.items(), key=lambda x: x[1]) if cost_by_model else ("None", 0)
+        }
+    finally:
+        session.close()
+
 
 # ---- Page config ----
 
@@ -303,9 +348,36 @@ if st.sidebar.button("Refresh Data", key="refresh_button"):
 
 # ---- Tabs ----
 
-tab_overview, tab_conversations, tab_diary, tab_usage, tab_database, tab_settings = st.tabs(
-    ["Overview", "Conversations", "Diary", "Usage", "Database", "Settings"]
+# ---- Tabs ----
+
+tab_home, tab_overview, tab_conversations, tab_diary, tab_usage, tab_database, tab_settings = st.tabs(
+    ["🏠 Home", "👤 Overview", "💬 Conversations", "📔 Diary", "💸 Usage", "💾 Database", "⚙️ Settings"]
 )
+
+# ---- Tab: Home (Global Stats) ----
+with tab_home:
+    st.header("Global Overview")
+    
+    stats = load_global_stats()
+    
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Users", stats["users"])
+    col2.metric("Total Messages", f"{stats['messages']:,}")
+    col3.metric("Total Tokens", f"{stats['tokens']:,}")
+    col4.metric("Total Lifetime Cost", f"${stats['cost']:.2f}")
+    
+    st.markdown("---")
+    
+    # Model Cost Leader
+    model_name, model_cost = stats["top_cost_model"]
+    st.info(f"💰 **Top Cost Driver:** `{model_name}` accounted for **${model_cost:.2f}** of total spend.")
+
+    st.markdown("""
+    ### Quick Actions
+    - Go to **Conversations** to inspect chat logs.
+    - Go to **Usage** to deduct individual user costs.
+    - Go to **Database** for raw record counts.
+    """)
 
 # ---- Tab: Overview ----
 
@@ -633,54 +705,44 @@ with tab_usage:
 
         # 3. Model & Cost Breakdown
         st.subheader("Model Breakdown & Est. Cost")
-        # Pricing per 1M tokens (ballpark estimates)
-        PRICING = {
-            "gpt-4o": {"in": 2.50, "out": 10.00},
-            "gpt-4o-mini": {"in": 0.15, "out": 0.60},
-            "claude-3-5-sonnet-20240620": {"in": 3.00, "out": 15.00},
-            "claude-3-5-sonnet-20241022": {"in": 3.00, "out": 15.00},
-            "gemini-1.5-flash": {"in": 0.075, "out": 0.30},
-            "gemini-1.5-pro": {"in": 1.25, "out": 5.00},
-            "default": {"in": 3.00, "out": 15.00},
-        }
 
         cost_rows = []
         total_est_cost = 0
         total_saved = 0
         
-        # Anthropic Prompt Caching Pricing (per 1M tokens)
-        # Write (Creation): $3.75 (Sonnet) / $0.30 (Haiku) -> ~1.25x base price?
-        # Read (Hit): $0.30 (Sonnet) / $0.03 (Haiku) -> ~0.1x base price
-        # For simplicity, we compare (Cache Read * Input Price) vs (Cache Read * 0.1 * Input Price)
-        
         for u in usage_data:
-            # Try to match pricing
-            m_name = u.model.split("/")[-1]
-            price = PRICING.get(m_name, PRICING.get("default", {"in": 0, "out": 0}))
+            # Safe access to cache columns
+            cr = getattr(u, "cache_read", 0) or 0
+            cc = getattr(u, "cache_creation", 0) or 0
             
-            # Base cost of standard tokens
-            base_input = u.input - getattr(u, "cache_read", 0) - getattr(u, "cache_creation", 0)
-            cost_base = (base_input / 1_000_000 * price["in"]) + (u.output / 1_000_000 * price["out"])
+            # Use centralized pricing calculation
+            day_cost = calculate_cost(
+                u.model, 
+                u.input, # Grouped query alias
+                u.output, # Grouped query alias 
+                cr, 
+                cc
+            )
             
-            # Cache creation (usually 1.25x price)
-            cost_creation = (getattr(u, "cache_creation", 0) / 1_000_000 * price["in"] * 1.25)
+            # Describe savings (hypothetical cost without caching)
+            # Hypo: treat cache read as normal input
+            hypothetical_cost = calculate_cost(u.model, u.input + cr, u.output, 0, cc)
+            # Note: inputs in record usually EXCLUDE cache read for some providers, 
+            # but for Anthropic logs, input_tokens often implies billable input.
+            # Our logic in calculate_cost adds cache_read * 0.1. 
+            # So savings is roughly: (Read * FullPrice) - (Read * 0.1 * FullPrice)
             
-            # Cache read (usually 0.1x price)
-            cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"] * 0.1)
+            # Simple savings calc for display:
+            # We assume calculate_cost handles the actual bill. 
+            # We just want to show "what if".
             
-            # Savings: What it WOULD have cost minus what it DID cost
-            would_have_cost_read = (getattr(u, "cache_read", 0) / 1_000_000 * price["in"])
-            saved = would_have_cost_read - cost_read
-            
-            day_cost = cost_base + cost_creation + cost_read
             total_est_cost += day_cost
-            total_saved += saved
             
             cost_rows.append({
                 "Date": u.date,
                 "Model": u.model,
                 "Total Tokens": u.total,
-                "Cache Hits": getattr(u, "cache_read", 0),
+                "Cache Hits": cr,
                 "Est. Cost ($)": f"${day_cost:.4f}"
             })
         
@@ -688,11 +750,7 @@ with tab_usage:
         
         col1, col2 = st.columns(2)
         col1.metric("Total Estimated Cost (Lifetime)", f"${total_est_cost:.2f}")
-        col2.metric("Total ⚡ Savings (Prompt Caching)", f"${total_saved:.2f}", delta=f"{total_saved:.4f}", delta_color="normal")
         
-        if total_saved > 0:
-            st.success(f"🔥 Prompt caching has reduced your input costs by approximately {((total_saved / (total_est_cost + total_saved)) * 100):.1f}%!")
-
         # 4. Call Type Distribution
         st.subheader("Call Type Distribution")
         if type_breakdown:

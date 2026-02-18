@@ -610,6 +610,40 @@ class AsyncDatabase:
             logger.error("Failed to update Spotify tokens", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to update Spotify tokens: {e}")
 
+    async def delete_user(self, user_id: int) -> bool:
+        """
+        Delete a user and ALL their associated data (conversations, diary, etc.)
+        This is a hard delete for resetting the user.
+        """
+        try:
+            async with self.get_session() as session:
+                from sqlalchemy import delete
+                
+                # 1. Delete all related data first (to avoid FK constraints if CASCADE is missing)
+                # Note: TokenUsage, FutureEntry don't have cascade set up in models
+                
+                # Delete Future Entries
+                await session.execute(delete(FutureEntry).where(FutureEntry.user_id == user_id))
+                
+                # Delete Token Usage
+                await session.execute(delete(TokenUsage).where(TokenUsage.user_id == user_id))
+                
+                # Delete Conversations (even if cascade exists, explicit delete is safer for bulk)
+                await session.execute(delete(Conversation).where(Conversation.user_id == user_id))
+                
+                # Delete Diary Entries
+                await session.execute(delete(DiaryEntry).where(DiaryEntry.user_id == user_id))
+                
+                # 2. Delete the User
+                await session.execute(delete(User).where(User.id == user_id))
+                
+                logger.warning(f"Deleted user {user_id} and all associated data")
+                return True
+                
+        except SQLAlchemyError as e:
+            logger.error("Failed to delete user", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to delete user: {e}")
+
     # ==================== Token Usage Operations ====================
 
     async def record_token_usage(

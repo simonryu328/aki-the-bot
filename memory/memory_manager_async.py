@@ -86,6 +86,21 @@ class AsyncMemoryManager:
             self._user_cache[user_id] = user
         return user
 
+    async def reset_user(self, user_id: int) -> bool:
+        """
+        Delete a user's entire history and profile, effectively deleting the account.
+        This forces a fresh start.
+        """
+        try:
+            # Clear from cache first
+            if user_id in self._user_cache:
+                del self._user_cache[user_id]
+                
+            return await self.db.delete_user(user_id)
+        except Exception as e:
+            logger.error("Failed to reset user", user_id=user_id, error=str(e))
+            raise MemoryException(f"Failed to reset user: {e}")
+
     # ==================== Context Retrieval ====================
 
     async def get_user_context(self, user_id: int) -> UserContextSchema:

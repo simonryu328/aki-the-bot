@@ -1030,6 +1030,19 @@ class SoulAgent:
                 max_tokens=150,
             )
             
+            # Record usage
+            if message and message.total_tokens > 0:
+                await self.memory.record_token_usage(
+                    user_id=user_id,
+                    model=message.model,
+                    input_tokens=message.input_tokens,
+                    output_tokens=message.output_tokens,
+                    total_tokens=message.total_tokens,
+                    cache_read_tokens=message.cache_read_tokens,
+                    cache_creation_tokens=message.cache_creation_tokens,
+                    call_type="daily_message",
+                )
+            
             if isinstance(message, str):
                 raw = message.strip()
             else:
@@ -1073,6 +1086,17 @@ class SoulAgent:
                 temperature=0.7,
             )
 
+            # Record usage
+            if response and hasattr(response, 'total_tokens') and response.total_tokens > 0:
+                await self.memory.record_token_usage(
+                    user_id=user.id,
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    total_tokens=response.total_tokens,
+                    call_type="synthesize_note",
+                )
+
             content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             
             if content == "NONE" or not content:
@@ -1106,6 +1130,18 @@ class SoulAgent:
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
             )
+
+            # Record usage
+            if response and hasattr(response, 'total_tokens') and response.total_tokens > 0:
+                await self.memory.record_token_usage(
+                    user_id=user.id,
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    total_tokens=response.total_tokens,
+                    call_type="synthesize_plan",
+                    call_type="synthesize_plan",
+                )
 
             raw = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             
@@ -1300,6 +1336,19 @@ class SoulAgent:
                 max_tokens=1000,
             )
             
+            # Record usage
+            if response and hasattr(response, 'total_tokens') and response.total_tokens > 0:
+                await self.memory.record_token_usage(
+                    user_id=user_id,
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    total_tokens=response.total_tokens,
+                    cache_read_tokens=getattr(response, 'cache_read_tokens', 0),
+                    cache_creation_tokens=getattr(response, 'cache_creation_tokens', 0),
+                    call_type="personalized_insights",
+                )
+            
             content = response.content if hasattr(response, 'content') else str(response)
             
             # Parse JSON
@@ -1423,6 +1472,19 @@ class SoulAgent:
                 temperature=0.8,
                 max_tokens=600,
             )
+
+            # Record usage
+            if response and hasattr(response, 'total_tokens') and response.total_tokens > 0:
+                await self.memory.record_token_usage(
+                    user_id=user_id,
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    total_tokens=response.total_tokens,
+                    cache_read_tokens=getattr(response, 'cache_read_tokens', 0),
+                    cache_creation_tokens=getattr(response, 'cache_creation_tokens', 0),
+                    call_type="daily_soundtrack",
+                )
             
             content = response.content if hasattr(response, 'content') else str(response)
             
