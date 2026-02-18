@@ -641,6 +641,7 @@ class AsyncDatabase:
                     ("user_interests", "user_id", None),
                     ("user_facts", "user_id", None),
                     ("personality_traits", "user_id", None),
+                    ("profile_facts", "user_id", None),
                 ]
                 
                 from sqlalchemy import text
