@@ -434,7 +434,7 @@ with tab_conversations:
     conversations_content(selected_user_id)
 
 
-# Tab: Observations and Scheduled removed during cleanup
+
 
 
 # ---- Tab: Diary ----
@@ -458,6 +458,9 @@ with tab_diary:
                     emoji_map = {
                         "compact_summary": "📝 (Legacy)",
                         "conversation_memory": "🧠",
+                        "daily_message": "☀️",
+                        "daily_soundtrack": "🎵",
+                        "personalized_insights": "✨",
                         "achievement": "🏆",
                         "milestone": "⭐",
                         "visual_memory": "📸",
@@ -506,6 +509,9 @@ with tab_diary:
                     emoji_map = {
                         "compact_summary": "📝 (Legacy)",
                         "conversation_memory": "🧠",
+                        "daily_message": "☀️",
+                        "daily_soundtrack": "🎵",
+                        "personalized_insights": "✨",
                         "achievement": "🏆",
                         "milestone": "⭐",
                         "visual_memory": "📸",
@@ -584,6 +590,9 @@ with tab_database:
                     emoji_map = {
                         "compact_summary": "📝 (Legacy)",
                         "conversation_memory": "🧠",
+                        "daily_message": "☀️",
+                        "daily_soundtrack": "🎵",
+                        "personalized_insights": "✨",
                         "achievement": "🏆",
                         "milestone": "⭐",
                         "visual_memory": "📸",

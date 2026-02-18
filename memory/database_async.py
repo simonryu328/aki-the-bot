@@ -646,20 +646,23 @@ class AsyncDatabase:
                 from sqlalchemy import text
                 for table, user_col, diary_col in legacy_tables:
                     try:
-                        if diary_col:
-                            # Delete rows referencing this user's diary entries
-                            await session.execute(
-                                text(f"DELETE FROM {table} WHERE {diary_col} IN (SELECT id FROM diary_entries WHERE user_id = :uid)"), 
-                                {"uid": user_id}
-                            )
-                        elif user_col:
-                            # Delete rows referencing this user directly
-                            await session.execute(
-                                text(f"DELETE FROM {table} WHERE {user_col} = :uid"), 
-                                {"uid": user_id}
-                            )
+                        # Use a nested transaction (savepoint) so failures don't abort the main transaction
+                        async with session.begin_nested():
+                            if diary_col:
+                                # Delete rows referencing this user's diary entries
+                                await session.execute(
+                                    text(f"DELETE FROM {table} WHERE {diary_col} IN (SELECT id FROM diary_entries WHERE user_id = :uid)"), 
+                                    {"uid": user_id}
+                                )
+                            elif user_col:
+                                # Delete rows referencing this user directly
+                                await session.execute(
+                                    text(f"DELETE FROM {table} WHERE {user_col} = :uid"), 
+                                    {"uid": user_id}
+                                )
                     except Exception as e:
                         # Log but continue - often table won't exist
+                        # Because of begin_nested(), the main transaction is still valid
                         logger.warning(f"Cleanup of legacy table '{table}' failed (ignoring): {str(e)}")
                 
                 # Delete Diary Entries
