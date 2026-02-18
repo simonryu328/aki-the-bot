@@ -49,7 +49,7 @@ class LLMClient:
     """
 
     # Default models per use case
-    DEFAULT_CHAT_MODEL = "gpt-4o"
+    DEFAULT_CHAT_MODEL = "gpt-4o-mini"
     DEFAULT_FAST_MODEL = "gpt-4o-mini"
 
     def __init__(self):
