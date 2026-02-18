@@ -847,19 +847,6 @@ function showReflectionOverlay(entry: JournalEntry) {
   reflectionPeek.textContent = truncateText(entry.content, 180);
   reflectionOverlay.classList.remove('hidden');
 
-  // TRIGGER CONFETTI (with a slight delay to ensure it's seen after transition)
-  setTimeout(() => {
-    if (window.confetti) {
-      window.confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead'],
-        disableForReducedMotion: true,
-        zIndex: 3000 // Ensure it's above the overlay
-      });
-    }
-  }, 300);
 
   // Minimal delay for transition
   setTimeout(() => reflectionOverlay.classList.add('show'), 50);
@@ -985,14 +972,14 @@ async function init() {
       if (freshData.memories.length > 0) {
         const latest = freshData.memories[0];
         lastSeenMomentId = latest.id;
-        const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v5');
+        const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v6');
 
         // Only trigger if landing fresh on Today
         const isLandingOnToday = startPanel === null || startPanel === '1';
 
         if (isLandingOnToday && storedLastSeen !== latest.id) {
           showReflectionOverlay(latest);
-          localStorage.setItem('aki_last_seen_moment_v5', latest.id);
+          localStorage.setItem('aki_last_seen_moment_v6', latest.id);
         }
       }
     }
