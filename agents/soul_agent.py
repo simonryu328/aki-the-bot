@@ -764,24 +764,17 @@ class SoulAgent:
             SoulAgent._last_compact_prompt[user_id] = prompt
             
             # Generate summary
-            result = await llm_client.chat(
+            result = await llm_client.chat_with_usage(
                 model=settings.MODEL_MEMORY,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=settings.SUMMARY_MAX_TOKENS,
-            )
-            
-            logger.debug(
-                "Compact summary generated", 
-                user_id=user_id, 
-                summary_length=len(result),
-                summary=result[:100]
+                temperature=0.7,
+                max_tokens=2000,
             )
             
             # Store summary as a diary entry with type "compact_summary"
-            if result and result.strip():
+            if result and result.content.strip():
                 # The LLM returns the summary directly without a "SUMMARY:" prefix
-                summary_content = result.strip()
+                summary_content = result.content.strip()
                 
                 # Convert start/end times back to datetime objects for storage
                 exchange_start_dt = None
@@ -1023,7 +1016,7 @@ class SoulAgent:
             
             logger.info("Generating daily message", user_id=user_id, model=settings.MODEL_DAILY_MESSAGE)
             
-            message = await llm_client.chat(
+            message = await llm_client.chat_with_usage(
                 model=settings.MODEL_DAILY_MESSAGE,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
@@ -1043,10 +1036,7 @@ class SoulAgent:
                     call_type="daily_message",
                 )
             
-            if isinstance(message, str):
-                raw = message.strip()
-            else:
-                raw = message.content.strip()
+            raw = message.content.strip()
             
             # 4. Sanitize: strip markdown, headers, and commentary
             final_message = self._sanitize_daily_message(raw)
@@ -1080,7 +1070,7 @@ class SoulAgent:
             )
 
             logger.info(f"Synthesizing note for user {user.id}")
-            response = await llm_client.chat(
+            response = await llm_client.chat_with_usage(
                 model=settings.MODEL_CONVERSATION,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
@@ -1125,7 +1115,7 @@ class SoulAgent:
             )
 
             logger.info(f"Synthesizing plan for user {user.id}")
-            response = await llm_client.chat(
+            response = await llm_client.chat_with_usage(
                 model=settings.MODEL_CONVERSATION,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
@@ -1328,7 +1318,7 @@ class SoulAgent:
             
             logger.info("Generating personalized insights", user_id=user_id, model=settings.MODEL_INSIGHTS)
             
-            response = await llm_client.chat(
+            response = await llm_client.chat_with_usage(
                 model=settings.MODEL_INSIGHTS,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
@@ -1465,15 +1455,15 @@ class SoulAgent:
                 recently_played=recent_tracks_text or "No recent history."
             )
 
-            response = await llm_client.chat(
+            response = await llm_client.chat_with_usage(
                 model=settings.MODEL_INSIGHTS, # Use Sonnet for better taste
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
                 max_tokens=600,
             )
-
+            
             # Record usage
-            if response and hasattr(response, 'total_tokens') and response.total_tokens > 0:
+            if response and response.total_tokens > 0:
                 await self.memory.record_token_usage(
                     user_id=user_id,
                     model=response.model,
