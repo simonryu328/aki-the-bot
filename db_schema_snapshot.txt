@@ -1,0 +1,9 @@
+Found 8 tables:
+calendar_events
+conversations
+diary_entries
+future_entries
+scheduled_messages
+timeline_events
+token_usage
+users

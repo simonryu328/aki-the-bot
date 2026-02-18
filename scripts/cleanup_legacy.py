@@ -26,7 +26,10 @@ LEGACY_TABLES = [
     "personality_traits",
     "user_knowledge",
     "user_values",
-    "profile_facts"
+    "profile_facts",
+    "scheduled_messages",
+    "calendar_events",
+    "timeline_events"
 ]
 
 async def main():
