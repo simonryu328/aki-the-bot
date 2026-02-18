@@ -957,6 +957,16 @@ class SoulAgent:
                 
                 logger.info("Stored conversation memory", user_id=user_id, title=title,
                            exchange_start=start_time, exchange_end=end_time)
+
+                # Send proactive notification about the new memory
+                # We import here to avoid circular dependency
+                try:
+                    from bot.telegram_handler import bot
+                    user = await self.memory.get_user_by_id(user_id)
+                    if user and user.telegram_id:
+                        asyncio.create_task(bot.send_journal_notification(user.telegram_id, title))
+                except Exception as e:
+                    logger.error(f"Failed to trigger memory notification: {e}")
             else:
                 logger.warning("Empty memory entry generated", user_id=user_id)
             

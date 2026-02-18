@@ -1390,3 +1390,188 @@ body {
 .btn-icon {
   font-size: 1.2rem;
 }
+
+/* ═══════════════════════════════════════════════════════
+   Moment Toast & Reflection Overlay
+   ═══════════════════════════════════════════════════════ */
+
+.moment-toast {
+  position: fixed;
+  top: calc(var(--safe-top) + 70px);
+  left: 20px;
+  right: 20px;
+  background: rgba(var(--tg-theme-bg-color-rgb, 255, 255, 255), 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-xl);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1000;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  transform: translateY(-150%);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+}
+
+.moment-toast.show {
+  transform: translateY(0);
+}
+
+.moment-toast-icon {
+  font-size: 24px;
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.moment-toast-content {
+  flex: 1;
+}
+
+.moment-toast-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.moment-toast-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Reflection Overlay ── */
+.reflection-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.5s ease;
+}
+
+.reflection-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.reflection-card {
+  background: var(--section-bg);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  border: 1px solid var(--separator);
+  box-shadow: var(--shadow-elevated);
+  max-width: 320px;
+  width: 100%;
+  transform: scale(0.9) translateY(20px);
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reflection-overlay.show .reflection-card {
+  transform: scale(1) translateY(0);
+}
+
+.reflection-emoji {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.reflection-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.reflection-peek {
+  font-size: 15px;
+  color: var(--subtitle);
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.reflection-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Panel 3: Horizons (Future)
+   ═══════════════════════════════════════════════════════ */
+
+.horizons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.horizon-card {
+  background: var(--section-bg);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  border: 1px solid var(--separator);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s;
+}
+
+.horizon-card:active {
+  transform: scale(0.98);
+}
+
+.horizon-type {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.horizon-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.horizon-content {
+  font-size: 14px;
+  color: var(--subtitle);
+  line-height: 1.5;
+}
+
+.horizon-footer {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--hint);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

@@ -309,6 +309,52 @@ class TelegramBot:
                 logger.error(f"Retry also failed: {retry_error}")
                 raise
 
+    async def send_journal_notification(self, telegram_id: int, entry_title: str) -> None:
+        """
+        Send a personal notification to the user when Aki has written a new journal entry.
+        Includes an inline button to open the Mini App at the Journal tab.
+        """
+        if not settings.WEBHOOK_URL:
+            logger.warning("No WEBHOOK_URL configured, cannot generate mini app link for notification")
+            return
+
+        try:
+            # Generate deep link to Journal panel (panel 0)
+            import time
+            v = int(time.time())
+            # We use start_panel=0 to land on Journal
+            web_app_url = f"{settings.WEBHOOK_URL}?v={v}&start_panel=0"
+            if not web_app_url.startswith("https://"):
+                web_app_url = f"https://{web_app_url.lstrip('http://')}"
+
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    "Witness Moment ✨",
+                    web_app=WebAppInfo(url=web_app_url)
+                )
+            ]])
+
+            messages = [
+                f"I was just thinking about our talk earlier. I've captured a new moment for us: '*{entry_title}*'.",
+                "I've added it to our story in the Journal. Check it out when you have a second. ✨"
+            ]
+
+            # Send messages with typing
+            for msg in messages:
+                await self._send_with_typing(chat_id=telegram_id, text=msg)
+            
+            # Send the button with the last message or as a separate one
+            await self.application.bot.send_message(
+                chat_id=telegram_id,
+                text="Tap below to see what I wrote:",
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+            logger.info(f"Sent journal notification to user {telegram_id}: {entry_title}")
+        except Exception as e:
+            logger.error(f"Failed to send journal notification: {e}")
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Handle the /start command.

@@ -82,10 +82,10 @@
           </div>
           <div class="welcome-panel-card">
             <div class="welcome-panel-header">
-              <div class="welcome-panel-icon">✍️</div>
-              <div class="welcome-panel-label">Notes</div>
+              <div class="welcome-panel-icon">🌅</div>
+              <div class="welcome-panel-label">Horizons</div>
             </div>
-            <div class="welcome-panel-desc">Quick thoughts and memos</div>
+            <div class="welcome-panel-desc">Your plans and aspirations</div>
           </div>
         </div>
         <p class="welcome-text">Swipe left and right to navigate between panels.</p>
@@ -144,10 +144,9 @@
   <button class="nav-tab" data-panel="2">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
       stroke-linejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
     </svg>
-    <span>Notes</span>
+    <span>Horizons</span>
   </button>
 </nav>
 
@@ -319,17 +318,20 @@
   </section>
 
   <!-- ═══════════════════════════════════════════ -->
-  <!-- PANEL 3: Notes (Coming Soon)                -->
+  <!-- PANEL 3: Horizons (Future)                  -->
   <!-- ═══════════════════════════════════════════ -->
-  <section class="panel" id="panelNotes">
+  <section class="panel" id="panelHorizons">
     <div class="panel-content">
-      <h1 class="panel-title">Notes</h1>
-      <p class="panel-subtitle">Quick capture</p>
+      <h1 class="panel-title">Horizons</h1>
+      <p class="panel-subtitle">Future and hopes</p>
 
-      <div class="coming-soon">
-        <div class="coming-soon-icon">✍️</div>
-        <p class="coming-soon-text">Your notes space is coming soon.</p>
-        <p class="coming-soon-hint">Goals, memos, and notes to Aki — write here, Aki reads.</p>
+      <div class="horizons-container" id="horizonsList">
+        <div class="coming-soon">
+          <div class="coming-soon-icon">🌅</div>
+          <p class="coming-soon-text">Your horizons are expanding.</p>
+          <p class="coming-soon-hint">This is where Aki holds your plans, goals, and the things you're looking forward
+            to.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -341,6 +343,26 @@
   <span class="dot" data-panel="0"></span>
   <span class="dot active" data-panel="1"></span>
   <span class="dot" data-panel="2"></span>
+</div>
+
+
+<!-- Moment Toast -->
+<div id="momentToast" class="moment-toast">
+  <div class="moment-toast-icon">✨</div>
+  <div class="moment-toast-content">
+    <div class="moment-toast-label">New Moment</div>
+    <div id="momentToastTitle" class="moment-toast-title">Aki has a new reflection</div>
+  </div>
+</div>
+
+<!-- Reflection Overlay (Modal Reveal) -->
+<div id="reflectionOverlay" class="reflection-overlay">
+  <div class="reflection-card">
+    <div class="reflection-emoji">📔</div>
+    <h2 id="reflectionTitle" class="reflection-title">Recent Reflection</h2>
+    <p id="reflectionPeek" class="reflection-peek">Aki just wrote something about your latest conversation...</p>
+    <button id="reflectionBtn" class="reflection-btn">Witness Moment</button>
+  </div>
 </div>
 
 <script type="module" src="/src/main.ts"></script>

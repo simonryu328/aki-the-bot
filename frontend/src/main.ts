@@ -89,6 +89,19 @@ interface PersonalizedInsights {
   };
 }
 
+interface FutureEntry {
+  id: number;
+  entry_type: string;
+  title: string;
+  content?: string;
+  start_time?: string;
+  end_time?: string;
+  is_all_day: boolean;
+  is_completed: boolean;
+  source: string;
+  created_at: string;
+}
+
 // ── Initialization ──────────────────────────────────
 
 const tg = window.Telegram?.WebApp;
@@ -107,6 +120,8 @@ let currentPanel = 1; // Start on Today
 const totalPanels = 3;
 let allEntries: JournalEntry[] = [];
 let detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+let lastSeenMomentId: string | null = null;
+let isPolling = false;
 // ── DOM References ──────────────────────────────────
 
 const container = document.getElementById('panelsContainer') as HTMLElement;
@@ -171,6 +186,70 @@ const unhingedList = document.getElementById('unhingedList') as HTMLElement;
 const observationsList = document.getElementById('observationsList') as HTMLElement;
 const questionsList = document.getElementById('questionsList') as HTMLElement;
 const todayComingSoon = document.getElementById('todayComingSoon') as HTMLElement;
+
+// Notification & Overlay Refs
+const momentToast = document.getElementById('momentToast') as HTMLElement;
+const momentToastTitle = document.getElementById('momentToastTitle') as HTMLElement;
+const reflectionOverlay = document.getElementById('reflectionOverlay') as HTMLElement;
+const reflectionTitle = document.getElementById('reflectionTitle') as HTMLElement;
+const reflectionPeek = document.getElementById('reflectionPeek') as HTMLElement;
+const reflectionBtn = document.getElementById('reflectionBtn') as HTMLButtonElement;
+const horizonsList = document.getElementById('horizonsList') as HTMLElement;
+
+// ── Horizons Logic ──────────────────────────────────
+
+function renderHorizons(entries: FutureEntry[]) {
+  if (!horizonsList) return;
+
+  if (entries.length === 0) {
+    horizonsList.innerHTML = `
+      <div class="coming-soon">
+        <div class="coming-soon-icon">🌅</div>
+        <p class="coming-soon-text">Your horizons are expanding.</p>
+        <p class="coming-soon-hint">This is where Aki holds your plans, goals, and the things you're looking forward to.</p>
+      </div>
+    `;
+    return;
+  }
+
+  horizonsList.innerHTML = '';
+  entries.forEach(entry => {
+    const card = document.createElement('div');
+    card.className = 'horizon-card';
+
+    const dateStr = entry.start_time ? new Date(entry.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Plan';
+
+    card.innerHTML = `
+      <div class="horizon-type">
+        ${entry.entry_type === 'plan' ? '📅 Plan' : '✍️ Note'}
+      </div>
+      <div class="horizon-title">${escapeHtml(entry.title)}</div>
+      ${entry.content ? `<div class="horizon-content">${escapeHtml(truncateText(entry.content, 100))}</div>` : ''}
+      <div class="horizon-footer">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        ${dateStr}
+      </div>
+    `;
+    horizonsList.appendChild(card);
+  });
+}
+
+async function fetchHorizons() {
+  const userId = getUserId();
+  if (!userId) return;
+
+  try {
+    const res = await fetch(`/api/future/${userId}`);
+    if (res.ok) {
+      const data: FutureEntry[] = await res.json();
+      renderHorizons(data);
+    }
+  } catch (err) {
+    console.error('Failed to fetch horizons:', err);
+  }
+}
 
 // ── Soundtrack Logic ────────────────────────────────
 
@@ -795,6 +874,97 @@ welcomeFinishBtn?.addEventListener('click', completeSetup);
 
 // ── Init ──────────────────────────────────────────────
 
+// ── Notification & Real-time Logic ──────────────────
+
+function showReflectionOverlay(entry: JournalEntry) {
+  if (!reflectionOverlay || !reflectionTitle || !reflectionPeek || !reflectionBtn) return;
+
+  reflectionTitle.textContent = entry.title || 'Recent Reflection';
+  reflectionPeek.textContent = truncateText(entry.content, 120);
+  reflectionOverlay.classList.remove('hidden');
+
+  // Minimal delay for transition
+  setTimeout(() => reflectionOverlay.classList.add('show'), 50);
+
+  if (tg) tg.HapticFeedback.notificationOccurred('success');
+
+  reflectionBtn.onclick = () => {
+    reflectionOverlay.classList.remove('show');
+    setTimeout(() => reflectionOverlay.classList.add('hidden'), 500);
+    goToPanel(0); // Go to Journal
+    if (tg) tg.HapticFeedback.impactOccurred('heavy');
+  };
+}
+
+function showMomentToast(entry: JournalEntry) {
+  if (!momentToast || !momentToastTitle) return;
+
+  momentToastTitle.textContent = entry.title || 'New Moment captured';
+  momentToast.classList.add('show');
+
+  if (tg) tg.HapticFeedback.notificationOccurred('success');
+
+  const hideTimeout = setTimeout(() => {
+    momentToast.classList.remove('show');
+  }, 6000);
+
+  momentToast.onclick = () => {
+    clearTimeout(hideTimeout);
+    momentToast.classList.remove('show');
+    goToPanel(0); // Go to Journal
+    if (tg) tg.HapticFeedback.impactOccurred('medium');
+  };
+}
+
+async function checkForNewMomories() {
+  if (isPolling) return;
+  const userId = getUserId();
+  if (!userId) return;
+
+  isPolling = true;
+  try {
+    const res = await fetch(`/api/memories/${userId}?t=${Date.now()}`);
+    if (res.ok) {
+      const entries: JournalEntry[] = await res.json();
+      if (entries.length > 0) {
+        const latest = entries[0];
+
+        // If this is our first load, just set the baseline
+        if (lastSeenMomentId === null) {
+          lastSeenMomentId = latest.id;
+          allEntries = entries;
+          renderEntries(allEntries);
+          return;
+        }
+
+        // If we find a newer ID than the one we saw last
+        if (latest.id !== lastSeenMomentId) {
+          console.log("New moment detected!", latest.title);
+          lastSeenMomentId = latest.id;
+          allEntries = entries;
+          renderEntries(allEntries);
+
+          // Only show toast if we aren't already looking at the journal
+          if (currentPanel !== 0) {
+            showMomentToast(latest);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Polling failed:", err);
+  } finally {
+    isPolling = false;
+  }
+}
+
+function startPolling() {
+  // Poll every 30 seconds
+  setInterval(checkForNewMomories, 30000);
+}
+
+// ── Init ──────────────────────────────────────────────
+
 async function init() {
   // Today's Date
   if (todayDate) {
@@ -803,6 +973,8 @@ async function init() {
   }
 
   const userId = getUserId();
+  const urlParams = new URLSearchParams(window.location.search);
+  const startPanel = urlParams.get('start_panel');
 
   if (userId) {
     try {
@@ -832,11 +1004,44 @@ async function init() {
     }
   }
 
-  fetchEntries();
+  fetchEntries().then(() => {
+    // Set baseline for polling after first fetch
+    if (allEntries.length > 0) {
+      const latest = allEntries[0];
+      lastSeenMomentId = latest.id;
+
+      // Check if user has seen this moment before
+      const storedLastSeen = localStorage.getItem('aki_last_seen_moment');
+
+      // If we land on today (default) AND have a new unseen moment
+      if (startPanel === null && storedLastSeen !== latest.id) {
+        // Show the reveal overlay!
+        showReflectionOverlay(latest);
+        localStorage.setItem('aki_last_seen_moment', latest.id);
+      }
+    }
+    startPolling();
+
+    // Check if we should land on a specific panel
+    if (startPanel !== null) {
+      const panelIndex = parseInt(startPanel);
+      if (!isNaN(panelIndex)) {
+        setTimeout(() => goToPanel(panelIndex), 300);
+      }
+
+      // If they explicitly clicked a deep link, mark the latest as "seen"
+      if (allEntries.length > 0) {
+        localStorage.setItem('aki_last_seen_moment', allEntries[0].id);
+      }
+    } else {
+      goToPanel(1); // Default to Today
+    }
+  });
+
   fetchDailyMessage();
   fetchPersonalizedInsights();
   fetchDailySoundtrack();
-  goToPanel(1); // Initialize UI to Today
+  fetchHorizons();
 
   // ── Final Transition: Hide Splash Screen ──
   setTimeout(() => {
