@@ -15,6 +15,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 
 <!-- ═══════════════════════════════════════════ -->
@@ -346,21 +349,22 @@
 </div>
 
 
-<!-- Moment Toast -->
-<div id="momentToast" class="moment-toast">
-  <div class="moment-toast-icon">✨</div>
-  <div class="moment-toast-content">
-    <div class="moment-toast-label">New Moment</div>
-    <div id="momentToastTitle" class="moment-toast-title">Aki has a new reflection</div>
-  </div>
-</div>
 
 <!-- Reflection Overlay (Modal Reveal) -->
 <div id="reflectionOverlay" class="reflection-overlay">
+  <button id="reflectionCloseBtn" class="reflection-close-btn" aria-label="Close">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </button>
   <div class="reflection-card">
     <div class="reflection-emoji">📔</div>
     <h2 id="reflectionTitle" class="reflection-title">Recent Reflection</h2>
-    <p id="reflectionPeek" class="reflection-peek">Aki just wrote something about your latest conversation...</p>
+    <div class="reflection-peek-container">
+      <p id="reflectionPeek" class="reflection-peek">Aki just wrote something about your latest conversation...</p>
+    </div>
     <button id="reflectionBtn" class="reflection-btn">Witness Moment</button>
   </div>
 </div>

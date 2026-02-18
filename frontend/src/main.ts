@@ -47,6 +47,7 @@ declare global {
     Telegram?: {
       WebApp: TelegramWebApp;
     };
+    confetti?: any;
   }
 }
 
@@ -188,12 +189,11 @@ const questionsList = document.getElementById('questionsList') as HTMLElement;
 const todayComingSoon = document.getElementById('todayComingSoon') as HTMLElement;
 
 // Notification & Overlay Refs
-const momentToast = document.getElementById('momentToast') as HTMLElement;
-const momentToastTitle = document.getElementById('momentToastTitle') as HTMLElement;
 const reflectionOverlay = document.getElementById('reflectionOverlay') as HTMLElement;
 const reflectionTitle = document.getElementById('reflectionTitle') as HTMLElement;
 const reflectionPeek = document.getElementById('reflectionPeek') as HTMLElement;
 const reflectionBtn = document.getElementById('reflectionBtn') as HTMLButtonElement;
+const reflectionCloseBtn = document.getElementById('reflectionCloseBtn') as HTMLButtonElement;
 const horizonsList = document.getElementById('horizonsList') as HTMLElement;
 
 // ── Horizons Logic ──────────────────────────────────
@@ -880,8 +880,20 @@ function showReflectionOverlay(entry: JournalEntry) {
   if (!reflectionOverlay || !reflectionTitle || !reflectionPeek || !reflectionBtn) return;
 
   reflectionTitle.textContent = entry.title || 'Recent Reflection';
-  reflectionPeek.textContent = truncateText(entry.content, 120);
+  // EXPANDED TEXT: Show full content in the overlay now
+  reflectionPeek.textContent = entry.content;
   reflectionOverlay.classList.remove('hidden');
+
+  // TRIGGER CONFETTI
+  if (window.confetti) {
+    window.confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead'],
+      disableForReducedMotion: true
+    });
+  }
 
   // Minimal delay for transition
   setTimeout(() => reflectionOverlay.classList.add('show'), 50);
@@ -894,27 +906,16 @@ function showReflectionOverlay(entry: JournalEntry) {
     goToPanel(0); // Go to Journal
     if (tg) tg.HapticFeedback.impactOccurred('heavy');
   };
+
+  if (reflectionCloseBtn) {
+    reflectionCloseBtn.onclick = () => {
+      reflectionOverlay.classList.remove('show');
+      setTimeout(() => reflectionOverlay.classList.add('hidden'), 500);
+      if (tg) tg.HapticFeedback.impactOccurred('light');
+    };
+  }
 }
 
-function showMomentToast(entry: JournalEntry) {
-  if (!momentToast || !momentToastTitle) return;
-
-  momentToastTitle.textContent = entry.title || 'New Moment captured';
-  momentToast.classList.add('show');
-
-  if (tg) tg.HapticFeedback.notificationOccurred('success');
-
-  const hideTimeout = setTimeout(() => {
-    momentToast.classList.remove('show');
-  }, 6000);
-
-  momentToast.onclick = () => {
-    clearTimeout(hideTimeout);
-    momentToast.classList.remove('show');
-    goToPanel(0); // Go to Journal
-    if (tg) tg.HapticFeedback.impactOccurred('medium');
-  };
-}
 
 async function checkForNewMomories() {
   if (isPolling) return;
@@ -944,9 +945,9 @@ async function checkForNewMomories() {
           allEntries = entries;
           renderEntries(allEntries);
 
-          // Only show toast if we aren't already looking at the journal
+          // Show reflection overlay if we aren't already looking at the journal
           if (currentPanel !== 0) {
-            showMomentToast(latest);
+            showReflectionOverlay(latest);
           }
         }
       }
@@ -1011,13 +1012,14 @@ async function init() {
       lastSeenMomentId = latest.id;
 
       // Check if user has seen this moment before
-      const storedLastSeen = localStorage.getItem('aki_last_seen_moment');
+      // Use versioned key so it re-triggers for everyone after this update
+      const storedLastSeen = localStorage.getItem('aki_last_seen_moment_v4');
 
       // If we land on today (default) AND have a new unseen moment
       if (startPanel === null && storedLastSeen !== latest.id) {
         // Show the reveal overlay!
         showReflectionOverlay(latest);
-        localStorage.setItem('aki_last_seen_moment', latest.id);
+        localStorage.setItem('aki_last_seen_moment_v4', latest.id);
       }
     }
     startPolling();
@@ -1031,7 +1033,7 @@ async function init() {
 
       // If they explicitly clicked a deep link, mark the latest as "seen"
       if (allEntries.length > 0) {
-        localStorage.setItem('aki_last_seen_moment', allEntries[0].id);
+        localStorage.setItem('aki_last_seen_moment_v4', allEntries[0].id);
       }
     } else {
       goToPanel(1); // Default to Today
