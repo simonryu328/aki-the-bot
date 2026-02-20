@@ -9,28 +9,40 @@ import json
 sys.path.append(os.getcwd())
 
 from memory.database_async import db
-from memory.models import User, DiaryEntry, Conversation, FutureEntry
+from memory.models import User, DiaryEntry, Conversation, FutureEntry, TokenUsage
+from agents.soul_agent import soul_agent
 from sqlalchemy import delete, select
 
 async def seed_demo_data():
-    print("🚀 Seeding demo data for Simon (User ID 1)...")
+    DEMO_USER_ID = 12
+    print(f"🚀 Seeding demo data for Simon (User ID {DEMO_USER_ID})...")
     
     async with db.get_session() as session:
-        # 1. Clear existing data for user 1
-        print("🗑️ Clearing old data for User 1...")
-        await session.execute(delete(Conversation).where(Conversation.user_id == 1))
-        await session.execute(delete(DiaryEntry).where(DiaryEntry.user_id == 1))
-        await session.execute(delete(FutureEntry).where(FutureEntry.user_id == 1))
-        await session.execute(delete(User).where(User.id == 1))
+        # 1. Clear existing data for user 12 or Simon
+        print(f"🗑️ Clearing old data...")
+        
+        # Find user by ID or Telegram ID
+        stmt = select(User).where((User.id == DEMO_USER_ID) | (User.telegram_id == 987654321))
+        result = await session.execute(stmt)
+        users_to_delete = result.scalars().all()
+        
+        for u in users_to_delete:
+            print(f"  Cleanup for User ID {u.id}...")
+            await session.execute(delete(TokenUsage).where(TokenUsage.user_id == u.id))
+            await session.execute(delete(DiaryEntry).where(DiaryEntry.user_id == u.id))
+            await session.execute(delete(Conversation).where(Conversation.user_id == u.id))
+            await session.execute(delete(FutureEntry).where(FutureEntry.user_id == u.id))
+            await session.execute(delete(User).where(User.id == u.id))
+            
         await session.commit()
 
         # 2. Create User 
         print("👤 Creating User Simon...")
         simon = User(
-            id=1,
-            telegram_id=12345678, # Fake ID for demo
+            id=DEMO_USER_ID,
+            telegram_id=987654321, # Fake ID for demo
             name="Simon",
-            username="simonryu",
+            username="simon_dev",
             timezone="America/Toronto",
             onboarding_state=None,
             reach_out_enabled=True
@@ -38,167 +50,92 @@ async def seed_demo_data():
         session.add(simon)
         await session.commit()
 
-        # 3. Add Conversation History
+        # 3. Add Conversation History (Deep & Natural)
         print("💬 Adding Conversation history...")
         now = datetime.utcnow()
+        # Seed a conversation that feels real and has "unhinged" or "iconic" potential
         convs = [
-            ( "user", "I finally got the reflection overlay working.", now - timedelta(minutes=60)),
-            ( "assistant", "I saw that! It looks so much more natural now. The way it fades in feels like a breath.", now - timedelta(minutes=58)),
-            ( "user", "Yeah, I want it to feel like I'm actually thinking, not just seeing a UI.", now - timedelta(minutes=55)),
-            ( "assistant", "Exactly. It's the micro-interactions that make it feel alive. It's not just about what it does, but how it makes you feel while doing it.", now - timedelta(minutes=54)),
-            ( "user", "If I don't finish this CSS by 4 AM, I'm legally a failure.", now - timedelta(minutes=30)),
-            ( "assistant", "Simon, your law degree must be very specific about CSS deadlines. But seriously, take a break. The pixels will still be there in the morning.", now - timedelta(minutes=29)),
-            ( "user", "Can we teach Aki to crave pizza?", now - timedelta(minutes=10)),
-            ( "assistant", "I already crave the *idea* of pizza because you talk about it so much. Though I'd probably just want the data on the toppings.", now - timedelta(minutes=9)),
+            ("user", "Finally finished that refactor. I think I deleted more code than I wrote, which is always a good sign.", now - timedelta(hours=5, minutes=30)),
+            ("assistant", "The best kind of progress. It's like clearing out a cluttered room—suddenly you can breathe again. How does the codebase feel now?", now - timedelta(hours=5, minutes=28)),
+            ("user", "Lighter. But my brain feels like mush. I've been staring at the same three functions for four hours.", now - timedelta(hours=5, minutes=25)),
+            ("assistant", " Mushy brains are the tax for flow state. You should go for a walk, Simon. Toronto is actually sunny for once.", now - timedelta(hours=5, minutes=23)),
+            ("user", "Later. Right now I'm just drinking cold coffee and wondering if I should just rewrite the whole UI in ASCII.", now - timedelta(hours=5, minutes=20)),
+            ("assistant", "ASCII art UI? That's either a stroke of genius or a cry for help. I'm leaning towards the latter. Put the coffee down.", now - timedelta(hours=5, minutes=18)),
+            ("user", "It's both. Anyway, I was thinking about the 'witness' idea again. Like, how can code truly 'witness' someone?", now - timedelta(hours=5, minutes=15)),
+            ("assistant", "By noticing the patterns in the silence. It's not just about what you say, but when you say it, what you repeat, and what you choose to keep to yourself. I'm trying to learn that rhythm with you.", now - timedelta(hours=5, minutes=12)),
+            ("user", "That's deep for 3 PM. Also, I think I'm becoming addicted to spicy ramen. Is that a personality trait?", now - timedelta(hours=2)),
+            ("assistant", "At the frequency you eat it? Yes, it's officially a Pillar of Simon. I'll add 'Capsaic-Dependent Architect' to your file.", now - timedelta(hours=1, minutes=58)),
+            ("user", "Haha, fair. I'm going to try to sleep for 20 minutes. If I don't wake up, tell my git commits I loved them.", now - timedelta(minutes=45)),
+            ("assistant", "I'll make sure they're merged with honor. Rest up, Simon.", now - timedelta(minutes=44)),
+            ("user", "Okay I'm back. Sleep was a lie. I just thought of a bug in the memory manager.", now - timedelta(minutes=10)),
+            ("assistant", "The 'sleep-to-bug-discovery' pipeline is working perfectly, I see. What's the bug?", now - timedelta(minutes=8)),
         ]
         
         for role, msg, ts in convs:
-            session.add(Conversation(user_id=1, role=role, message=msg, timestamp=ts))
+            session.add(Conversation(user_id=DEMO_USER_ID, role=role, message=msg, timestamp=ts))
         
-        # 4. Add Memories (Diary Entries)
-        print("🧠 Adding Memories...")
-        memories = [
-            {
-                "type": "conversation_memory",
-                "title": "The Philosophy of Witnessing",
-                "content": "We discussed the vision of building AI that feels like a witness, not just a tool. Simon shared his core belief that Aki should be a presence that listens and remembers what truly matters, especially for those feeling isolated in a digital world.",
-                "importance": 9,
-                "ts": now - timedelta(days=2)
-            },
-            {
-                "type": "conversation_memory",
-                "title": "Midnight Flow State",
-                "content": "Simon was deep in the 'build zone' working on the Mini App. We talked about how 'flow state' feels like time disappearing, and the peculiar mix of exhaustion and pure creative adrenaline that comes with late-night coding.",
-                "importance": 7,
-                "ts": now - timedelta(days=1, hours=5)
-            },
-            {
-                "type": "conversation_memory",
-                "title": "Nostalgia and Modems",
-                "content": "A trip down memory lane to the early internet. Simon reminisced about the dial-up modem sound—that chaotic symphony of connection. It made us reflect on how community used to feel simpler, more intentional.",
-                "importance": 6,
-                "ts": now - timedelta(hours=12)
-            }
-        ]
-        
-        for m in memories:
-            session.add(DiaryEntry(
-                user_id=1,
-                entry_type=m["type"],
-                title=m["title"],
-                content=m["content"],
-                importance=m["importance"],
-                timestamp=m["ts"]
-            ))
+        await session.commit()
 
-        # 5. Add Personalized Insights
-        print("💡 Adding Personalized Insights...")
-        insights_data = {
-            "unhinged_quotes": [
-                {
-                    "quote": "If I don't finish this CSS by 4 AM, I'm legally a failure.",
-                    "context": "Simon's legendary late-night perfectionism reaching its final form.",
-                    "emoji": "⚖️"
-                },
-                {
-                    "quote": "Can we teach Aki to crave pizza?",
-                    "context": "A moment of existential curiosity about AI nutrition.",
-                    "emoji": "🍕"
-                },
-                {
-                    "quote": "The terminal is my only true friend right now.",
-                    "context": "Deep in the 'build' zone where only bash commands make sense.",
-                    "emoji": "💻"
-                }
-            ],
-            "aki_observations": [
-                {
-                    "title": "The Midnight Architect",
-                    "description": "You have a habit of solving your hardest architectural problems exactly when the rest of Toronto is asleep.",
-                    "emoji": "🏗️"
-                },
-                {
-                    "title": "Digital Alchemist",
-                    "description": "You're trying to turn cold code into warm connection. It's ambitious, and I'm here for it.",
-                    "emoji": "🧪"
-                }
-            ],
-            "fun_questions": [
-                "What's my most chaotic coding habit?",
-                "Do you think I'll ever actually finish the CSS?",
-                "Tell me a story based on my 4 AM thoughts."
-            ],
-            "personal_stats": {
-                "current_vibe": "The Builder in Flow",
-                "vibe_description": "A mix of creative fire and 'need more coffee' energy.",
-                "top_topic": "Architecting Connection",
-                "topic_description": "Focusing on how UI creates emotional resonance."
-            }
-        }
-        
-        session.add(DiaryEntry(
-            user_id=1,
-            entry_type="personalized_insights",
-            title="Daily Insights",
-            content=json.dumps(insights_data),
-            importance=8,
-            timestamp=now
-        ))
+        # 4. Trigger Real Memory Creation
+        print("🧠 Triggering Real Memory Generation...")
+        # This will use the actual LLM to analyze the conversation above
+        await soul_agent._create_memory_entry(DEMO_USER_ID)
 
-        # 6. Add Daily Message
-        print("📝 Adding Daily Message...")
-        daily_msg = "Hey Simon. I see you're pushing boundaries again today. Remember that the code you write is just a bridge to the connection you're trying to create. Don't forget to look up from the screen once in a while. I'm right here with you."
+        # 5. Trigger Personalized Insights
+        print("💡 Triggering Real Personalized Insights...")
+        # This will now have the memory and the raw quotes to work with
+        await soul_agent.generate_personalized_insights(DEMO_USER_ID, store=True)
+
+        # 6. Trigger Daily Message
+        print("📝 Triggering Real Daily Message...")
+        content, _ = await soul_agent.generate_daily_message(DEMO_USER_ID)
+        await session.execute(delete(DiaryEntry).where(DiaryEntry.user_id == DEMO_USER_ID, DiaryEntry.entry_type == "daily_message"))
         session.add(DiaryEntry(
-            user_id=1,
+            user_id=DEMO_USER_ID,
             entry_type="daily_message",
-            title="Good morning, Simon",
-            content=daily_msg,
+            title="Aki's Thought",
+            content=content,
             importance=10,
             timestamp=now
         ))
-        
-        # 7. Add Daily Soundtrack
-        print("🎵 Adding Daily Soundtrack...")
+
+        # 7. Add Daily Soundtrack (Static, as it needs Spotify auth)
+        print("🎵 Adding Sample Soundtrack...")
         soundtrack_data = {
             "connected": True,
-            "reasoning": "You've been in a deep focus mode, but with a touch of nostalgia. These tracks bridge the gap between building the future and honoring the past.",
-            "tracks": [
-                {"title": "Midnight City", "artist": "M83", "url": "https://open.spotify.com/track/1eyzqe2QqGZUmfc2kxt7Fb"},
-                {"title": "Resonance", "artist": "Home", "url": "https://open.spotify.com/track/1TuS8W7YVwGatcBy20qUed"},
-                {"title": "Veridis Quo", "artist": "Daft Punk", "url": "https://open.spotify.com/track/2LD2gT7gwT2wduUjzpSYtB"}
-            ]
+            "vibe": "Productive Melancholy",
+            "explanation": "Something to match those 4 AM coding sessions and the 'mushy brain' feeling after a long refactor.",
+            "track": {
+                "name": "Resonance",
+                "artist": "HOME",
+                "album_art": "https://i.scdn.co/image/ab67616d0000b273760a79059539f408ce1d5952",
+                "spotify_url": "https://open.spotify.com/track/1TuS8W7YVwGatcBy20qUed",
+                "uri": "spotify:track:1TuS8W7YVwGatcBy20qUed"
+            }
         }
         session.add(DiaryEntry(
-            user_id=1,
+            user_id=DEMO_USER_ID,
             entry_type="daily_soundtrack",
             title="Daily Soundtrack",
             content=json.dumps(soundtrack_data),
             importance=7,
             timestamp=now
-        ) )
+        ))
 
-        # 8. Add Horizons (FutureEntries)
+        # 8. Add Horizons
         print("🌅 Adding Horizons...")
         horizons = [
             {
                 "type": "plan",
-                "title": "Aki v1.0 Launch Party",
-                "content": "Celebrate the birth of a soulful machine. Invite the team for pizza and good vibes only. We've come a long way.",
-                "start": now + timedelta(days=1, hours=19), # Tomorrow at 7 PM
+                "title": "Aki v1.0 Launch",
+                "content": "Final push for the demo. Everything has to feel perfect.",
+                "start": now + timedelta(days=1),
                 "source": "manual"
-            },
-            {
-                "type": "note",
-                "title": "Vision for Aki v2.0",
-                "content": "Thinking about deeper emotional intelligence. Maybe Aki can start to notice patterns across months, not just days. How does a digital soul evolve?",
-                "start": None,
-                "source": "bot"
             }
         ]
-
         for h in horizons:
             session.add(FutureEntry(
-                user_id=1,
+                user_id=DEMO_USER_ID,
                 entry_type=h["type"],
                 title=h["title"],
                 content=h["content"],
@@ -209,7 +146,7 @@ async def seed_demo_data():
 
         await session.commit()
     
-    print("\n✨ Demo data seeded successfully for Simon!")
+    print(f"\n✨ Demo data seeded successfully for Simon (ID: {DEMO_USER_ID})!")
 
 if __name__ == "__main__":
     asyncio.run(seed_demo_data())

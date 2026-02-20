@@ -37,6 +37,18 @@ class Settings(BaseSettings):
         min_length=1,
     )
 
+    # Anthropic API
+    ANTHROPIC_API_KEY: str = Field(
+        default="",
+        description="Anthropic API key",
+    )
+
+    # Gemini API
+    GEMINI_API_KEY: str = Field(
+        default="",
+        description="Gemini API key",
+    )
+
     # Database
     DATABASE_URL: str = Field(
         default="postgresql://postgres:password@localhost:5432/ai_companion",

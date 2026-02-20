@@ -21,6 +21,13 @@ from config.settings import settings
 logger = get_logger(__name__)
 
 # Configure LiteLLM
+import os
+os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
+if settings.ANTHROPIC_API_KEY:
+    os.environ["ANTHROPIC_API_KEY"] = settings.ANTHROPIC_API_KEY
+if settings.GEMINI_API_KEY:
+    os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
+
 litellm.set_verbose = False  # Set True for debugging
 
 
