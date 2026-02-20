@@ -19,8 +19,10 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
     # Anthropic
     "claude-3-5-sonnet-20240620": {"input": 3.00, "output": 15.00},
     "claude-3-5-sonnet-20241022": {"input": 3.00, "output": 15.00},
+    "claude-sonnet-4-5-20250929": {"input": 3.00, "output": 15.00},
     "claude-3-haiku-20240307": {"input": 0.25, "output": 1.25},
     "claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
+    "claude-haiku-4-5-20251001": {"input": 0.40, "output": 2.00},
     "claude-3-opus-20240229": {"input": 15.00, "output": 75.00},
     
     # Google
