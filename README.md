@@ -2,6 +2,18 @@
 
 Personal reflection tool and AI companion built on Telegram and Claude. Aki focuses on long-term memory and extreme personalization to create a highly localized user experience through a dedicated Mini App and proactive messaging.
 
+## Demo
+
+<div align="center">
+  <img src="assets/demo_dashboard.jpg" width="300" alt="Aki Dashboard">
+  <img src="assets/demo_journal.jpg" width="300" alt="Aki Journal">
+</div>
+
+<div align="center">
+  <video src="assets/demo_mini_app.mp4" width="600" controls></video>
+</div>
+
+
 ## Features
 
 - Telegram Mini App: A central dashboard for user-specific features.
