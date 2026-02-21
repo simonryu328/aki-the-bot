@@ -5,13 +5,11 @@ Personal reflection tool and AI companion built on Telegram and Claude. Aki focu
 ## Demo
 
 <div align="center">
-  <img src="assets/demo_dashboard.jpg" width="300" alt="Aki Dashboard">
-  <img src="assets/demo_journal.jpg" width="300" alt="Aki Journal">
+  <img src="assets/demo_mini_app.gif" width="250" alt="Aki Mini App Demo">
+  <img src="assets/demo_dashboard.jpg" width="250" alt="Aki Dashboard">
+  <img src="assets/demo_journal.jpg" width="250" alt="Aki Journal">
 </div>
 
-<div align="center">
-  <img src="assets/demo_mini_app.gif" width="300" alt="Aki Mini App Demo">
-</div>
 
 
 
