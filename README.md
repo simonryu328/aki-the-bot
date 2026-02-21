@@ -10,8 +10,9 @@ Personal reflection tool and AI companion built on Telegram and Claude. Aki focu
 </div>
 
 <div align="center">
-  <video src="assets/demo_mini_app.mp4" width="600" controls></video>
+  <img src="assets/demo_mini_app.gif" width="300" alt="Aki Mini App Demo">
 </div>
+
 
 
 ## Features
