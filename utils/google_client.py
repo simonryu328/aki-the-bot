@@ -27,15 +27,16 @@ class GoogleClient:
     """Manages Google OAuth flow and token lifecycle."""
 
     def __init__(self):
-        self.client_id = os.environ.get("GOOGLE_CLIENT_ID")
-        self.client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-        self.redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/google/callback")
+        # Use settings instead of raw os.environ
+        self.client_id = settings.GOOGLE_CLIENT_ID
+        self.client_secret = settings.GOOGLE_CLIENT_SECRET
+        self.redirect_uri = settings.GOOGLE_REDIRECT_URI.strip() if settings.GOOGLE_REDIRECT_URI else "http://localhost:8000/api/google/callback"
         
         # In-memory client config for Google auth flow
         self.client_config = {
             "web": {
                 "client_id": self.client_id,
-                "project_id": os.environ.get("GOOGLE_PROJECT_ID"),
+                "project_id": settings.GOOGLE_PROJECT_ID,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
