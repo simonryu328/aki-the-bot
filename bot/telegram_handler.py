@@ -478,6 +478,7 @@ class TelegramBot:
             ("app", "Add the 'App' button to your menu"),
             ("help", "See this list of commands"),
             ("memory", "Browse our shared memories (/memory list)"),
+            ("google", "Connect your Google Calendar 🗓️"),
             ("timezone", "Change your timezone"),
             ("reset", "Clear all our data and start over (use with caution)"),
             ("reachout_settings", "Manage how and when I reach out to you"),
@@ -598,6 +599,33 @@ class TelegramBot:
             "username": username,
             "last_message": update.message,  # Store for reaction
         }
+
+    async def google_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /google command. Initiates Google OAuth flow."""
+        user = update.effective_user
+        telegram_id = user.id
+        
+        try:
+            # We use the mini app base URL if available, otherwise we'll hardcode or use settings
+            # Construct the link to our FastAPI server
+            from utils.google_client import google_client
+            
+            auth_url = google_client.get_auth_url(telegram_id=telegram_id)
+            
+            keyboard = [
+                [InlineKeyboardButton("Connect Google Calendar 🗓️", url=auth_url)]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                "To give me access to your calendar, tap the button below to sign in with Google.\n\n"
+                "I'll only use this to help you manage your schedule and keep you organized. ✨",
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in google command: {e}")
+            await update.message.reply_text(f"Sorry, I couldn't start the connection process: {e}")
 
         # Cancel any existing debounce timer for this chat
         if chat_id in self._debounce_tasks:
@@ -1358,6 +1386,7 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("plan", self.plan_command))
         
         # User Settings & Data
+        self.application.add_handler(CommandHandler("google", self.google_command))
         self.application.add_handler(CommandHandler("reset", self.reset_command))
         self.application.add_handler(CommandHandler("timezone", self.timezone_command))
         self.application.add_handler(CommandHandler("reachout_settings", self.reachout_settings_command))

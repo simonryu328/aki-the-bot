@@ -610,6 +610,34 @@ class AsyncDatabase:
             logger.error("Failed to update Spotify tokens", user_id=user_id, error=str(e))
             raise DatabaseException(f"Failed to update Spotify tokens: {e}")
 
+    async def update_user_google_tokens(
+        self,
+        user_id: int,
+        access_token: Optional[str] = None,
+        refresh_token: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
+        scopes: Optional[str] = None,
+    ) -> None:
+        """Update user's Google tokens."""
+        try:
+            async with self.get_session() as session:
+                result = await session.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                if user:
+                    if access_token is not None:
+                        user.google_access_token = access_token
+                    if refresh_token is not None:
+                        user.google_refresh_token = refresh_token
+                    if expires_at is not None:
+                        user.google_token_expires_at = expires_at
+                    if scopes is not None:
+                        user.google_scopes = scopes
+                    session.add(user)
+                    logger.info("Updated Google tokens", user_id=user_id)
+        except SQLAlchemyError as e:
+            logger.error("Failed to update Google tokens", user_id=user_id, error=str(e))
+            raise DatabaseException(f"Failed to update Google tokens: {e}")
+
     async def delete_user(self, user_id: int) -> bool:
         """
         Delete a user and ALL their associated data (conversations, diary, etc.)

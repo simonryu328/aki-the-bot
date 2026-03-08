@@ -23,6 +23,7 @@ from schemas import DiaryEntrySchema, FutureEntrySchema, FutureEntryCreate, Dail
 from telegram import Update, Message
 from sqlalchemy import select, delete as sa_delete
 from utils.spotify_manager import spotify_manager
+from utils.google_client import google_client
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 
 # Configure logging
@@ -279,6 +280,101 @@ async def spotify_disconnect(telegram_id: int):
         return {"status": "success"}
     except Exception as e:
         logger.error(f"Error disconnecting Spotify: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Google Integration Endpoints ─────────────────────────────────────
+
+@app.get("/api/google/login/{telegram_id}")
+async def google_login(telegram_id: int):
+    """Initiate Google OAuth flow."""
+    auth_url = google_client.get_auth_url(telegram_id=telegram_id)
+    return {"url": auth_url}
+
+
+@app.get("/api/google/callback")
+async def google_callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    """Handle Google OAuth callback."""
+    if error:
+        logger.error(f"Google returned an error in callback: {error}")
+        return HTMLResponse(content=f"<h1>Connection Failed</h1><p>Google returned an error: {error}</p>", status_code=400)
+
+    if not code or not state:
+        logger.error("Google callback missing code or state")
+        return HTMLResponse(content="<h1>Connection Failed</h1><p>Missing code or state from Google.</p>", status_code=400)
+
+    try:
+        # State is the telegram_id
+        try:
+            telegram_id = int(state)
+        except ValueError:
+            logger.error(f"Invalid state (not an int): {state}")
+            return HTMLResponse(content="<h1>Connection Failed</h1><p>Invalid session state.</p>", status_code=400)
+
+        # Handle callback (exchange code and store tokens)
+        token_info = await google_client.handle_callback(code, telegram_id)
+        
+        # Store internal user_id in DB logic is already inside handle_callback
+        # but let's evict from cache to be sure
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        if user.id in memory_manager._user_cache:
+            del memory_manager._user_cache[user.id]
+        
+        logger.info(f"Successfully connected Google for user {telegram_id}")
+        
+        return HTMLResponse(content=f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Aki Connected!</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body {{ font-family: -apple-system, system-ui; text-align: center; padding: 40px; background: #000; color: white; }}
+                    .card {{ background: #111; padding: 30px; border-radius: 20px; border: 1px solid #333; }}
+                    .btn {{ display: inline-block; background: #4285F4; color: white; text-decoration: none; 
+                           padding: 15px 30px; border-radius: 30px; font-weight: bold; margin-top: 20px; }}
+                    h1 {{ color: #4285F4; }}
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h1>Google Calendar Connected!</h1>
+                    <p>I can now help you keep track of your days. 🗓️</p>
+                    <p>You can close this window and go back to Telegram.</p>
+                    <a href="https://t.me/AkiTheBot" class="btn">Back to Aki</a>
+                </div>
+            </body>
+            </html>
+        """)
+        
+    except Exception as e:
+        logger.error(f"Critical error in Google callback: {e}", exc_info=True)
+        return HTMLResponse(content=f"<h1>Connection Failed</h1><p>Something went wrong: {str(e)}</p>", status_code=500)
+
+
+@app.post("/api/google/disconnect/{telegram_id}")
+async def google_disconnect(telegram_id: int):
+    """Disconnect user's Google account."""
+    try:
+        user = await memory_manager.get_or_create_user(telegram_id=telegram_id)
+        
+        # Clear tokens in DB
+        await db.update_user_google_tokens(
+            user_id=user.id,
+            access_token=None,
+            refresh_token=None,
+            expires_at=None,
+            scopes=None
+        )
+        
+        # Evict from memory cache
+        if user.id in memory_manager._user_cache:
+            del memory_manager._user_cache[user.id]
+            
+        logger.info(f"Disconnected Google for user {telegram_id}")
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error disconnecting Google: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

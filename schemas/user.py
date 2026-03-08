@@ -58,4 +58,10 @@ class UserSchema(UserBaseSchema):
     spotify_refresh_token: Optional[str] = Field(None)
     spotify_token_expires_at: Optional[datetime] = Field(None)
 
+    # Google Integration
+    google_access_token: Optional[str] = Field(None)
+    google_refresh_token: Optional[str] = Field(None)
+    google_token_expires_at: Optional[datetime] = Field(None)
+    google_scopes: Optional[str] = Field(None)
+
     model_config = ConfigDict(from_attributes=True)

@@ -14,7 +14,7 @@ recognizes weight, and holds the story.
 """
 
 import asyncio
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -43,6 +43,8 @@ from utils.spotify_manager import spotify_manager
 import json
 from prompts.system_frame import SYSTEM_FRAME
 from prompts.personas import COMPANION_PERSONA
+from agents.calendar_tools import CALENDAR_TOOLS
+from utils.google_calendar import list_events, create_event, update_event, delete_event
 
 logger = get_logger(__name__)
 
@@ -197,13 +199,53 @@ class SoulAgent:
             }
         ]
 
+        # Assemble tools (only if Google is connected)
+        tools = None
+        if user and user.google_refresh_token:
+            tools = CALENDAR_TOOLS
+
         llm_response = await llm_client.chat_with_system_and_usage(
             model=self.model,
             system_prompt=system_prompt_blocks,
             user_message=message,
             temperature=0.7,
             max_tokens=1000,
+            tools=tools
         )
+        
+        # Handle tool calls if any
+        if llm_response.tool_calls:
+            # Add assistant message with tool calls to history for next pass
+            messages_with_tools = [
+                {"role": "system", "content": system_prompt_blocks},
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": llm_response.content, "tool_calls": llm_response.tool_calls}
+            ]
+            
+            for tool_call in llm_response.tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
+                
+                logger.info(f"Executing tool: {function_name}", user_id=user_id, args=function_args)
+                
+                tool_result = await self._execute_tool(user, function_name, function_args)
+                
+                messages_with_tools.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": function_name,
+                    "content": json.dumps(tool_result)
+                })
+            
+            # Second pass to generate final response based on tool results
+            llm_response = await llm_client.chat_with_system_and_usage(
+                model=self.model,
+                system_prompt=None, # Already in messages_with_tools
+                messages=messages_with_tools,
+                temperature=0.7,
+                max_tokens=1000
+            )
+
         raw_response = llm_response.content
         
         # Store raw response for debug
@@ -1535,6 +1577,61 @@ class SoulAgent:
                 
             logger.error("Failed to generate daily soundtrack", user_id=user_id, error=err_msg)
             return {"error": err_msg}
+
+    async def _execute_tool(self, user, function_name: str, args: Dict[str, Any]) -> Any:
+        """Dispatch tool calls to their respective handlers."""
+        try:
+            if function_name == "list_calendar_events":
+                return await list_events(
+                    user, 
+                    days_ahead=args.get("days_ahead", 1), 
+                    max_results=args.get("max_results", 10)
+                )
+            
+            elif function_name == "create_calendar_event":
+                # Ensure end_time exists if not provided
+                start_time = args.get("start_time")
+                end_time = args.get("end_time")
+                if not end_time and start_time:
+                    # Default +1 hour
+                    try:
+                        dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                        end_time = (dt + timedelta(hours=1)).isoformat()
+                    except:
+                        pass
+                
+                return await create_event(
+                    user,
+                    summary=args.get("summary"),
+                    start_time=start_time,
+                    end_time=end_time,
+                    description=args.get("description", ""),
+                    location=args.get("location", "")
+                )
+            
+            elif function_name == "update_calendar_event":
+                return await update_event(
+                    user,
+                    event_id=args.get("event_id"),
+                    summary=args.get("summary"),
+                    start_time=args.get("start_time"),
+                    end_time=args.get("end_time"),
+                    description=args.get("description"),
+                    location=args.get("location")
+                )
+            
+            elif function_name == "delete_calendar_event":
+                return await delete_event(
+                    user,
+                    event_id=args.get("event_id")
+                )
+                
+            else:
+                return {"error": f"Unknown tool: {function_name}"}
+                
+        except Exception as e:
+            logger.error(f"Error executing tool {function_name}", error=str(e))
+            return {"error": str(e)}
 
 # Singleton instance
 soul_agent = SoulAgent()
