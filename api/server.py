@@ -6,7 +6,7 @@ import pytz
 import json
 import random
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any, Optional
 from fastapi import FastAPI, HTTPException, Request, Query, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -172,6 +172,9 @@ async def spotify_callback(code: Optional[str] = None, state: Optional[str] = No
 
     try:
         # State should be the telegram_id string
+        if state is None:
+            return RedirectResponse(url=f"{settings.MINIAPP_URL or ''}/?spotify=error&reason=missing_state")
+            
         try:
             telegram_id = int(state)
         except ValueError:
@@ -305,6 +308,9 @@ async def google_callback(code: Optional[str] = None, state: Optional[str] = Non
 
     try:
         # State is the telegram_id
+        if state is None:
+            return HTMLResponse(content="<h1>Connection Failed</h1><p>Missing state.</p>", status_code=400)
+            
         try:
             telegram_id = int(state)
         except ValueError:
