@@ -599,6 +599,15 @@ class TelegramBot:
             "username": username,
             "last_message": update.message,  # Store for reaction
         }
+        
+        # Debounce logic - cancel any existing timer for this chat
+        if chat_id in self._debounce_tasks:
+            self._debounce_tasks[chat_id].cancel()
+
+        # Start a new debounce timer
+        self._debounce_tasks[chat_id] = asyncio.create_task(
+            self._process_buffered_messages(chat_id)
+        )
 
     async def google_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle the /google command. Initiates Google OAuth flow."""
@@ -627,14 +636,6 @@ class TelegramBot:
             logger.error(f"Error in google command: {e}")
             await update.message.reply_text(f"Sorry, I couldn't start the connection process: {e}")
 
-        # Cancel any existing debounce timer for this chat
-        if chat_id in self._debounce_tasks:
-            self._debounce_tasks[chat_id].cancel()
-
-        # Start a new debounce timer
-        self._debounce_tasks[chat_id] = asyncio.create_task(
-            self._process_buffered_messages(chat_id)
-        )
 
     async def _process_buffered_messages(self, chat_id: int) -> None:
         """Wait for the debounce period, then process all buffered messages as one."""
