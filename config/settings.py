@@ -299,24 +299,6 @@ class Settings(BaseSettings):
         default="",
         description="Spotify Redirect URI for OAuth flow",
     )
-
-    # Google Configuration
-    GOOGLE_CLIENT_ID: str = Field(
-        default="",
-        description="Google Client ID from the Developer Dashboard",
-    )
-    GOOGLE_CLIENT_SECRET: str = Field(
-        default="",
-        description="Google Client Secret from the Developer Dashboard",
-    )
-    GOOGLE_REDIRECT_URI: str = Field(
-        default="http://localhost:8000/api/google/callback",
-        description="Google Redirect URI for OAuth flow",
-    )
-    GOOGLE_PROJECT_ID: str = Field(
-        default="",
-        description="Google Project ID from the Developer Dashboard",
-    )
     
     MINIAPP_URL: str = Field(
         default="",

@@ -55,6 +55,3 @@ web/.env*
 # Railpack
 railpack-plan.json
 railpack-info.json
-
-# Evaluation results
-evals/

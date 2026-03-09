@@ -41,7 +41,6 @@ class LLMResponse:
     total_tokens: int = 0
     cache_read_tokens: int = 0
     cache_creation_tokens: int = 0
-    tool_calls: Optional[List[Any]] = None
 
 
 class LLMClient:
@@ -208,8 +207,7 @@ class LLMClient:
                 **kwargs,
             )
 
-            content = response.choices[0].message.content or ""
-            tool_calls = getattr(response.choices[0].message, "tool_calls", None)
+            content = response.choices[0].message.content
             finish_reason = response.choices[0].finish_reason
             usage = response.usage
 
@@ -252,7 +250,6 @@ class LLMClient:
                 total_tokens=total_tokens,
                 cache_read_tokens=cache_read,
                 cache_creation_tokens=cache_creation,
-                tool_calls=tool_calls,
             )
 
         except Exception as e:

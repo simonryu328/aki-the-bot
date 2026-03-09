@@ -54,12 +54,6 @@ class User(Base):
     spotify_refresh_token = Column(Text, nullable=True)
     spotify_token_expires_at = Column(DateTime, nullable=True)
 
-    # Google Integration
-    google_access_token = Column(Text, nullable=True)
-    google_refresh_token = Column(Text, nullable=True)
-    google_token_expires_at = Column(DateTime, nullable=True)
-    google_scopes = Column(Text, nullable=True)
-
     # Relationships
     diary_entries = relationship("DiaryEntry", back_populates="user", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
