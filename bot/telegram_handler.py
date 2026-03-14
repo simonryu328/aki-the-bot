@@ -29,6 +29,7 @@ from agents import orchestrator
 from agents.soul_agent import SoulAgent
 from memory.memory_manager_async import memory_manager
 from utils.llm_client import llm_client
+from utils.audio_manager import audio_manager
 from prompts import REACH_OUT_PROMPT
 
 
@@ -1356,6 +1357,7 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("memory", self.memory_command))
         self.application.add_handler(CommandHandler("note", self.note_command))
         self.application.add_handler(CommandHandler("plan", self.plan_command))
+        self.application.add_handler(CommandHandler("speak", self.speak_command))
         
         # User Settings & Data
         self.application.add_handler(CommandHandler("reset", self.reset_command))
@@ -1386,6 +1388,40 @@ class TelegramBot:
         self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
         logger.info("Telegram bot handlers configured")
+
+    async def speak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /speak command. Converts the following text to voice."""
+        if not update.message:
+            return
+
+        text_to_speak = " ".join(context.args).strip()
+        
+        # If no text provided, use a default friendly greeting
+        if not text_to_speak:
+            # Try to get user's name
+            user = await memory_manager.get_user_by_telegram_id(update.effective_user.id)
+            name = user.name if user and user.name else "there"
+            text_to_speak = f"Hi {name}, it's Aki. I'm testing my new voice. How do I sound?"
+
+        await update.message.reply_chat_action(ChatAction.RECORD_VOICE)
+        
+        try:
+            # Generate the audio
+            audio_data = await audio_manager.generate_tts(text_to_speak)
+            
+            if audio_data:
+                # Send the voice note
+                await update.message.reply_voice(
+                    voice=audio_data,
+                    caption=f"Voice test: \"{text_to_speak[:50]}...\"" if len(text_to_speak) > 50 else None
+                )
+                logger.info(f"Sent voice note to user {update.effective_user.id}")
+            else:
+                await update.message.reply_text("I'm sorry, I couldn't find my voice right now. (TTS generation failed)")
+                
+        except Exception as e:
+            logger.error(f"Error in speak command: {e}")
+            await update.message.reply_text("Something went wrong while trying to speak.")
 
     async def note_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle the /note command."""
@@ -1579,6 +1615,7 @@ class TelegramBot:
             BotCommand("memory", "Browse our shared memories"),
             BotCommand("app", "Open the dashboard"),
             BotCommand("timezone", "Change your timezone"),
+            BotCommand("speak", "Hear Aki's voice (OpenAI TTS)"),
             BotCommand("reset", "Wipe all data and restart"),
             BotCommand("reachout_settings", "Manage reach-out config"),
             BotCommand("thinking", "See Aki's current thoughts"),

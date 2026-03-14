@@ -93,6 +93,16 @@ class Settings(BaseSettings):
         description="Model for generating fun personalized insights",
     )
 
+    # Audio/TTS Configuration
+    TTS_MODEL: str = Field(
+        default="tts-1",
+        description="OpenAI TTS model (tts-1 or tts-1-hd)",
+    )
+    TTS_VOICE: str = Field(
+        default="nova",
+        description="OpenAI TTS voice (alloy, echo, fable, onyx, nova, shimmer)",
+    )
+
     MEMORY_MAX_TOKENS: int = Field(
         default=500,
         description="Max tokens for conversation memory generation",
