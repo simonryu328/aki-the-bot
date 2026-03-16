@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # claude-sonnet-4-5-20250929
 
     MODEL_CONVERSATION: str = Field(
-        default="claude-haiku-4-5-20251001",
+        default="claude-sonnet-4-5-20250929",
         description="Model for main conversation responses",
     )
     MODEL_PROACTIVE: str = Field(
